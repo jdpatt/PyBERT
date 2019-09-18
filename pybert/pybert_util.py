@@ -7,7 +7,7 @@ Original date:   September 27, 2014 (Copied from pybert_cntrl.py.)
 
 Copyright (c) 2014 David Banas; all rights reserved World wide.
 """
-import os.path
+from pathlib import Path
 import re
 from functools import reduce
 
@@ -761,10 +761,10 @@ def import_channel(filename, sample_per, padded=False, windowed=False):
     Returns: Imported channel impulse, or step, response.
     """
 
-    extension = os.path.splitext(filename)[1][1:]
-    if extension in ("s4p", "S4P"):
-        return import_freq(filename, sample_per, padded=padded, windowed=windowed)
-    return import_time(filename, sample_per)
+    channel = Path(filename)
+    if channel.suffix in ("s4p", "S4P"):
+        return import_freq(channel, sample_per, padded=padded, windowed=windowed)
+    return import_time(channel, sample_per)
 
 
 def interp_time(ts, xs, sample_per):
