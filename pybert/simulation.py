@@ -48,6 +48,26 @@ MIN_BATHTUB_VAL = 1.0e-18
 gFc = 1.0e6  # Corner frequency of high-pass filter used to model capacitive coupling of periodic noise.
 
 
+class Simulation(object):
+    """docstring for Simulation"""
+
+    # - Simulation Control
+    bit_rate = Range(low=0.1, high=120.0, value=gBitRate)  #: (Gbps)
+    nbits = Range(low=1000, high=10000000, value=gNbits)  #: Number of bits to simulate.
+    pattern_len = Range(low=7, high=10000000, value=gPatLen)  #: PRBS pattern length.
+    nspb = Range(low=2, high=256, value=gNspb)  #: Signal vector samples per bit.
+    eye_bits = Int(gNbits // 5)  #: # of bits used to form eye. (Default = last 20%)
+    mod_type = List([0])  #: 0 = NRZ; 1 = Duo-binary; 2 = PAM-4
+    num_sweeps = Int(1)  #: Number of sweeps to run.
+    sweep_num = Int(1)
+    sweep_aves = Int(gNumAve)
+    do_sweep = Bool(False)  #: Run sweeps? (Default = False)
+    debug = Bool(True)  #: Log extra info to console when true. (Default = False)
+    
+    def __init__(self):
+        super(Simulation, self).__init__()
+        
+
 def my_run_sweeps(self):
     """
     Runs the simulation sweeps.

@@ -16,7 +16,6 @@ Copyright (c) 2014 by David Banas; All rights reserved World wide.
 """
 from traits.trait_base import ETSConfig
 ETSConfig.toolkit = "qt4"
-# ETSConfig.toolkit = "wx"
 
 from datetime import datetime
 import logging
@@ -57,7 +56,7 @@ from pybert import __date__ as DATE
 from pybert import __authors__ as AUTHORS
 from pybert import __copy__ as COPY
 
-from pybert.pybert_cntrl import my_run_simulation
+from pybert.simulation import Simulation
 from pybert.pybert_help import help_str
 from pybert.pybert_plot import make_plots
 from pybert.pybert_util import (
@@ -84,36 +83,7 @@ gNbits = 8000  # number of bits to run
 gPatLen = 127  # repeating bit pattern length
 gNspb = 32  # samples per bit
 gNumAve = 1  # Number of bit error samples to average, when sweeping.
-# - Channel Control
-#     - parameters for Howard Johnson's "Metallic Transmission Model"
-#     - (See "High Speed Signal Propagation", Sec. 3.1.)
-#     - ToDo: These are the values for 24 guage twisted copper pair; need to add other options.
-gRdc = 0.1876  # Ohms/m
-gw0 = 10.0e6  # 10 MHz is recommended in Ch. 8 of his second book, in which UTP is described in detail.
-gR0 = 1.452  # skin-effect resistance (Ohms/m)
-gTheta0 = 0.02  # loss tangent
-gZ0 = 100.0  # characteristic impedance in LC region (Ohms)
-gv0 = 0.67  # relative propagation velocity (c)
-gl_ch = 1.0  # cable length (m)
-gRn = (
-    0.001
-)  # standard deviation of Gaussian random noise (V) (Applied at end of channel, so as to appear white to Rx.)
-# - Tx
-gVod = 1.0  # output drive strength (Vp)
-gRs = 100  # differential source impedance (Ohms)
-gCout = 0.50  # parasitic output capacitance (pF) (Assumed to exist at both 'P' and 'N' nodes.)
-gPnMag = 0.001  # magnitude of periodic noise (V)
-gPnFreq = 0.437  # frequency of periodic noise (MHz)
-# - Rx
-gRin = 100  # differential input resistance
-gCin = 0.50  # parasitic input capacitance (pF) (Assumed to exist at both 'P' and 'N' nodes.)
-gCac = 1.0  # a.c. coupling capacitance (uF) (Assumed to exist at both 'P' and 'N' nodes.)
-gBW = 12.0  # Rx signal path bandwidth, assuming no CTLE action. (GHz)
-gUseDfe = True  # Include DFE when running simulation.
-gDfeIdeal = True  # DFE ideal summing node selector
-gPeakFreq = 5.0  # CTLE peaking frequency (GHz)
-gPeakMag = 10.0  # CTLE peaking magnitude (dB)
-gCTLEOffset = 0.0  # CTLE d.c. offset (dB)
+
 # - DFE
 gDecisionScaler = 0.5
 gNtaps = 5
@@ -130,228 +100,6 @@ gLockSustain = 500
 gThresh = 6  # threshold for identifying periodic jitter spectral elements (sigma)
 
 
-class StoppableThread(Thread):
-    """
-    Thread class with a stop() method.
-
-    The thread itself has to check regularly for the stopped() condition.
-
-    All PyBERT thread classes are subclasses of this class.
-    """
-
-    def __init__(self):
-        super(StoppableThread, self).__init__()
-        self._stop_event = Event()
-
-    def stop(self):
-        """Called by thread invoker, when thread should be stopped prematurely."""
-        self._stop_event.set()
-
-    def stopped(self):
-        """Should be called by thread (i.e. - subclass) periodically and, if this function
-        returns True, thread should clean itself up and quit ASAP.
-        """
-        return self._stop_event.is_set()
-
-
-class TxOptThread(StoppableThread):
-    """Used to run Tx tap weight optimization in its own thread,
-    in order to preserve GUI responsiveness.
-    """
-
-    def run(self):
-        """Run the Tx equalization optimization thread."""
-
-        pybert = self.pybert
-
-        if self.update_status:
-            pybert.status = "Optimizing Tx..."
-
-        max_iter = pybert.max_iter
-
-        old_taps = []
-        min_vals = []
-        max_vals = []
-        for tuner in pybert.tx_tap_tuners:
-            if tuner.enabled:
-                old_taps.append(tuner.value)
-                min_vals.append(tuner.min_val)
-                max_vals.append(tuner.max_val)
-
-        cons = {"type": "ineq", "fun": lambda x: 0.7 - sum(abs(x))}
-
-        bounds = list(zip(min_vals, max_vals))
-
-        try:
-            if gDebugOptimize:
-                res = minimize(
-                    self.do_opt_tx,
-                    old_taps,
-                    bounds=bounds,
-                    constraints=cons,
-                    options={"disp": True, "maxiter": max_iter},
-                )
-            else:
-                res = minimize(
-                    self.do_opt_tx,
-                    old_taps,
-                    bounds=bounds,
-                    constraints=cons,
-                    options={"disp": False, "maxiter": max_iter},
-                )
-
-            if self.update_status:
-                if res["success"]:
-                    pybert.status = "Optimization succeeded."
-                else:
-                    pybert.status = "Optimization failed: {}".format(res["message"])
-
-        except Exception as err:
-            pybert.status = err
-
-    def do_opt_tx(self, taps):
-        """Run the Tx Optimization."""
-        sleep(0.001)  # Give the GUI a chance to acknowledge user clicking the Abort button.
-
-        if self.stopped():
-            raise RuntimeError("Optimization aborted.")
-
-        pybert = self.pybert
-        tuners = pybert.tx_tap_tuners
-        taps = list(taps)
-        for tuner in tuners:
-            if tuner.enabled:
-                tuner.value = taps.pop(0)
-        return pybert.cost
-
-
-class RxOptThread(StoppableThread):
-    """Used to run Rx tap weight optimization in its own thread,
-    in order to preserve GUI responsiveness.
-    """
-
-    def run(self):
-        """Run the Rx equalization optimization thread."""
-
-        pybert = self.pybert
-
-        pybert.status = "Optimizing Rx..."
-        max_iter = pybert.max_iter
-
-        try:
-            if gDebugOptimize:
-                res = minimize_scalar(
-                    self.do_opt_rx,
-                    bounds=(0, gMaxCTLEPeak),
-                    method="Bounded",
-                    options={"disp": True, "maxiter": max_iter},
-                )
-            else:
-                res = minimize_scalar(
-                    self.do_opt_rx,
-                    bounds=(0, gMaxCTLEPeak),
-                    method="Bounded",
-                    options={"disp": False, "maxiter": max_iter},
-                )
-
-            if res["success"]:
-                pybert.status = "Optimization succeeded."
-            else:
-                pybert.status = "Optimization failed: {}".format(res["message"])
-
-        except Exception as err:
-            pybert.status = err
-
-    def do_opt_rx(self, peak_mag):
-        """Run the Rx Optimization."""
-        sleep(0.001)  # Give the GUI a chance to acknowledge user clicking the Abort button.
-
-        if self.stopped():
-            raise RuntimeError("Optimization aborted.")
-
-        pybert = self.pybert
-        pybert.peak_mag_tune = peak_mag
-        return pybert.cost
-
-
-class CoOptThread(StoppableThread):
-    """Used to run co-optimization in its own thread, in order to preserve GUI responsiveness."""
-
-    def run(self):
-        """Run the Tx/Rx equalization co-optimization thread."""
-
-        pybert = self.pybert
-
-        pybert.status = "Co-optimizing..."
-        max_iter = pybert.max_iter
-
-        try:
-            if gDebugOptimize:
-                res = minimize_scalar(
-                    self.do_coopt,
-                    bounds=(0, gMaxCTLEPeak),
-                    method="Bounded",
-                    options={"disp": True, "maxiter": max_iter},
-                )
-            else:
-                res = minimize_scalar(
-                    self.do_coopt,
-                    bounds=(0, gMaxCTLEPeak),
-                    method="Bounded",
-                    options={"disp": False, "maxiter": max_iter},
-                )
-
-            if res["success"]:
-                pybert.status = "Optimization succeeded."
-            else:
-                pybert.status = "Optimization failed: {}".format(res["message"])
-
-        except Exception as err:
-            pybert.status = err
-
-    def do_coopt(self, peak_mag):
-        """Run the Tx and Rx Co-Optimization."""
-        sleep(0.001)  # Give the GUI a chance to acknowledge user clicking the Abort button.
-
-        if self.stopped():
-            raise RuntimeError("Optimization aborted.")
-
-        pybert = self.pybert
-        pybert.peak_mag_tune = peak_mag
-        if any([pybert.tx_tap_tuners[i].enabled for i in range(len(pybert.tx_tap_tuners))]):
-            while pybert.tx_opt_thread and pybert.tx_opt_thread.isAlive():
-                sleep(0.001)
-            pybert._do_opt_tx(update_status=False)
-            while pybert.tx_opt_thread and pybert.tx_opt_thread.isAlive():
-                sleep(0.001)
-        return pybert.cost
-
-
-class TxTapTuner(HasTraits):
-    """Object used to populate the rows of the Tx FFE tap tuning table."""
-
-    name = String("(noname)")
-    enabled = Bool(False)
-    min_val = Float(0.0)
-    max_val = Float(0.0)
-    value = Float(0.0)
-    steps = Int(0)  # Non-zero means we want to sweep it.
-
-    def __init__(self, name="(noname)", enabled=False, min_val=0.0, max_val=0.0, value=0.0, steps=0):
-        """Allows user to define properties, at instantiation."""
-
-        # Super-class initialization is ABSOLUTELY NECESSARY, in order
-        # to get all the Traits/UI machinery setup correctly.
-        super(TxTapTuner, self).__init__()
-
-        self.name = name
-        self.enabled = enabled
-        self.min_val = min_val
-        self.max_val = max_val
-        self.value = value
-        self.steps = steps
-
-
 class PyBERT(HasTraits):
     """
     A serial communication link bit error rate tester (BERT) simulator with a GUI interface.
@@ -360,102 +108,6 @@ class PyBERT(HasTraits):
     """
 
     # Independent variables
-
-    # - Simulation Control
-    bit_rate = Range(low=0.1, high=120.0, value=gBitRate)  #: (Gbps)
-    nbits = Range(low=1000, high=10000000, value=gNbits)  #: Number of bits to simulate.
-    pattern_len = Range(low=7, high=10000000, value=gPatLen)  #: PRBS pattern length.
-    nspb = Range(low=2, high=256, value=gNspb)  #: Signal vector samples per bit.
-    eye_bits = Int(gNbits // 5)  #: # of bits used to form eye. (Default = last 20%)
-    mod_type = List([0])  #: 0 = NRZ; 1 = Duo-binary; 2 = PAM-4
-    num_sweeps = Int(1)  #: Number of sweeps to run.
-    sweep_num = Int(1)
-    sweep_aves = Int(gNumAve)
-    do_sweep = Bool(False)  #: Run sweeps? (Default = False)
-    debug = Bool(True)  #: Log extra info to console when true. (Default = False)
-
-    # - Channel Control
-    use_ch_file = Bool(False)  #: Import channel description from file? (Default = False)
-    padded = Bool(False)  #: Zero pad imported Touchstone data? (Default = False)
-    windowed = Bool(False)  #: Apply windowing to the Touchstone data? (Default = False)
-    f_step = Float(10)  #: Frequency step to use when constructing H(f). (Default = 10 MHz)
-    ch_file = File(
-        "", entries=5, filter=["*.s4p", "*.S4P", "*.csv", "*.CSV", "*.txt", "*.TXT", "*.*"]
-    )  #: Channel file name.
-    impulse_length = Float(0.0)  #: Impulse response length. (Determined automatically, when 0.)
-    Rdc = Float(gRdc)  #: Channel d.c. resistance (Ohms/m).
-    w0 = Float(gw0)  #: Channel transition frequency (rads./s).
-    R0 = Float(gR0)  #: Channel skin effect resistance (Ohms/m).
-    Theta0 = Float(gTheta0)  #: Channel loss tangent (unitless).
-    Z0 = Float(gZ0)  #: Channel characteristic impedance, in LC region (Ohms).
-    v0 = Float(gv0)  #: Channel relative propagation velocity (c).
-    l_ch = Float(gl_ch)  #: Channel length (m).
-
-    # - EQ Tune
-    tx_tap_tuners = List(
-        [
-            TxTapTuner(name="Pre-tap", enabled=True, min_val=-0.2, max_val=0.2, value=0.0),
-            TxTapTuner(name="Post-tap1", enabled=False, min_val=-0.4, max_val=0.4, value=0.0),
-            TxTapTuner(name="Post-tap2", enabled=False, min_val=-0.3, max_val=0.3, value=0.0),
-            TxTapTuner(name="Post-tap3", enabled=False, min_val=-0.2, max_val=0.2, value=0.0),
-        ]
-    )  #: EQ optimizer list of TxTapTuner objects.
-    rx_bw_tune = Float(gBW)  #: EQ optimizer CTLE bandwidth (GHz).
-    peak_freq_tune = Float(gPeakFreq)  #: EQ optimizer CTLE peaking freq. (GHz).
-    peak_mag_tune = Float(gPeakMag)  #: EQ optimizer CTLE peaking mag. (dB).
-    ctle_offset_tune = Float(gCTLEOffset)  #: EQ optimizer CTLE d.c. offset (dB).
-    ctle_mode_tune = Enum(
-        "Off", "Passive", "AGC", "Manual"
-    )  #: EQ optimizer CTLE mode ('Off', 'Passive', 'AGC', 'Manual').
-    use_dfe_tune = Bool(gUseDfe)  #: EQ optimizer DFE select (Bool).
-    n_taps_tune = Int(gNtaps)  #: EQ optimizer # DFE taps.
-    max_iter = Int(50)  #: EQ optimizer max. # of optimization iterations.
-    tx_opt_thread = Instance(TxOptThread)  #: Tx EQ optimization thread.
-    rx_opt_thread = Instance(RxOptThread)  #: Rx EQ optimization thread.
-    coopt_thread = Instance(CoOptThread)  #: EQ co-optimization thread.
-
-    # - Tx
-    vod = Float(gVod)  #: Tx differential output voltage (V)
-    rs = Float(gRs)  #: Tx source impedance (Ohms)
-    cout = Range(low=0.001, value=gCout)  #: Tx parasitic output capacitance (pF)
-    pn_mag = Float(gPnMag)  #: Periodic noise magnitude (V).
-    pn_freq = Float(gPnFreq)  #: Periodic noise frequency (MHz).
-    rn = Float(gRn)  #: Standard deviation of Gaussian random noise (V).
-    tx_taps = List(
-        [
-            TxTapTuner(name="Pre-tap", enabled=True, min_val=-0.2, max_val=0.2, value=0.0),
-            TxTapTuner(name="Post-tap1", enabled=False, min_val=-0.4, max_val=0.4, value=0.0),
-            TxTapTuner(name="Post-tap2", enabled=False, min_val=-0.3, max_val=0.3, value=0.0),
-            TxTapTuner(name="Post-tap3", enabled=False, min_val=-0.2, max_val=0.2, value=0.0),
-        ]
-    )  #: List of TxTapTuner objects.
-    rel_power = Float(1.0)  #: Tx power dissipation (W).
-    tx_use_ami = Bool(False)  #: (Bool)
-    tx_use_getwave = Bool(False)  #: (Bool)
-    tx_has_getwave = Bool(False)  #: (Bool)
-    tx_ami_file = File("", entries=5, filter=["*.ami"])  #: (File)
-    tx_ami_valid = Bool(False)  #: (Bool)
-    tx_dll_file = File("", entries=5, filter=["*.dll", "*.so"])  #: (File)
-    tx_dll_valid = Bool(False)  #: (Bool)
-
-    # - Rx
-    rin = Float(gRin)  #: Rx input impedance (Ohm)
-    cin = Range(low=0.001, value=gCin)  #: Rx parasitic input capacitance (pF)
-    cac = Float(gCac)  #: Rx a.c. coupling capacitance (uF)
-    use_ctle_file = Bool(False)  #: For importing CTLE impulse/step response directly.
-    ctle_file = File("", entries=5, filter=["*.csv"])  #: CTLE response file (when use_ctle_file = True).
-    rx_bw = Float(gBW)  #: CTLE bandwidth (GHz).
-    peak_freq = Float(gPeakFreq)  #: CTLE peaking frequency (GHz)
-    peak_mag = Float(gPeakMag)  #: CTLE peaking magnitude (dB)
-    ctle_offset = Float(gCTLEOffset)  #: CTLE d.c. offset (dB)
-    ctle_mode = Enum("Off", "Passive", "AGC", "Manual")  #: CTLE mode ('Off', 'Passive', 'AGC', 'Manual').
-    rx_use_ami = Bool(False)  #: (Bool)
-    rx_use_getwave = Bool(False)  #: (Bool)
-    rx_has_getwave = Bool(False)  #: (Bool)
-    rx_ami_file = File("", entries=5, filter=["*.ami"])  #: (File)
-    rx_ami_valid = Bool(False)  #: (Bool)
-    rx_dll_file = File("", entries=5, filter=["*.dll", "*.so"])  #: (File)
-    rx_dll_valid = Bool(False)  #: (Bool)
 
     # - DFE
     use_dfe = Bool(gUseDfe)  #: True = use a DFE (Bool).
@@ -606,9 +258,10 @@ class PyBERT(HasTraits):
 
         self.log.info("Starting PyBERT")
 
+        simulation = Simulation()
         if run_simulation:
             # Running the simulation will fill in the required data structure.
-            my_run_simulation(self, initial_run=True)
+            simulation.run(self, initial_run=True)
 
             # Once the required data structure is filled in, we can create the plots.
             make_plots(self, n_dfe_taps=gNtaps)
@@ -1331,51 +984,6 @@ class PyBERT(HasTraits):
             for i in range(1, 4):
                 self.tx_tap_tuners[i].enabled = False
 
-    def _tx_ami_file_changed(self, new_value):
-        try:
-            self.tx_ami_valid = False
-            with open(new_value) as pfile:
-                pcfg = AMIParamConfigurator(pfile.read())
-            self.log.info("Parsing Tx AMI file, '{}'...\n{}".format(new_value, pcfg.ami_parsing_errors))
-            self.tx_has_getwave = pcfg.fetch_param_val(["Reserved_Parameters", "GetWave_Exists"])
-            self._tx_cfg = pcfg.open_gui
-            self.tx_ami_valid = True
-        except Exception as err:
-            error_message = "Failed to open and/or parse AMI file!\n{}".format(err)
-            self.handle_error(error_message)
-
-    def _tx_dll_file_changed(self, new_value):
-        try:
-            self.tx_dll_valid = False
-            model = AMIModel(str(new_value))
-            self._tx_model = model
-            self.tx_dll_valid = True
-        except Exception as err:
-            error_message = "Failed to open DLL/SO file!\n{}".format(err)
-            self.handle_error(error_message)
-
-    def _rx_ami_file_changed(self, new_value):
-        try:
-            self.rx_ami_valid = False
-            with open(new_value) as pfile:
-                pcfg = AMIParamConfigurator(pfile.read())
-            self.log.info("Parsing Rx AMI file, '{}'...\n{}".format(new_value, pcfg.ami_parsing_errors))
-            self.rx_has_getwave = pcfg.fetch_param_val(["Reserved_Parameters", "GetWave_Exists"])
-            self._rx_cfg = pcfg.open_gui
-            self.rx_ami_valid = True
-        except Exception as err:
-            error_message = "Failed to open and/or parse AMI file!\n{}".format(err)
-            self.handle_error(error_message)
-
-    def _rx_dll_file_changed(self, new_value):
-        try:
-            self.rx_dll_valid = False
-            model = AMIModel(str(new_value))
-            self._rx_model = model
-            self.rx_dll_valid = True
-        except Exception as err:
-            error_message = "Failed to open DLL/SO file!\n{}".format(err)
-            self.handle_error(error_message)
 
     # This function has been pulled outside of the standard Traits/UI "depends_on / @cached_property" mechanism,
     # in order to more tightly control when it executes. I wasn't able to get truly lazy evaluation, and
