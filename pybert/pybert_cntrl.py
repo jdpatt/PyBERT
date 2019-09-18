@@ -181,7 +181,7 @@ def my_run_simulation(self, initial_run=False, update_plots=True):
         #       create the duobinary waveform. We only create it explicitly, above,
         #       so that we'll have an ideal reference for comparison.
         chnl_h = self.calc_chnl_h()
-        self.dbg("Channel impulse response is {} samples long.".format(len(chnl_h)))
+        self.log.debug("Channel impulse response is {} samples long.".format(len(chnl_h)))
         chnl_out = convolve(self.x, chnl_h)[: len(t)]
 
         self.channel_perf = nbits * nspb / (clock() - start_time)
@@ -212,7 +212,7 @@ def my_run_simulation(self, initial_run=False, update_plots=True):
             tx_model_init.bit_time = ui
             tx_model = AMIModel(self.tx_dll_file)
             tx_model.initialize(tx_model_init)
-            self.log(
+            self.log.info(
                 "Tx IBIS-AMI model initialization results:\nInput parameters: {}\nOutput parameters: {}\nMessage: {}".format(
                     tx_model.ami_params_in, tx_model.ami_params_out, tx_model.msg
                 )
@@ -320,7 +320,7 @@ def my_run_simulation(self, initial_run=False, update_plots=True):
             rx_model_init.bit_time = ui
             rx_model = AMIModel(self.rx_dll_file)
             rx_model.initialize(rx_model_init)
-            self.log(
+            self.log.info(
                 "Rx IBIS-AMI model initialization results:\nInput parameters: {}\nMessage: {}\nOutput parameters: {}".format(
                     rx_model.ami_params_in, rx_model.msg, rx_model.ami_params_out
                 )

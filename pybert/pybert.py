@@ -19,6 +19,9 @@ ETSConfig.toolkit = "qt4"
 # ETSConfig.toolkit = "wx"
 
 from datetime import datetime
+import logging
+import logging.handlers
+import platform
 from threading import Event, Thread
 from time import sleep
 
@@ -514,9 +517,6 @@ class PyBERT(HasTraits):
     # Help
     instructions = help_str
 
-    # Console
-    console_log = String("PyBERT Console Log\n\n")
-
     # Dependent variables
     # - Handled by the Traits/UI machinery. (Should only contain "low overhead" variables, which don't freeze the GUI noticeably.)
     #
@@ -569,22 +569,12 @@ class PyBERT(HasTraits):
     btn_cfg_tx = Button(label="Configure")
     btn_cfg_rx = Button(label="Configure")
 
-    # Logger
-    def log(self, msg):
-        """Log a message to the console."""
-        self.console_log += "\n[{}]: {}\n".format(datetime.now(), msg.strip())
-
-    def dbg(self, msg):
-        """Only if debug is true, log this message to the console."""
-        if self.debug:
-            print("\n[{}]: {}\n".format(datetime.now(), msg.strip()))
-            self.log(msg)
 
     def handle_error(self, error):
         """If debug, raise else just prompt the user."""
-        self.log(error)
+        self.log.error(error)
         if self.debug:
-            message("{}\nPlease, check terminal for more information.".format(error), "PyBERT Alert")
+            message(error, "PyBERT Debug Alert")
             raise error
         message(error, "PyBERT Alert")
 
@@ -609,9 +599,12 @@ class PyBERT(HasTraits):
         # to get all the Traits/UI machinery setup correctly.
         super(PyBERT, self).__init__()
 
-        self.log("Started.")
-        if self.debug:
-            self.log("Debug Mode Enabled.")
+        self.log = setup_logger(self.debug)
+        self.log.debug("System: %s", platform.system())
+        self.log.debug("Python Version: %s", platform.python_version())
+        self.log.debug("PyBERT Version: %s", VERSION)
+
+        self.log.info("Starting PyBERT")
 
         if run_simulation:
             # Running the simulation will fill in the required data structure.
@@ -1343,7 +1336,7 @@ class PyBERT(HasTraits):
             self.tx_ami_valid = False
             with open(new_value) as pfile:
                 pcfg = AMIParamConfigurator(pfile.read())
-            self.log("Parsing Tx AMI file, '{}'...\n{}".format(new_value, pcfg.ami_parsing_errors))
+            self.log.info("Parsing Tx AMI file, '{}'...\n{}".format(new_value, pcfg.ami_parsing_errors))
             self.tx_has_getwave = pcfg.fetch_param_val(["Reserved_Parameters", "GetWave_Exists"])
             self._tx_cfg = pcfg.open_gui
             self.tx_ami_valid = True
@@ -1366,7 +1359,7 @@ class PyBERT(HasTraits):
             self.rx_ami_valid = False
             with open(new_value) as pfile:
                 pcfg = AMIParamConfigurator(pfile.read())
-            self.log("Parsing Rx AMI file, '{}'...\n{}".format(new_value, pcfg.ami_parsing_errors))
+            self.log.info("Parsing Rx AMI file, '{}'...\n{}".format(new_value, pcfg.ami_parsing_errors))
             self.rx_has_getwave = pcfg.fetch_param_val(["Reserved_Parameters", "GetWave_Exists"])
             self._rx_cfg = pcfg.open_gui
             self.rx_ami_valid = True
@@ -1465,6 +1458,37 @@ class PyBERT(HasTraits):
         self.chnl_p = chnl_p
 
         return chnl_h
+
+
+def setup_logger(debug: bool = False):
+    """Setup the logger and return the logging object."""
+    logger = logging.getLogger("pybert")
+    
+    # Setup the File Handler.  All messages are logged.
+    fh = logging.handlers.RotatingFileHandler(
+        Path(__file__).parent.joinpath("pybert.log"),
+        maxBytes=10485760, # 10MB
+        backupCount=5
+    )
+    fh_format = logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
+    fh.setFormatter(fh_format)
+    fh.setLevel(logging.DEBUG)
+    logger.addHandler(fh)
+
+    # Setup the Console Handler.  Only INFO or HIGH gets shown
+    ch = logging.StreamHandler()
+    ch_format = logging.Formatter("%(message)s")
+    ch.setFormatter(ch_format)
+    ch.setLevel(logging.INFO)
+    logger.addHandler(ch)
+
+    if debug:
+        logger.setLevel(logging.DEBUG)
+    else:
+        logger.setLevel(logging.INFO)
+    return logger
 
 
 # So that we can be used in stand-alone, or imported, fashion.

@@ -579,7 +579,6 @@ traits_view = View(
             label="Config.",
             id="config",
         ),
-        Group(Item("console_log", show_label=False, style="custom"), label="Console", id="console"),
         Group(Item("plots_dfe", editor=ComponentEditor(), show_label=False), label="DFE", id="plots_dfe"),
         # "EQ Tune" tab.
         VGroup(
