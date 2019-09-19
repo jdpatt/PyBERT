@@ -29,7 +29,7 @@ from pybert.defaults import (
     REL_LOCK_TOL,
     USE_DFE,
 )
-from pybert.view import popup_error
+from pybert.view import popup_alert
 from traits.api import (
     Bool,
     Enum,
@@ -434,7 +434,7 @@ class Equalization:
     # Independent variable setting intercepts
     def _set_ctle_peak_mag_tune(self, val):
         if val > MAX_CTLE_PEAK or val < 0.0:
-            popup_error(prompt, RuntimeError())
+            popup_alert(prompt, RuntimeError())
         self.peak_mag_tune = val
 
     @cached_property

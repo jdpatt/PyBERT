@@ -57,7 +57,7 @@ from pybert.utility import (
     pulse_center,
     safe_log10,
 )
-from pybert.view import popup_error
+from pybert.view import popup_alert
 from pyibisami.ami_model import AMIModel, AMIModelInitializer
 from traits.api import (
     HTML,
@@ -353,7 +353,7 @@ class Simulation:
             ideal_h = where(t < -ui / 2.0, zeros(len(t)), ideal_h)
             ideal_h = where(t > ui / 2.0, zeros(len(t)), ideal_h)
         else:
-            popup_error("Unrecognized ideal impulse response type.", ValueError())
+            popup_alert("Unrecognized ideal impulse response type.", ValueError())
         if (
             mod_type == 1
         ):  # Duo-binary relies upon the total link impulse response to perform the required addition.
@@ -392,7 +392,7 @@ class Simulation:
                 else:
                     symbols.append(1.0)
         else:
-            popup_error("Unknown modulation type requested!", ValueError())
+            popup_alert("Unknown modulation type requested!", ValueError())
         return array(symbols) * vod
 
     @cached_property
@@ -599,7 +599,7 @@ class Simulation:
             info_str += "</TABLE>\n"
         except Exception as error:
             info_str = "<H1>Jitter Rejection by Equalization Component</H1>\n"
-            popup_error("Jitter Calculation Failed", error)
+            popup_alert("Jitter Calculation Failed", error)
 
         return info_str
 
@@ -884,13 +884,13 @@ class Simulation:
                 if tx_cfg.fetch_param_val(["Reserved_Parameters", "Init_Returns_Impulse"]):
                     tx_h = array(tx_model.initOut) * ts
                 elif not tx_cfg.fetch_param_val(["Reserved_Parameters", "GetWave_Exists"]):
-                    popup_error(
+                    popup_alert(
                         "Both 'Init_Returns_Impulse' and 'GetWave_Exists' are False!", ValueError()
                     )
                     self.status = "Simulation Error."
                     return
                 elif not self.tx.use_getwave:
-                    popup_error(
+                    popup_alert(
                         "You have elected not to use GetWave for a model, which does not \
                         return an impulse response! Aborting... Please, select 'Use GetWave'",
                         ValueError(),
@@ -998,13 +998,13 @@ class Simulation:
                 if rx_cfg.fetch_param_val(["Reserved_Parameters", "Init_Returns_Impulse"]):
                     ctle_out_h = array(rx_model.initOut) * ts
                 elif not rx_cfg.fetch_param_val(["Reserved_Parameters", "GetWave_Exists"]):
-                    popup_error(
+                    popup_alert(
                         "Both 'Init_Returns_Impulse' and 'GetWave_Exists' are False!", ValueError()
                     )
                     self.status = "Simulation Error."
                     return
                 elif not self.rx.use_getwave:
-                    popup_error(
+                    popup_alert(
                         "You have elected not to use GetWave for a model, which does not \
                         return an impulse response! Aborting... Please, select 'Use GetWave'",
                         ValueError(),

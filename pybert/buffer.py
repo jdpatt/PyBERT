@@ -12,7 +12,7 @@ from pybert.defaults import (
     PN_MAG,
     RANDOM_NOISE,
 )
-from pybert.view import popup_error
+from pybert.view import popup_alert
 from pyibisami.ami_model import AMIModel
 from pyibisami.ami_parse import AMIParamConfigurator
 from traits.api import Bool, File, Float, Range
@@ -46,7 +46,7 @@ class Buffer:
             self.configurator = pcfg.open_gui
             self.ami_valid = True
         except Exception as err:
-            popup_error("Failed to open and/or parse AMI file!\n", err)
+            popup_alert("Failed to open and/or parse AMI file!\n", err)
 
     def dll_file_changed(self, new_file):
         """Read and set the new DLL file from the users."""
@@ -56,7 +56,7 @@ class Buffer:
             self.model = model
             self.dll_valid = True
         except Exception as err:
-            popup_error("Failed to open DLL/SO file!\n{}", err)
+            popup_alert("Failed to open DLL/SO file!\n{}", err)
 
     def open_config_gui(self):
         """Open the AMI configuration GUI."""

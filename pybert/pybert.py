@@ -28,7 +28,7 @@ from pybert.defaults import DEBUG, NUM_TAPS
 from pybert.help import HELP_STRING
 from pybert.plot import make_plots
 from pybert.simulation import Simulation
-from pybert.view import TRAITS_VIEW, popup_error
+from pybert.view import TRAITS_VIEW, popup_alert
 from pybert.waveform_data import WaveformData
 from traits.api import Button, HasTraits, String
 
@@ -159,28 +159,28 @@ class PyBERT(HasTraits):
         try:
             self.data.save()
         except Exception as err:
-            popup_error("An error occured.  The waveform data was not saved", err)
+            popup_alert("An error occured.  The waveform data was not saved", err)
 
     def _btn_load_data_fired(self):
         """Load previous waveform data."""
         try:
             self.data.load()
         except Exception as err:
-            popup_error("An error occured.  The waveform data could not be loaded.", err)
+            popup_alert("An error occured.  The waveform data could not be loaded.", err)
 
     def _btn_save_cfg_fired(self):
         """Save all the configuration data."""
         try:
             self.config.save()
         except Exception as err:
-            popup_error("An error occured.  The configuration data was not saved", err)
+            popup_alert("An error occured.  The configuration data was not saved", err)
 
     def _btn_load_cfg_fired(self):
         """Load previous configuration data."""
         try:
             self.config.load()
         except Exception as err:
-            popup_error("An error occured.  The configuration data could not be loaded.", err)
+            popup_alert("An error occured.  The configuration data could not be loaded.", err)
 
     # -----------------------------------------------------------------
     # Changed property handlers.

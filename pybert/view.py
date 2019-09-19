@@ -702,7 +702,7 @@ TRAITS_VIEW = View(
 )
 
 
-def popup_error(prompt, error):
+def popup_alert(prompt, error):
     """Popup an alert with the given prompt, log the exception and if debug raise the exception."""
     log = logging.getLogger()
     log.error(traceback.format_exc())
