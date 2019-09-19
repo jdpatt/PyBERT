@@ -1,235 +1,22 @@
-import logging
-from threading import Event, Thread
-from time import sleep
+"""A serDes channel consists of a driver, a channel and a receiver."""
+from logging import getLogger
 
-from scipy.optimize import minimize, minimize_scalar
-from traits.api import (
-    Bool,
-    Enum,
-    File,
-    Float,
-    Instance,
-    Int,
-    List,
+from numpy import array, diff, exp, pad, real, where, zeros
+from numpy.fft import fft, ifft
+
+from pybert.buffer import Receiver, Transmitter
+from pybert.defaults import (
+    CHANNEL_LENGTH,
+    CHARACTERISTIC_IMPEDANCE,
+    DC_RESISTANCE_PER_METER,
+    LOSS_TANGENT,
+    REL_VELOCITY,
+    SKIN_EFFECT_RESISTANCE,
+    W_TRANSITION_FREQ,
 )
-
-from pybert.buffer import Transmitter, Receiver
-
-gDebugOptimize = False
-gMaxCTLEPeak = 20.0  # max. allowed CTLE peaking (dB) (when optimizing, only)
-gMaxCTLEFreq = 20.0  # max. allowed CTLE peak frequency (GHz) (when optimizing, only)
-
-class StoppableThread(Thread):
-    """
-    Thread class with a stop() method.
-
-    The thread itself has to check regularly for the stopped() condition.
-
-    All PyBERT thread classes are subclasses of this class.
-    """
-
-    def __init__(self):
-        super(StoppableThread, self).__init__()
-        self._stop_event = Event()
-
-    def stop(self):
-        """Called by thread invoker, when thread should be stopped prematurely."""
-        self._stop_event.set()
-
-    def stopped(self):
-        """Should be called by thread (i.e. - subclass) periodically and, if this function
-        returns True, thread should clean itself up and quit ASAP.
-        """
-        return self._stop_event.is_set()
-
-
-class TxOptThread(StoppableThread):
-    """Used to run Tx tap weight optimization in its own thread,
-    in order to preserve GUI responsiveness.
-    """
-
-    def run(self):
-        """Run the Tx equalization optimization thread."""
-
-        pybert = self.pybert
-
-        if self.update_status:
-            pybert.status = "Optimizing Tx..."
-
-        max_iter = pybert.max_iter
-
-        old_taps = []
-        min_vals = []
-        max_vals = []
-        for tuner in pybert.tx_tap_tuners:
-            if tuner.enabled:
-                old_taps.append(tuner.value)
-                min_vals.append(tuner.min_val)
-                max_vals.append(tuner.max_val)
-
-        cons = {"type": "ineq", "fun": lambda x: 0.7 - sum(abs(x))}
-
-        bounds = list(zip(min_vals, max_vals))
-
-        try:
-            if gDebugOptimize:
-                res = minimize(
-                    self.do_opt_tx,
-                    old_taps,
-                    bounds=bounds,
-                    constraints=cons,
-                    options={"disp": True, "maxiter": max_iter},
-                )
-            else:
-                res = minimize(
-                    self.do_opt_tx,
-                    old_taps,
-                    bounds=bounds,
-                    constraints=cons,
-                    options={"disp": False, "maxiter": max_iter},
-                )
-
-            if self.update_status:
-                if res["success"]:
-                    pybert.status = "Optimization succeeded."
-                else:
-                    pybert.status = "Optimization failed: {}".format(res["message"])
-
-        except Exception as err:
-            pybert.status = err
-
-    def do_opt_tx(self, taps):
-        """Run the Tx Optimization."""
-        sleep(0.001)  # Give the GUI a chance to acknowledge user clicking the Abort button.
-
-        if self.stopped():
-            raise RuntimeError("Optimization aborted.")
-
-        pybert = self.pybert
-        tuners = pybert.tx_tap_tuners
-        taps = list(taps)
-        for tuner in tuners:
-            if tuner.enabled:
-                tuner.value = taps.pop(0)
-        return pybert.cost
-
-
-class RxOptThread(StoppableThread):
-    """Used to run Rx tap weight optimization in its own thread,
-    in order to preserve GUI responsiveness.
-    """
-
-    def run(self):
-        """Run the Rx equalization optimization thread."""
-
-        pybert = self.pybert
-
-        pybert.status = "Optimizing Rx..."
-        max_iter = pybert.max_iter
-
-        try:
-            if gDebugOptimize:
-                res = minimize_scalar(
-                    self.do_opt_rx,
-                    bounds=(0, gMaxCTLEPeak),
-                    method="Bounded",
-                    options={"disp": True, "maxiter": max_iter},
-                )
-            else:
-                res = minimize_scalar(
-                    self.do_opt_rx,
-                    bounds=(0, gMaxCTLEPeak),
-                    method="Bounded",
-                    options={"disp": False, "maxiter": max_iter},
-                )
-
-            if res["success"]:
-                pybert.status = "Optimization succeeded."
-            else:
-                pybert.status = "Optimization failed: {}".format(res["message"])
-
-        except Exception as err:
-            pybert.status = err
-
-    def do_opt_rx(self, peak_mag):
-        """Run the Rx Optimization."""
-        sleep(0.001)  # Give the GUI a chance to acknowledge user clicking the Abort button.
-
-        if self.stopped():
-            raise RuntimeError("Optimization aborted.")
-
-        pybert = self.pybert
-        pybert.peak_mag_tune = peak_mag
-        return pybert.cost
-
-
-class CoOptThread(StoppableThread):
-    """Used to run co-optimization in its own thread, in order to preserve GUI responsiveness."""
-
-    def run(self):
-        """Run the Tx/Rx equalization co-optimization thread."""
-
-        pybert = self.pybert
-
-        pybert.status = "Co-optimizing..."
-        max_iter = pybert.max_iter
-
-        try:
-            if gDebugOptimize:
-                res = minimize_scalar(
-                    self.do_coopt,
-                    bounds=(0, gMaxCTLEPeak),
-                    method="Bounded",
-                    options={"disp": True, "maxiter": max_iter},
-                )
-            else:
-                res = minimize_scalar(
-                    self.do_coopt,
-                    bounds=(0, gMaxCTLEPeak),
-                    method="Bounded",
-                    options={"disp": False, "maxiter": max_iter},
-                )
-
-            if res["success"]:
-                pybert.status = "Optimization succeeded."
-            else:
-                pybert.status = "Optimization failed: {}".format(res["message"])
-
-        except Exception as err:
-            pybert.status = err
-
-    def do_coopt(self, peak_mag):
-        """Run the Tx and Rx Co-Optimization."""
-        sleep(0.001)  # Give the GUI a chance to acknowledge user clicking the Abort button.
-
-        if self.stopped():
-            raise RuntimeError("Optimization aborted.")
-
-        pybert = self.pybert
-        pybert.peak_mag_tune = peak_mag
-        if any([pybert.tx_tap_tuners[i].enabled for i in range(len(pybert.tx_tap_tuners))]):
-            while pybert.tx_opt_thread and pybert.tx_opt_thread.isAlive():
-                sleep(0.001)
-            pybert._do_opt_tx(update_status=False)
-            while pybert.tx_opt_thread and pybert.tx_opt_thread.isAlive():
-                sleep(0.001)
-        return pybert.cost
-
-
-# - Channel Control
-#     - parameters for Howard Johnson's "Metallic Transmission Model"
-#     - (See "High Speed Signal Propagation", Sec. 3.1.)
-#     - ToDo: These are the values for 24 guage twisted copper pair; need to add other options.
-gRdc = 0.1876  # Ohms/m
-gw0 = (
-    10.0e6
-)  # 10 MHz is recommended in Ch. 8 of his second book, in which UTP is described in detail.
-gR0 = 1.452  # skin-effect resistance (Ohms/m)
-gTheta0 = 0.02  # loss tangent
-gZ0 = 100.0  # characteristic impedance in LC region (Ohms)
-gv0 = 0.67  # relative propagation velocity (c)
-gl_ch = 1.0  # cable length (m)
-
+from pybert.equalization import Equalization
+from pybert.utility import calc_G, calc_gamma, import_channel, trim_impulse
+from traits.api import Bool, File, Float, Int, cached_property
 
 
 class Channel(object):
@@ -237,8 +24,8 @@ class Channel(object):
 
     def __init__(self):
         super(Channel, self).__init__()
-        self.log = logging.getLogger("pybert.channel")
-        self.log.debug("Creating Channel Object")
+        self.log = getLogger("pybert.buffer")
+        self.log.debug("Creating Channel")
         self.use_ch_file = Bool(False)  #: Import channel description from file? (Default = False)
         self.padded = Bool(False)  #: Zero pad imported Touchstone data? (Default = False)
         self.windowed = Bool(False)  #: Apply windowing to the Touchstone data? (Default = False)
@@ -251,112 +38,120 @@ class Channel(object):
         self.impulse_length = Float(
             0.0
         )  #: Impulse response length. (Determined automatically, when 0.)
-        self.Rdc = Float(gRdc)  #: Channel d.c. resistance (Ohms/m).
-        self.w0 = Float(gw0)  #: Channel transition frequency (rads./s).
-        self.R0 = Float(gR0)  #: Channel skin effect resistance (Ohms/m).
-        self.Theta0 = Float(gTheta0)  #: Channel loss tangent (unitless).
-        self.Z0 = Float(gZ0)  #: Channel characteristic impedance, in LC region (Ohms).
-        self.v0 = Float(gv0)  #: Channel relative propagation velocity (c).
-        self.l_ch = Float(gl_ch)  #: Channel length (m).
+        self.Rdc = Float(DC_RESISTANCE_PER_METER)  #: Channel d.c. resistance (Ohms/m).
+        self.w0 = Float(W_TRANSITION_FREQ)  #: Channel transition frequency (rads./s).
+        self.R0 = Float(SKIN_EFFECT_RESISTANCE)  #: Channel skin effect resistance (Ohms/m).
+        self.Theta0 = Float(LOSS_TANGENT)  #: Channel loss tangent (unitless).
+        self.Z0 = Float(
+            CHARACTERISTIC_IMPEDANCE
+        )  #: Channel characteristic impedance, in LC region (Ohms).
+        self.v0 = Float(REL_VELOCITY)  #: Channel relative propagation velocity (c).
+        self.l_ch = Float(CHANNEL_LENGTH)  #: Channel length (m).
+
+        self.len_h = Int(0)
+        self.chnl_dly = Float(0.0)  #: Estimated channel delay (s).
 
         self.tx = Transmitter()
         self.rx = Receiver()
-        tx_tap_tuners = List(
-            [
-                TxTapTuner(name="Pre-tap", enabled=True, min_val=-0.2, max_val=0.2, value=0.0),
-                TxTapTuner(name="Post-tap1", enabled=False, min_val=-0.4, max_val=0.4, value=0.0),
-                TxTapTuner(name="Post-tap2", enabled=False, min_val=-0.3, max_val=0.3, value=0.0),
-                TxTapTuner(name="Post-tap3", enabled=False, min_val=-0.2, max_val=0.2, value=0.0),
-            ]
-        )  #: EQ optimizer list of TxTapTuner objects.
-        rx_bw_tune = Float(gBW)  #: EQ optimizer CTLE bandwidth (GHz).
-        peak_freq_tune = Float(gPeakFreq)  #: EQ optimizer CTLE peaking freq. (GHz).
-        peak_mag_tune = Float(gPeakMag)  #: EQ optimizer CTLE peaking mag. (dB).
-        ctle_offset_tune = Float(gCTLEOffset)  #: EQ optimizer CTLE d.c. offset (dB).
-        ctle_mode_tune = Enum(
-            "Off", "Passive", "AGC", "Manual"
-        )  #: EQ optimizer CTLE mode ('Off', 'Passive', 'AGC', 'Manual').
-        use_dfe_tune = Bool(gUseDfe)  #: EQ optimizer DFE select (Bool).
-        n_taps_tune = Int(gNtaps)  #: EQ optimizer # DFE taps.
-        max_iter = Int(50)  #: EQ optimizer max. # of optimization iterations.
-        tx_opt_thread = Instance(TxOptThread)  #: Tx EQ optimization thread.
-        rx_opt_thread = Instance(RxOptThread)  #: Rx EQ optimization thread.
-        coopt_thread = Instance(CoOptThread)  #: EQ co-optimization thread.
+        self.eq = Equalization()
 
-    def _btn_opt_tx_fired(self):
-        if (
-            self.tx_opt_thread
-            and self.tx_opt_thread.isAlive()
-            or not any([self.tx_tap_tuners[i].enabled for i in range(len(self.tx_tap_tuners))])
-        ):
-            pass
+    @cached_property
+    def _get_tx_h_tune(self):
+        nspui = self.nspui
+        tap_tuners = self.eq.tx_tap_tuners
+
+        taps = []
+        for tuner in tap_tuners:
+            if tuner.enabled:
+                taps.append(tuner.value)
+            else:
+                taps.append(0.0)
+        taps.insert(1, 1.0 - sum(map(abs, taps)))  # Assume one pre-tap.
+
+        h = sum([[x] + list(zeros(nspui - 1)) for x in taps], [])
+
+        return h
+
+    # This function has been pulled outside of the standard Traits/UI "depends_on / @cached_property" mechanism,
+    # in order to more tightly control when it executes. I wasn't able to get truly lazy evaluation, and
+    # this was causing noticeable GUI slowdown.
+    def calc_chnl_h(self):
+        """
+        Calculates the channel impulse response.
+
+        Also sets, in 'self':
+         - chnl_dly:
+             group delay of channel
+         - start_ix:
+             first element of trimmed response
+         - t_ns_chnl:
+             the x-values, in ns, for plotting 'chnl_h'
+         - chnl_H:
+             channel frequency response
+         - chnl_s:
+             channel step response
+         - chnl_p:
+             channel pulse response
+
+        """
+
+        t = self.t
+        ts = t[1]
+        nspui = self.nspui
+        impulse_length = self.impulse_length * 1.0e-9
+
+        if self.use_ch_file:
+            chnl_h = import_channel(self.ch_file, ts, self.padded, self.windowed)
+            if chnl_h[-1] > (max(chnl_h) / 2.0):  # step response?
+                chnl_h = diff(chnl_h)  # impulse response is derivative of step response.
+            chnl_h /= sum(chnl_h)  # Normalize d.c. to one.
+            chnl_dly = t[where(chnl_h == max(chnl_h))[0][0]]
+            chnl_h.resize(len(t))
+            chnl_H = fft(chnl_h)
         else:
-            self._do_opt_tx()
+            l_ch = self.l_ch
+            v0 = self.v0 * 3.0e8
+            R0 = self.R0
+            w0 = self.w0
+            Rdc = self.Rdc
+            Z0 = self.Z0
+            Theta0 = self.Theta0
+            w = self.w
+            Rs = self.tx.source_impedance
+            Cs = self.tx.source_capacitance * 1.0e-12
+            RL = self.rx.input_impedance
+            Cp = self.rx.input_capacitance * 1.0e-12
+            CL = self.rx.cac * 1.0e-6
 
-    def _do_opt_tx(self, update_status=True):
-        self.tx_opt_thread = TxOptThread()
-        self.tx_opt_thread.pybert = self
-        self.tx_opt_thread.update_status = update_status
-        self.tx_opt_thread.start()
+            chnl_dly = l_ch / v0
+            gamma, Zc = calc_gamma(R0, w0, Rdc, Z0, v0, Theta0, w)
+            H = exp(-l_ch * gamma)
+            chnl_H = 2.0 * calc_G(
+                H, Rs, Cs, Zc, RL, Cp, CL, w
+            )  # Compensating for nominal /2 divider action.
+            chnl_h = real(ifft(chnl_H))
 
-    def _btn_opt_rx_fired(self):
-        if self.rx_opt_thread and self.rx_opt_thread.isAlive() or self.ctle_mode_tune == "Off":
-            pass
-        else:
-            self.rx_opt_thread = RxOptThread()
-            self.rx_opt_thread.pybert = self
-            self.rx_opt_thread.start()
+        min_len = 10 * nspui
+        max_len = 100 * nspui
+        if impulse_length:
+            min_len = max_len = impulse_length / ts
+        chnl_h, start_ix = trim_impulse(chnl_h, min_len=min_len, max_len=max_len)
+        chnl_h /= sum(chnl_h)  # a temporary crutch.
+        temp = chnl_h.copy()
+        temp.resize(len(t))
+        chnl_trimmed_H = fft(temp)
 
-    def _btn_coopt_fired(self):
-        if self.coopt_thread and self.coopt_thread.isAlive():
-            pass
-        else:
-            self.coopt_thread = CoOptThread()
-            self.coopt_thread.pybert = self
-            self.coopt_thread.start()
+        chnl_s = chnl_h.cumsum()
+        chnl_p = chnl_s - pad(chnl_s[:-nspui], (nspui, 0), "constant", constant_values=(0, 0))
 
-    # Independent variable setting intercepts
-    # (Primarily, for debugging.)
-    def _set_ctle_peak_mag_tune(self, val):
-        if val > gMaxCTLEPeak or val < 0.0:
-            raise RuntimeError("CTLE peak magnitude out of range!")
-        self.peak_mag_tune = val
+        self.chnl_h = chnl_h
+        self.len_h = len(chnl_h)
+        self.chnl_dly = chnl_dly
+        self.chnl_H = chnl_H
+        self.chnl_trimmed_H = chnl_trimmed_H
+        self.start_ix = start_ix
+        self.t_ns_chnl = array(t[start_ix : start_ix + len(chnl_h)]) * 1.0e9
+        self.chnl_s = chnl_s
+        self.chnl_p = chnl_p
 
-        # Button handlers
-    def _btn_rst_eq_fired(self):
-        """Reset the equalization."""
-        for i in range(4):
-            self.tx_tap_tuners[i].value = self.tx_taps[i].value
-            self.tx_tap_tuners[i].enabled = self.tx_taps[i].enabled
-        self.peak_freq_tune = self.peak_freq
-        self.peak_mag_tune = self.peak_mag
-        self.rx_bw_tune = self.rx_bw
-        self.ctle_mode_tune = self.ctle_mode
-        self.ctle_offset_tune = self.ctle_offset
-        self.use_dfe_tune = self.use_dfe
-        self.n_taps_tune = self.n_taps
-
-    def _btn_save_eq_fired(self):
-        """Save the equalization."""
-        for i in range(4):
-            self.tx_taps[i].value = self.tx_tap_tuners[i].value
-            self.tx_taps[i].enabled = self.tx_tap_tuners[i].enabled
-        self.peak_freq = self.peak_freq_tune
-        self.peak_mag = self.peak_mag_tune
-        self.rx_bw = self.rx_bw_tune
-        self.ctle_mode = self.ctle_mode_tune
-        self.ctle_offset = self.ctle_offset_tune
-        self.use_dfe = self.use_dfe_tune
-        self.n_taps = self.n_taps_tune
-
-
-    def _btn_abort_fired(self):
-        if self.coopt_thread and self.coopt_thread.isAlive():
-            self.coopt_thread.stop()
-            self.coopt_thread.join(10)
-        if self.tx_opt_thread and self.tx_opt_thread.isAlive():
-            self.tx_opt_thread.stop()
-            self.tx_opt_thread.join(10)
-        if self.rx_opt_thread and self.rx_opt_thread.isAlive():
-            self.rx_opt_thread.stop()
-            self.rx_opt_thread.join(10)
+        return chnl_h

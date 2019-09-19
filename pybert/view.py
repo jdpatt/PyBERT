@@ -8,19 +8,14 @@ Original date:   August 24, 2014 (Copied from pybert.py, as part of a major code
 Copyright (c) 2014 David Banas; all rights reserved World wide.
 """
 import logging
-import pickle
-from threading import Thread
+import traceback
 
 from enable.component_editor import ComponentEditor
-from pyface.api import OK, FileDialog
+from pybert.defaults import DEBUG
 from pyface.image_resource import ImageResource
-from traits.api import Instance
-from traitsui.message import message
 from traitsui.api import (
-    Action,
     CheckListEditor,
     Group,
-    Handler,
     HGroup,
     Item,
     ObjectColumn,
@@ -29,202 +24,10 @@ from traitsui.api import (
     VGroup,
     View,
 )
-
-from pybert.configuration import PyBertCfg
-from pybert.simulation import my_run_sweeps
-from pybert.data import PyBertData
-
-
-class RunSimThread(Thread):
-    """Used to run the simulation in its own thread, in order to preserve GUI responsiveness."""
-
-    def run(self):
-        """Run the simulation(s)."""
-        my_run_sweeps(self.the_pybert)
-
-
-class MyHandler(Handler):
-    """This handler is instantiated by the View and handles user button clicks."""
-
-    run_sim_thread = Instance(RunSimThread)
-
-    def do_run_simulation(self, info):
-        """Spawn a simulation thread and run with the current settings."""
-        the_pybert = info.object
-        if self.run_sim_thread and self.run_sim_thread.isAlive():
-            pass
-        else:
-            self.run_sim_thread = RunSimThread()
-            self.run_sim_thread.the_pybert = the_pybert
-            self.run_sim_thread.start()
-
-    def do_stop_simulation(self):
-        """Kill the simulation thread."""
-        if self.run_sim_thread and self.run_sim_thread.isAlive():
-            self.run_sim_thread.stop()
-
-    def do_save_cfg(self, info):
-        """Pickle out the current configuration."""
-        the_pybert = info.object
-        dlg = FileDialog(
-            action="save as", wildcard="*.pybert_cfg", default_path=the_pybert.cfg_file
-        )
-        if dlg.open() == OK:
-            the_PyBertCfg = PyBertCfg(the_pybert)
-            try:
-                with open(dlg.path, "wb") as the_file:
-                    pickle.dump(the_PyBertCfg, the_file)
-                the_pybert.cfg_file = dlg.path
-            except Exception as err:
-                error_message = "The following error occured:\n\t{}\nThe configuration was NOT saved.".format(
-                    err
-                )
-                the_pybert.handle_error(error_message)
-
-    def do_load_cfg(self, info):
-        """Read in the pickled configuration."""
-        the_pybert = info.object
-        dlg = FileDialog(action="open", wildcard="*.pybert_cfg", default_path=the_pybert.cfg_file)
-        if dlg.open() == OK:
-            try:
-                with open(dlg.path, "rb") as the_file:
-                    the_PyBertCfg = pickle.load(the_file)
-                if not isinstance(the_PyBertCfg, PyBertCfg):
-                    raise Exception("The data structure read in is NOT of type: PyBertCfg!")
-                for prop, value in vars(the_PyBertCfg).items():
-                    if prop == "tx_taps":
-                        for count, (enabled, val) in enumerate(value):
-                            setattr(the_pybert.tx_taps[count], "enabled", enabled)
-                            setattr(the_pybert.tx_taps[count], "value", val)
-                    elif prop == "tx_tap_tuners":
-                        for count, (enabled, val) in enumerate(value):
-                            setattr(the_pybert.tx_tap_tuners[count], "enabled", enabled)
-                            setattr(the_pybert.tx_tap_tuners[count], "value", val)
-                    else:
-                        setattr(the_pybert, prop, value)
-                the_pybert.cfg_file = dlg.path
-            except Exception as err:
-                error_message = "The following error occured:\n\t{}\nThe configuration was NOT loaded.".format(
-                    err
-                )
-                the_pybert.handle_error(error_message)
-
-    def do_save_data(self, info):
-        """Pickle out all the generated data."""
-        the_pybert = info.object
-        dlg = FileDialog(
-            action="save as", wildcard="*.pybert_data", default_path=the_pybert.data_file
-        )
-        if dlg.open() == OK:
-            try:
-                plotdata = PyBertData(the_pybert)
-                with open(dlg.path, "wt") as the_file:
-                    pickle.dump(plotdata, the_file)
-                the_pybert.data_file = dlg.path
-            except Exception as err:
-                error_message = "The following error occured:\n\t{}\nThe waveform data was NOT saved.".format(
-                    err
-                )
-                the_pybert.handle_error(error_message)
-
-    def do_load_data(self, info):
-        """Read in the pickled data.'"""
-        the_pybert = info.object
-        dlg = FileDialog(
-            action="open", wildcard="*.pybert_data", default_path=the_pybert.data_file
-        )
-        if dlg.open() == OK:
-            try:
-                with open(dlg.path, "rt") as the_file:
-                    the_plotdata = pickle.load(the_file)
-                if not isinstance(the_plotdata, PyBertData):
-                    raise Exception("The data structure read in is NOT of type: ArrayPlotData!")
-                for prop, value in the_plotdata.the_data.arrays.items():
-                    the_pybert.plotdata.set_data(prop + "_ref", value)
-                the_pybert.data_file = dlg.path
-
-                # Add reference plots, if necessary.
-                # - time domain
-                for (container, suffix, has_both) in [
-                    (the_pybert.plots_h.component_grid.flat, "h", False),
-                    (the_pybert.plots_s.component_grid.flat, "s", True),
-                    (the_pybert.plots_p.component_grid.flat, "p", False),
-                ]:
-                    if "Reference" not in container[0].plots:
-                        (ix, prefix) = (0, "chnl")
-                        item_name = prefix + "_" + suffix + "_ref"
-                        container[ix].plot(
-                            ("t_ns_chnl", item_name), type="line", color="darkcyan", name="Inc_ref"
-                        )
-                        for (ix, prefix) in [(1, "tx"), (2, "ctle"), (3, "dfe")]:
-                            item_name = prefix + "_out_" + suffix + "_ref"
-                            container[ix].plot(
-                                ("t_ns_chnl", item_name),
-                                type="line",
-                                color="darkmagenta",
-                                name="Cum_ref",
-                            )
-                        if has_both:
-                            for (ix, prefix) in [(1, "tx"), (2, "ctle"), (3, "dfe")]:
-                                item_name = prefix + "_" + suffix + "_ref"
-                                container[ix].plot(
-                                    ("t_ns_chnl", item_name),
-                                    type="line",
-                                    color="darkcyan",
-                                    name="Inc_ref",
-                                )
-
-                # - frequency domain
-                for (container, suffix, has_both) in [
-                    (the_pybert.plots_H.component_grid.flat, "H", True)
-                ]:
-                    if "Reference" not in container[0].plots:
-                        (ix, prefix) = (0, "chnl")
-                        item_name = prefix + "_" + suffix + "_ref"
-                        container[ix].plot(
-                            ("f_GHz", item_name),
-                            type="line",
-                            color="darkcyan",
-                            name="Inc_ref",
-                            index_scale="log",
-                        )
-                        for (ix, prefix) in [(1, "tx"), (2, "ctle"), (3, "dfe")]:
-                            item_name = prefix + "_out_" + suffix + "_ref"
-                            container[ix].plot(
-                                ("f_GHz", item_name),
-                                type="line",
-                                color="darkmagenta",
-                                name="Cum_ref",
-                                index_scale="log",
-                            )
-                        if has_both:
-                            for (ix, prefix) in [(1, "tx"), (2, "ctle"), (3, "dfe")]:
-                                item_name = prefix + "_" + suffix + "_ref"
-                                container[ix].plot(
-                                    ("f_GHz", item_name),
-                                    type="line",
-                                    color="darkcyan",
-                                    name="Inc_ref",
-                                    index_scale="log",
-                                )
-
-            except Exception as err:
-                print(item_name)
-                error_message = "The following error occured:\n\t{}\nThe waveform data was NOT loaded.".format(
-                    err
-                )
-                the_pybert.handle_error(error_message)
-
-
-run_sim = Action(name="Run", action="do_run_simulation")
-stop_sim = Action(name="Stop", action="do_stop_simulation")
-save_data = Action(name="Save Results", action="do_save_data")
-load_data = Action(name="Load Results", action="do_load_data")
-save_cfg = Action(name="Save Config.", action="do_save_cfg")
-load_cfg = Action(name="Load Config.", action="do_load_cfg")
+from traitsui.message import message
 
 # Main window layout definition.
-traits_view = View(
+TRAITS_VIEW = View(
     Group(
         VGroup(
             HGroup(
@@ -878,14 +681,19 @@ traits_view = View(
             Item("perf_info", style="readonly", show_label=False),
             label="About",
         ),
-        Group(Item("instructions", style="readonly", show_label=False), label="Help"),
+        Group(Item("help_tab", style="readonly", show_label=False), label="Help"),
         layout="tabbed",
         springy=True,
         id="tabs",
     ),
     resizable=True,
-    handler=MyHandler(),
-    buttons=[run_sim, save_cfg, load_cfg, save_data, load_data],
+    buttons=[
+        Item("run_sim", show_label=False, tooltip="Start the Simulation."),
+        Item("save_cfg", show_label=False, tooltip="Save the current configuration."),
+        Item("load_cfg", show_label=False, tooltip="Load a configuration."),
+        Item("save_data", show_label=False, tooltip="Save the current waveform data."),
+        Item("load_data", show_label=False, tooltip="Load previous waveform data."),
+    ],
     statusbar="status_str",
     title="PyBERT",
     width=0.95,
@@ -893,11 +701,12 @@ traits_view = View(
     icon=ImageResource("icon.png"),
 )
 
-def popup_error(error):
-    """If debug, raise else just prompt the user."""
-    log = logging.getLogger("pybert.view")
-    log.error(error)
-    if debug:
+
+def popup_error(prompt, error):
+    """Popup an alert with the given prompt, log the exception and if debug raise the exception."""
+    log = logging.getLogger()
+    log.error(traceback.format_exc())
+    if DEBUG:
         message(error, "PyBERT Debug Alert")
         raise error
-    message(error, "PyBERT Alert")
+    message(prompt, "PyBERT Alert")

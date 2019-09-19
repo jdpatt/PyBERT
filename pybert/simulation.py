@@ -1,40 +1,15 @@
-"""
-Default controller definition for PyBERT class.
-
-Original author: David Banas <capn.freako@gmail.com>
-
-Original date:   August 24, 2014 (Copied from pybert.py, as part of a major code cleanup.)
-
-Copyright (c) 2014 David Banas; all rights reserved World wide.
-"""
-import logging
+"""Where all the magic happens."""
+from logging import getLogger
+from threading import Thread
 from time import clock
 
-from chaco.api import Plot
-from traits.api import (
-    HTML,
-    Array,
-    Bool,
-    Button,
-    Enum,
-    File,
-    Float,
-    HasTraits,
-    Instance,
-    Int,
-    List,
-    Property,
-    Range,
-    String,
-    cached_property,
-)
-from chaco.tools.api import PanTool, ZoomTool
 from numpy import (
     arange,
     array,
     concatenate,
     convolve,
     correlate,
+    cos,
     cumsum,
     diff,
     histogram,
@@ -43,58 +18,684 @@ from numpy import (
     mean,
     ones,
     pad,
+    pi,
     real,
     repeat,
     resize,
+    sinc,
     std,
     transpose,
     where,
     zeros,
 )
 from numpy.fft import fft, ifft
-from numpy.random import normal
+from numpy.random import normal, randint
 from scipy.signal import iirfilter, lfilter
 from scipy.signal.windows import hann
-from pyibisami.ami_model import AMIModel, AMIModelInitializer
 
+from chaco.api import ArrayPlotData, GridPlotContainer, Plot
+from chaco.tools.api import PanTool, ZoomTool
+from pybert.channel import Channel
+from pybert.defaults import (
+    BIT_RATE,
+    HPF_CORNER_COUPLING,
+    MIN_BATHTUB_VAL,
+    NUM_AVG,
+    NUM_BITS,
+    PATTERN_LEN,
+    SAMPLES_PER_BIT,
+    THRESHOLD,
+)
 from pybert.dfe import DFE
-from pybert.utility import calc_eye, calc_jitter, find_crossings, import_channel, make_ctle
+from pybert.utility import (
+    calc_eye,
+    calc_jitter,
+    find_crossings,
+    import_channel,
+    lfsr_bits,
+    make_ctle,
+    pulse_center,
+    safe_log10,
+)
+from pybert.view import popup_error
+from pyibisami.ami_model import AMIModel, AMIModelInitializer
+from traits.api import (
+    HTML,
+    Array,
+    Bool,
+    Float,
+    Instance,
+    Int,
+    List,
+    Property,
+    Range,
+    String,
+    cached_property,
+)
 
-DEBUG = False
-MIN_BATHTUB_VAL = 1.0e-18
 
-gFc = (
-    1.0e6
-)  # Corner frequency of high-pass filter used to model capacitive coupling of periodic noise.
+class RunSimThread(Thread):
+    """Used to run the simulation in its own thread, in order to preserve GUI responsiveness."""
 
-# Default model parameters - Modify these to customize the default simulation.
-# - Simulation Control
-gBitRate = 10  # (Gbps)
-gNbits = 8000  # number of bits to run
-gPatLen = 127  # repeating bit pattern length
-gNspb = 32  # samples per bit
-gNumAve = 1  # Number of bit error samples to average, when sweeping.
-use_dfe = Bool(gUseDfe)  #: True = use a DFE (Bool).
+    def run(self):
+        """Run the simulation(s)."""
+        my_run_sweeps(self.the_pybert)
 
 
-class Simulation(object):
+class Simulation:
     """docstring for Simulation"""
-
-    # - Simulation Control
-    bit_rate = Range(low=0.1, high=120.0, value=gBitRate)  #: (Gbps)
-    nbits = Range(low=1000, high=10000000, value=gNbits)  #: Number of bits to simulate.
-    pattern_len = Range(low=7, high=10000000, value=gPatLen)  #: PRBS pattern length.
-    nspb = Range(low=2, high=256, value=gNspb)  #: Signal vector samples per bit.
-    eye_bits = Int(gNbits // 5)  #: # of bits used to form eye. (Default = last 20%)
-    mod_type = List([0])  #: 0 = NRZ; 1 = Duo-binary; 2 = PAM-4
-    num_sweeps = Int(1)  #: Number of sweeps to run.
-    sweep_num = Int(1)
-    sweep_aves = Int(gNumAve)
-    do_sweep = Bool(False)  #: Run sweeps? (Default = False)
-    debug = Bool(True)  #: Log extra info to console when true. (Default = False)
 
     def __init__(self):
         super(Simulation, self).__init__()
+        self.log = getLogger("pybert.simulation")
+        self.log.debug("Creating Simulation Object")
+        self.bit_rate = Range(low=0.1, high=120.0, value=BIT_RATE)  #: (Gbps)
+        self.nbits = Range(low=1000, high=10000000, value=NUM_BITS)  #: Number of bits to simulate.
+        self.pattern_len = Range(low=7, high=10000000, value=PATTERN_LEN)  #: PRBS pattern length.
+        self.nspb = Range(
+            low=2, high=256, value=SAMPLES_PER_BIT
+        )  #: Signal vector samples per bit.
+        self.eye_bits = Int(NUM_BITS // 5)  #: # of bits used to form eye. (Default = last 20%)
+        self.mod_type = List([0])  #: 0 = NRZ; 1 = Duo-binary; 2 = PAM-4
+        self.num_sweeps = Int(1)  #: Number of sweeps to run.
+        self.sweep_num = Int(1)
+        self.sweep_aves = Int(NUM_AVG)
+        self.do_sweep = Bool(False)  #: Run sweeps? (Default = False)
+
+        self.jitter_perf = Float(0.0)
+        self.total_perf = Float(0.0)
+        self.sweep_results = List([])
+        self.bit_errs = Int(0)  #: # of bit errors observed in last run.
+        self.run_count = Int(0)  # Used as a mechanism to force bit stream regeneration.
+        self.thresh = THRESHOLD
+
+        self.channel = Channel()
+        self.eq = self.channel.eq
+        self.tx = self.channel.tx
+        self.rx = self.channel.rx
+
+        self.status = ""
+
+        # Dependent variables
+        # - Handled by the Traits/UI machinery. (Should only contain "low overhead" variables, which don't freeze the GUI noticeably.)
+        #
+        # - Note: Don't make properties, which have a high calculation overhead, dependencies of other properties!
+        #         This will slow the GUI down noticeably.
+        self.jitter_info = Property(HTML, depends_on=["jitter_perf"])
+        self.perf_info = Property(HTML, depends_on=["total_perf"])
+        self.status_str = Property(String, depends_on=["status"])
+        self.sweep_info = Property(HTML, depends_on=["sweep_results"])
+        self.tx_h_tune = Property(Array, depends_on=["tx_tap_tuners.value", "nspui"])
+        self.ctle_h_tune = Property(
+            Array,
+            depends_on=[
+                "peak_freq_tune",
+                "peak_mag_tune",
+                "rx_bw_tune",
+                "w",
+                "len_h",
+                "ctle_mode_tune",
+                "ctle_offset_tune",
+                "use_dfe_tune",
+                "n_taps_tune",
+            ],
+        )
+        self.ctle_out_h_tune = Property(Array, depends_on=["tx_h_tune", "ctle_h_tune", "chnl_h"])
+        self.cost = Property(Float, depends_on=["ctle_out_h_tune", "nspui"])
+        self.rel_opt = Property(Float, depends_on=["cost"])
+        self.t = Property(Array, depends_on=["ui", "nspb", "nbits"])
+        self.t_ns = Property(Array, depends_on=["t"])
+        self.f = Property(Array, depends_on=["t"])
+        self.w = Property(Array, depends_on=["f"])
+        self.bits = Property(Array, depends_on=["pattern_len", "nbits", "run_count"])
+        self.symbols = Property(Array, depends_on=["bits", "mod_type", "vod"])
+        self.ffe = Property(Array, depends_on=["tx_taps.value", "tx_taps.enabled"])
+        self.ui = Property(Float, depends_on=["bit_rate", "mod_type"])
+        self.nui = Property(Int, depends_on=["nbits", "mod_type"])
+        self.nspui = Property(Int, depends_on=["nspb", "mod_type"])
+        self.eye_uis = Property(Int, depends_on=["eye_bits", "mod_type"])
+        self.dfe_out_p = Array()
+        self.przf_err = Property(Float, depends_on=["dfe_out_p"])
+
+        # Plots (plot containers, actually)
+        self.plotdata = ArrayPlotData()
+        self.plots_h = Instance(GridPlotContainer)
+        self.plots_s = Instance(GridPlotContainer)
+        self.plots_p = Instance(GridPlotContainer)
+        self.plots_H = Instance(GridPlotContainer)
+        self.plots_dfe = Instance(GridPlotContainer)
+        self.plots_eye = Instance(GridPlotContainer)
+        self.plots_jitter_dist = Instance(GridPlotContainer)
+        self.plots_jitter_spec = Instance(GridPlotContainer)
+        self.plots_bathtub = Instance(GridPlotContainer)
+
+        self.run_sim_thread = Instance(RunSimThread)
+
+    def run(self):
+        """Spawn a simulation thread and run with the current settings."""
+        the_pybert = info.object
+        if self.run_sim_thread and self.run_sim_thread.isAlive():
+            pass
+        else:
+            self.run_sim_thread = RunSimThread()
+            self.run_sim_thread.the_pybert = the_pybert
+            self.log.debug("Simulation Started")
+            self.run_sim_thread.start()
+
+    def abort(self):
+        """Kill the simulation thread."""
+        if self.run_sim_thread and self.run_sim_thread.isAlive():
+            self.run_sim_thread.stop()
+            self.log.warning("Simulation Aborted")
+
+    # Dependent variable definitions
+    @cached_property
+    def _get_t(self):
+        """
+        Calculate the system time vector, in seconds.
+
+        """
+
+        ui = self.ui
+        nspui = self.nspui
+        nui = self.nui
+
+        t0 = ui / nspui
+        npts = nui * nspui
+
+        return array([i * t0 for i in range(npts)])
+
+    @cached_property
+    def _get_t_ns(self):
+        """
+        Calculate the system time vector, in ns.
+        """
+
+        return self.t * 1.0e9
+
+    @cached_property
+    def _get_f(self):
+        """
+        Calculate the frequency vector appropriate for indexing non-shifted FFT output, in Hz.
+        # (i.e. - [0, f0, 2 * f0, ... , fN] + [-(fN - f0), -(fN - 2 * f0), ... , -f0]
+        """
+
+        t = self.t
+
+        npts = len(t)
+        f0 = 1.0 / (t[1] * npts)
+        half_npts = npts // 2
+
+        return array(
+            [i * f0 for i in range(half_npts + 1)]
+            + [(half_npts - i) * -f0 for i in range(1, half_npts)]
+        )
+
+    @cached_property
+    def _get_w(self):
+        """
+        Calculate the frequency vector appropriate for indexing non-shifted FFT output, in rads./sec.
+        """
+
+        return 2 * pi * self.f
+
+    @cached_property
+    def _get_bits(self):
+        """
+        Generate the bit stream.
+        """
+
+        pattern_len = self.pattern_len
+        nbits = self.nbits
+        mod_type = self.mod_type[0]
+
+        bits = []
+        seed = randint(128)
+        while not seed:  # We don't want to seed our LFSR with zero.
+            seed = randint(128)
+        bit_gen = lfsr_bits([7, 6], seed)
+        for _ in range(pattern_len - 4):
+            bits.append(next(bit_gen))
+
+        # The 4-bit prequels, below, are to ensure that the first zero crossing
+        # in the actual slicer input signal occurs. This is necessary, because
+        # we assume it does, when aligning the ideal and actual signals for
+        # jitter calculation.
+        #
+        # We may want to talk to Mike Steinberger, of SiSoft, about his
+        # correlation based approach to this alignment chore. It's
+        # probably more robust.
+        if mod_type == 1:  # Duo-binary precodes, using XOR.
+            return resize(array([0, 0, 1, 0] + bits), nbits)
+        return resize(array([0, 0, 1, 1] + bits), nbits)
+
+    @cached_property
+    def _get_ui(self):
+        """
+        Returns the "unit interval" (i.e. - the nominal time span of each symbol moving through the channel).
+        """
+
+        mod_type = self.mod_type[0]
+        bit_rate = self.bit_rate * 1.0e9
+
+        ui = 1.0 / bit_rate
+        if mod_type == 2:  # PAM-4
+            ui *= 2.0
+
+        return ui
+
+    @cached_property
+    def _get_nui(self):
+        """
+        Returns the number of unit intervals in the test vectors.
+        """
+
+        mod_type = self.mod_type[0]
+        nbits = self.nbits
+
+        nui = nbits
+        if mod_type == 2:  # PAM-4
+            nui /= 2
+
+        return nui
+
+    @cached_property
+    def _get_nspui(self):
+        """
+        Returns the number of samples per unit interval.
+        """
+
+        mod_type = self.mod_type[0]
+        nspb = self.nspb
+
+        nspui = nspb
+        if mod_type == 2:  # PAM-4
+            nspui *= 2
+
+        return nspui
+
+    @cached_property
+    def _get_eye_uis(self):
+        """
+        Returns the number of unit intervals to use for eye construction.
+        """
+
+        mod_type = self.mod_type[0]
+        eye_bits = self.eye_bits
+
+        eye_uis = eye_bits
+        if mod_type == 2:  # PAM-4
+            eye_uis /= 2
+
+        return eye_uis
+
+    @cached_property
+    def _get_ideal_h(self):
+        """
+        Returns the ideal link impulse response.
+        """
+
+        ui = self.ui
+        nspui = self.nspui
+        t = self.t
+        mod_type = self.mod_type[0]
+        ideal_type = self.ideal_type[0]
+
+        t = array(t) - t[-1] / 2.0
+
+        if ideal_type == 0:  # delta
+            ideal_h = zeros(len(t))
+            ideal_h[len(t) / 2] = 1.0
+        elif ideal_type == 1:  # sinc
+            ideal_h = sinc(t / (ui / 2.0))
+        elif ideal_type == 2:  # raised cosine
+            ideal_h = (cos(pi * t / (ui / 2.0)) + 1.0) / 2.0
+            ideal_h = where(t < -ui / 2.0, zeros(len(t)), ideal_h)
+            ideal_h = where(t > ui / 2.0, zeros(len(t)), ideal_h)
+        else:
+            popup_error("Unrecognized ideal impulse response type.", ValueError())
+        if (
+            mod_type == 1
+        ):  # Duo-binary relies upon the total link impulse response to perform the required addition.
+            ideal_h = 0.5 * (
+                ideal_h + pad(ideal_h[:-nspui], (nspui, 0), "constant", constant_values=(0, 0))
+            )
+
+        return ideal_h
+
+    @cached_property
+    def _get_symbols(self):
+        """
+        Generate the symbol stream.
+        """
+
+        mod_type = self.mod_type[0]
+        vod = self.tx.vod
+        bits = self.bits
+
+        if mod_type == 0:  # NRZ
+            symbols = 2 * bits - 1
+        elif mod_type == 1:  # Duo-binary
+            symbols = [bits[0]]
+            for bit in bits[1:]:  # XOR pre-coding prevents infinite error propagation.
+                symbols.append(bit ^ symbols[-1])
+            symbols = 2 * array(symbols) - 1
+        elif mod_type == 2:  # PAM-4
+            symbols = []
+            for bits in zip(bits[0::2], bits[1::2]):
+                if bits == (0, 0):
+                    symbols.append(-1.0)
+                elif bits == (0, 1):
+                    symbols.append(-1.0 / 3.0)
+                elif bits == (1, 0):
+                    symbols.append(1.0 / 3.0)
+                else:
+                    symbols.append(1.0)
+        else:
+            popup_error("Unknown modulation type requested!", ValueError())
+        return array(symbols) * vod
+
+    @cached_property
+    def _get_przf_err(self):
+        p = self.dfe_out_p
+        nspui = self.nspui
+        n_taps = self.eq.n_taps
+
+        (clock_pos, _) = pulse_center(p, nspui)
+        err = 0
+        for i in range(n_taps):
+            err += p[clock_pos + (i + 1) * nspui] ** 2
+
+        return err / p[clock_pos] ** 2
+
+    @cached_property
+    def _get_jitter_info(self):
+        try:
+            isi_chnl = self.isi_chnl * 1.0e12
+            dcd_chnl = self.dcd_chnl * 1.0e12
+            pj_chnl = self.pj_chnl * 1.0e12
+            rj_chnl = self.rj_chnl * 1.0e12
+            isi_tx = self.isi_tx * 1.0e12
+            dcd_tx = self.dcd_tx * 1.0e12
+            pj_tx = self.pj_tx * 1.0e12
+            rj_tx = self.rj_tx * 1.0e12
+            isi_ctle = self.isi_ctle * 1.0e12
+            dcd_ctle = self.dcd_ctle * 1.0e12
+            pj_ctle = self.pj_ctle * 1.0e12
+            rj_ctle = self.rj_ctle * 1.0e12
+            isi_dfe = self.isi_dfe * 1.0e12
+            dcd_dfe = self.dcd_dfe * 1.0e12
+            pj_dfe = self.pj_dfe * 1.0e12
+            rj_dfe = self.rj_dfe * 1.0e12
+
+            isi_rej_tx = 1.0e20
+            dcd_rej_tx = 1.0e20
+            isi_rej_ctle = 1.0e20
+            dcd_rej_ctle = 1.0e20
+            pj_rej_ctle = 1.0e20
+            rj_rej_ctle = 1.0e20
+            isi_rej_dfe = 1.0e20
+            dcd_rej_dfe = 1.0e20
+            pj_rej_dfe = 1.0e20
+            rj_rej_dfe = 1.0e20
+            isi_rej_total = 1.0e20
+            dcd_rej_total = 1.0e20
+            pj_rej_total = 1.0e20
+            rj_rej_total = 1.0e20
+
+            if isi_tx:
+                isi_rej_tx = isi_chnl / isi_tx
+            if dcd_tx:
+                dcd_rej_tx = dcd_chnl / dcd_tx
+            if isi_ctle:
+                isi_rej_ctle = isi_tx / isi_ctle
+            if dcd_ctle:
+                dcd_rej_ctle = dcd_tx / dcd_ctle
+            if pj_ctle:
+                pj_rej_ctle = pj_tx / pj_ctle
+            if rj_ctle:
+                rj_rej_ctle = rj_tx / rj_ctle
+            if isi_dfe:
+                isi_rej_dfe = isi_ctle / isi_dfe
+            if dcd_dfe:
+                dcd_rej_dfe = dcd_ctle / dcd_dfe
+            if pj_dfe:
+                pj_rej_dfe = pj_ctle / pj_dfe
+            if rj_dfe:
+                rj_rej_dfe = rj_ctle / rj_dfe
+            if isi_dfe:
+                isi_rej_total = isi_chnl / isi_dfe
+            if dcd_dfe:
+                dcd_rej_total = dcd_chnl / dcd_dfe
+            if pj_dfe:
+                pj_rej_total = pj_tx / pj_dfe
+            if rj_dfe:
+                rj_rej_total = rj_tx / rj_dfe
+
+            info_str = "<H1>Jitter Rejection by Equalization Component</H1>\n"
+
+            info_str += "<H2>Tx Preemphasis</H2>\n"
+            info_str += '<TABLE border="1">\n'
+            info_str += '<TR align="center">\n'
+            info_str += "<TH>Jitter Component</TH><TH>Input (ps)</TH><TH>Output (ps)</TH><TH>Rejection (dB)</TH>\n"
+            info_str += "</TR>\n"
+            info_str += '<TR align="right">\n'
+            info_str += (
+                '<TD align="center">ISI</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n'
+                % (isi_chnl, isi_tx, 10.0 * safe_log10(isi_rej_tx))
+            )
+            info_str += "</TR>\n"
+            info_str += '<TR align="right">\n'
+            info_str += (
+                '<TD align="center">DCD</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n'
+                % (dcd_chnl, dcd_tx, 10.0 * safe_log10(dcd_rej_tx))
+            )
+            info_str += "</TR>\n"
+            info_str += '<TR align="right">\n'
+            info_str += '<TD align="center">Pj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>n/a</TD>\n' % (
+                pj_chnl,
+                pj_tx,
+            )
+            info_str += "</TR>\n"
+            info_str += '<TR align="right">\n'
+            info_str += '<TD align="center">Rj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>n/a</TD>\n' % (
+                rj_chnl,
+                rj_tx,
+            )
+            info_str += "</TR>\n"
+            info_str += "</TABLE>\n"
+
+            info_str += "<H2>CTLE</H2>\n"
+            info_str += '<TABLE border="1">\n'
+            info_str += '<TR align="center">\n'
+            info_str += "<TH>Jitter Component</TH><TH>Input (ps)</TH><TH>Output (ps)</TH><TH>Rejection (dB)</TH>\n"
+            info_str += "</TR>\n"
+            info_str += '<TR align="right">\n'
+            info_str += (
+                '<TD align="center">ISI</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n'
+                % (isi_tx, isi_ctle, 10.0 * safe_log10(isi_rej_ctle))
+            )
+            info_str += "</TR>\n"
+            info_str += '<TR align="right">\n'
+            info_str += (
+                '<TD align="center">DCD</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n'
+                % (dcd_tx, dcd_ctle, 10.0 * safe_log10(dcd_rej_ctle))
+            )
+            info_str += "</TR>\n"
+            info_str += '<TR align="right">\n'
+            info_str += (
+                '<TD align="center">Pj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n'
+                % (pj_tx, pj_ctle, 10.0 * safe_log10(pj_rej_ctle))
+            )
+            info_str += "</TR>\n"
+            info_str += '<TR align="right">\n'
+            info_str += (
+                '<TD align="center">Rj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n'
+                % (rj_tx, rj_ctle, 10.0 * safe_log10(rj_rej_ctle))
+            )
+            info_str += "</TR>\n"
+            info_str += "</TABLE>\n"
+
+            info_str += "<H2>DFE</H2>\n"
+            info_str += '<TABLE border="1">\n'
+            info_str += '<TR align="center">\n'
+            info_str += "<TH>Jitter Component</TH><TH>Input (ps)</TH><TH>Output (ps)</TH><TH>Rejection (dB)</TH>\n"
+            info_str += "</TR>\n"
+            info_str += '<TR align="right">\n'
+            info_str += (
+                '<TD align="center">ISI</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n'
+                % (isi_ctle, isi_dfe, 10.0 * safe_log10(isi_rej_dfe))
+            )
+            info_str += "</TR>\n"
+            info_str += '<TR align="right">\n'
+            info_str += (
+                '<TD align="center">DCD</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n'
+                % (dcd_ctle, dcd_dfe, 10.0 * safe_log10(dcd_rej_dfe))
+            )
+            info_str += "</TR>\n"
+            info_str += '<TR align="right">\n'
+            info_str += (
+                '<TD align="center">Pj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n'
+                % (pj_ctle, pj_dfe, 10.0 * safe_log10(pj_rej_dfe))
+            )
+            info_str += "</TR>\n"
+            info_str += '<TR align="right">\n'
+            info_str += (
+                '<TD align="center">Rj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n'
+                % (rj_ctle, rj_dfe, 10.0 * safe_log10(rj_rej_dfe))
+            )
+            info_str += "</TR>\n"
+            info_str += "</TABLE>\n"
+
+            info_str += "<H2>TOTAL</H2>\n"
+            info_str += '<TABLE border="1">\n'
+            info_str += '<TR align="center">\n'
+            info_str += "<TH>Jitter Component</TH><TH>Input (ps)</TH><TH>Output (ps)</TH><TH>Rejection (dB)</TH>\n"
+            info_str += "</TR>\n"
+            info_str += '<TR align="right">\n'
+            info_str += (
+                '<TD align="center">ISI</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n'
+                % (isi_chnl, isi_dfe, 10.0 * safe_log10(isi_rej_total))
+            )
+            info_str += "</TR>\n"
+            info_str += '<TR align="right">\n'
+            info_str += (
+                '<TD align="center">DCD</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n'
+                % (dcd_chnl, dcd_dfe, 10.0 * safe_log10(dcd_rej_total))
+            )
+            info_str += "</TR>\n"
+            info_str += '<TR align="right">\n'
+            info_str += (
+                '<TD align="center">Pj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n'
+                % (pj_tx, pj_dfe, 10.0 * safe_log10(pj_rej_total))
+            )
+            info_str += "</TR>\n"
+            info_str += '<TR align="right">\n'
+            info_str += (
+                '<TD align="center">Rj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n'
+                % (rj_tx, rj_dfe, 10.0 * safe_log10(rj_rej_total))
+            )
+            info_str += "</TR>\n"
+            info_str += "</TABLE>\n"
+        except Exception as error:
+            info_str = "<H1>Jitter Rejection by Equalization Component</H1>\n"
+            popup_error("Jitter Calculation Failed", error)
+
+        return info_str
+
+    @cached_property
+    def _get_perf_info(self):
+        info_str = "<H2>Performance by Component</H2>\n"
+        info_str += '  <TABLE border="1">\n'
+        info_str += '    <TR align="center">\n'
+        info_str += "      <TH>Component</TH><TH>Performance (Msmpls./min.)</TH>\n"
+        info_str += "    </TR>\n"
+        info_str += '    <TR align="right">\n'
+        info_str += '      <TD align="center">Channel</TD><TD>%6.3f</TD>\n' % (
+            self.channel_perf * 60.0e-6
+        )
+        info_str += "    </TR>\n"
+        info_str += '    <TR align="right">\n'
+        info_str += '      <TD align="center">Tx Preemphasis</TD><TD>%6.3f</TD>\n' % (
+            self.tx_perf * 60.0e-6
+        )
+        info_str += "    </TR>\n"
+        info_str += '    <TR align="right">\n'
+        info_str += '      <TD align="center">CTLE</TD><TD>%6.3f</TD>\n' % (
+            self.ctle_perf * 60.0e-6
+        )
+        info_str += "    </TR>\n"
+        info_str += '    <TR align="right">\n'
+        info_str += '      <TD align="center">DFE</TD><TD>%6.3f</TD>\n' % (self.dfe_perf * 60.0e-6)
+        info_str += "    </TR>\n"
+        info_str += '    <TR align="right">\n'
+        info_str += '      <TD align="center">Jitter Analysis</TD><TD>%6.3f</TD>\n' % (
+            self.jitter_perf * 60.0e-6
+        )
+        info_str += "    </TR>\n"
+        info_str += '    <TR align="right">\n'
+        info_str += (
+            '      <TD align="center"><strong>TOTAL</strong></TD><TD><strong>%6.3f</strong></TD>\n'
+            % (self.total_perf * 60.0e-6)
+        )
+        info_str += "    </TR>\n"
+        info_str += '    <TR align="right">\n'
+        info_str += '      <TD align="center">Plotting</TD><TD>%6.3f</TD>\n' % (
+            self.plotting_perf * 60.0e-6
+        )
+        info_str += "    </TR>\n"
+        info_str += "  </TABLE>\n"
+
+        return info_str
+
+    @cached_property
+    def _get_sweep_info(self):
+        sweep_results = self.sweep_results
+
+        info_str = "<H2>Sweep Results</H2>\n"
+        info_str += '  <TABLE border="1">\n'
+        info_str += '    <TR align="center">\n'
+        info_str += "      <TH>Pretap</TH><TH>Posttap</TH><TH>Mean(bit errors)</TH><TH>StdDev(bit errors)</TH>\n"
+        info_str += "    </TR>\n"
+
+        for item in sweep_results:
+            info_str += '    <TR align="center">\n'
+            info_str += "      <TD>%+06.3f</TD><TD>%+06.3f</TD><TD>%d</TD><TD>%d</TD>\n" % (
+                item[0],
+                item[1],
+                item[2],
+                item[3],
+            )
+            info_str += "    </TR>\n"
+
+        info_str += "  </TABLE>\n"
+
+        return info_str
+
+    @cached_property
+    def _get_status_str(self):
+        status_str = "%-20s | Perf. (Ms/m):    %4.1f" % (self.status, self.total_perf * 60.0e-6)
+        dly_str = "         | ChnlDly (ns):    %5.3f" % (self.chnl_dly * 1.0e9)
+        err_str = "         | BitErrs: %d" % self.bit_errs
+        pwr_str = "         | TxPwr (W): %4.2f" % self.rel_power
+        status_str += dly_str + err_str + pwr_str
+
+        try:
+            jit_str = (
+                "         | Jitter (ps):    ISI=%6.3f    DCD=%6.3f    Pj=%6.3f    Rj=%6.3f"
+                % (
+                    self.isi_dfe * 1.0e12,
+                    self.dcd_dfe * 1.0e12,
+                    self.pj_dfe * 1.0e12,
+                    self.rj_dfe * 1.0e12,
+                )
+            )
+        except Exception as error:
+            jit_str = "         | (Jitter not available.)"
+
+        status_str += jit_str
+
+        return status_str
 
     def my_run_sweeps(self):
         """
@@ -107,7 +708,7 @@ class Simulation(object):
 
         sweep_aves = self.sweep_aves
         do_sweep = self.do_sweep
-        tx_taps = self.tx_taps
+        tx_taps = self.eq.tx_taps
 
         if do_sweep:
             # Assemble the list of desired values for each sweepable parameter.
@@ -118,7 +719,9 @@ class Simulation(object):
                         sweep_vals.append(
                             list(
                                 arange(
-                                    tap.min_val, tap.max_val, (tap.max_val - tap.min_val) / tap.steps
+                                    tap.min_val,
+                                    tap.max_val,
+                                    (tap.max_val - tap.min_val) / tap.steps,
                                 )
                             )
                         )
@@ -140,18 +743,17 @@ class Simulation(object):
             sweep_num = 1
             for sweep in sweeps:
                 for i in range(4):
-                    self.tx_taps[i].value = sweep[i]
+                    self.eq.tx_taps[i].value = sweep[i]
                 bit_errs = []
                 for i in range(sweep_aves):
                     self.sweep_num = sweep_num
-                    my_run_simulation(self, update_plots=False)
+                    self.my_run_simulation(update_plots=False)
                     bit_errs.append(self.bit_errs)
                     sweep_num += 1
                 sweep_results.append((sweep, mean(bit_errs), std(bit_errs)))
             self.sweep_results = sweep_results
         else:
-            my_run_simulation(self)
-
+            self.my_run_simulation()
 
     def my_run_simulation(self, initial_run=False, update_plots=True):
         """
@@ -189,26 +791,26 @@ class Simulation(object):
         eye_uis = self.eye_uis
         nspb = self.nspb
         nspui = self.nspui
-        rn = self.rn
-        pn_mag = self.pn_mag
-        pn_freq = self.pn_freq * 1.0e6
+        rn = self.tx.random_noise
+        pn_mag = self.tx.pn_mag
+        pn_freq = self.tx.pn_freq * 1.0e6
         pattern_len = self.pattern_len
-        rx_bw = self.rx_bw * 1.0e9
-        peak_freq = self.peak_freq * 1.0e9
-        peak_mag = self.peak_mag
-        ctle_offset = self.ctle_offset
-        ctle_mode = self.ctle_mode
-        delta_t = self.delta_t * 1.0e-12
-        alpha = self.alpha
+        rx_bw = self.eq.rx_bw * 1.0e9
+        peak_freq = self.eq.peak_freq * 1.0e9
+        peak_mag = self.eq.peak_mag
+        ctle_offset = self.eq.ctle_offset
+        ctle_mode = self.eq.ctle_mode
+        delta_t = self.eq.delta_t * 1.0e-12
+        alpha = self.eq.alpha
         ui = self.ui
-        n_taps = self.n_taps
-        gain = self.gain
-        n_ave = self.n_ave
-        decision_scaler = self.decision_scaler
-        n_lock_ave = self.n_lock_ave
-        rel_lock_tol = self.rel_lock_tol
-        lock_sustain = self.lock_sustain
-        bandwidth = self.sum_bw * 1.0e9
+        n_taps = self.eq.n_taps
+        gain = self.eq.gain
+        n_ave = self.eq.n_ave
+        decision_scaler = self.eq.decision_scaler
+        n_lock_ave = self.eq.n_lock_ave
+        rel_lock_tol = self.eq.rel_lock_tol
+        lock_sustain = self.eq.lock_sustain
+        bandwidth = self.eq.sum_bw * 1.0e9
         rel_thresh = self.thresh
         mod_type = self.mod_type[0]
 
@@ -241,7 +843,7 @@ class Simulation(object):
             #       create the duobinary waveform. We only create it explicitly, above,
             #       so that we'll have an ideal reference for comparison.
             chnl_h = self.calc_chnl_h()
-            self.log.debug("Channel impulse response is {} samples long.".format(len(chnl_h)))
+            self.log.debug("Channel impulse response is %d samples long.", len(chnl_h))
             chnl_out = convolve(self.x, chnl_h)[: len(t)]
 
             self.channel_perf = nbits * nspb / (clock() - start_time)
@@ -256,11 +858,13 @@ class Simulation(object):
 
         # Generate the output from, and the incremental/cumulative impulse/step/frequency responses of, the Tx.
         try:
-            if self.tx_use_ami:
+            if self.tx.use_ami:
                 # Note: Within the PyBERT computational environment, we use normalized impulse responses,
                 #       which have units of (V/ts), where 'ts' is the sample interval. However, IBIS-AMI models expect
                 #       units of (V/s). So, we have to scale accordingly, as we transit the boundary between these two worlds.
-                tx_cfg = self._tx_cfg  # Grab the 'AMIParamConfigurator' instance for this model.
+                tx_cfg = (
+                    self.tx.configurator
+                )  # Grab the 'AMIParamConfigurator' instance for this model.
                 # Get the model invoked and initialized, except for 'channel_response', which
                 # we need to do several different ways, in order to gather all the data we need.
                 tx_param_dict = tx_cfg.input_ami_params
@@ -270,31 +874,30 @@ class Simulation(object):
                     len(chnl_h) - 1
                 )  # Start with a delta function, to capture the model's impulse response.
                 tx_model_init.bit_time = ui
-                tx_model = AMIModel(self.tx_dll_file)
+                tx_model = AMIModel(self.tx.dll_file)
                 tx_model.initialize(tx_model_init)
-                self.log.info(
-                    "Tx IBIS-AMI model initialization results:\nInput parameters: {}\nOutput parameters: {}\nMessage: {}".format(
-                        tx_model.ami_params_in, tx_model.ami_params_out, tx_model.msg
-                    )
-                )
+                self.log.info("Tx IBIS-AMI model initialization results:")
+                self.log.info("Input parameters: %s", tx_model.ami_params_in)
+                self.log.info("Output parameters: %s", tx_model.ami_params_out)
+                self.log.info("Message: %s", tx_model.msg)
+
                 if tx_cfg.fetch_param_val(["Reserved_Parameters", "Init_Returns_Impulse"]):
                     tx_h = array(tx_model.initOut) * ts
                 elif not tx_cfg.fetch_param_val(["Reserved_Parameters", "GetWave_Exists"]):
-                    self.handle_error(
-                        "ERROR: Both 'Init_Returns_Impulse' and 'GetWave_Exists' are False!\n \
-                            I cannot continue.\nThis condition is supposed to be caught sooner in the flow."
+                    popup_error(
+                        "Both 'Init_Returns_Impulse' and 'GetWave_Exists' are False!", ValueError()
                     )
                     self.status = "Simulation Error."
                     return
-                elif not self.tx_use_getwave:
-                    self.handle_error(
-                        "ERROR: You have elected not to use GetWave for a model, which does not return an impulse response!\n \
-                            I cannot continue.\nPlease, select 'Use GetWave' and try again.",
-                        "PyBERT Alert",
+                elif not self.tx.use_getwave:
+                    popup_error(
+                        "You have elected not to use GetWave for a model, which does not \
+                        return an impulse response! Aborting... Please, select 'Use GetWave'",
+                        ValueError(),
                     )
                     self.status = "Simulation Error."
                     return
-                if self.tx_use_getwave:
+                if self.tx.use_getwave:
                     # For GetWave, use a step to extract the model's native properties.
                     # Position the input edge at the center of the vector, in
                     # order to minimize high frequency artifactual energy
@@ -342,7 +945,7 @@ class Simulation(object):
             pn[pn_samps // 2 :] = pn_mag
             pn = resize(pn, len(tx_out))
             #   - High pass filter it. (Simulating capacitive coupling.)
-            (b, a) = iirfilter(2, gFc / (fs / 2), btype="highpass")
+            (b, a) = iirfilter(2, HPF_CORNER_COUPLING / (fs / 2), btype="highpass")
             pn = lfilter(b, a, pn)[: len(pn)]
 
             # - Add the uncorrelated periodic and random noise to the Tx output.
@@ -375,8 +978,10 @@ class Simulation(object):
 
         # Generate the output from, and the incremental/cumulative impulse/step/frequency responses of, the CTLE.
         try:
-            if self.rx_use_ami:
-                rx_cfg = self._rx_cfg  # Grab the 'AMIParamConfigurator' instance for this model.
+            if self.rx.use_ami:
+                rx_cfg = (
+                    self.rx.configurator
+                )  # Grab the 'AMIParamConfigurator' instance for this model.
                 # Get the model invoked and initialized, except for 'channel_response', which
                 # we need to do several different ways, in order to gather all the data we need.
                 rx_param_dict = rx_cfg.input_ami_params
@@ -384,36 +989,31 @@ class Simulation(object):
                 rx_model_init.sample_interval = ts  # Must be set, before 'channel_response'!
                 rx_model_init.channel_response = tx_out_h / ts
                 rx_model_init.bit_time = ui
-                rx_model = AMIModel(self.rx_dll_file)
+                rx_model = AMIModel(self.rx.dll_file)
                 rx_model.initialize(rx_model_init)
-                self.log.info(
-                    "Rx IBIS-AMI model initialization results:\nInput parameters: {}\nMessage: {}\nOutput parameters: {}".format(
-                        rx_model.ami_params_in, rx_model.msg, rx_model.ami_params_out
-                    )
-                )
+                self.log.info("Rx IBIS-AMI model initialization results:")
+                self.log.info("Input parameters: %s", rx_model.ami_params_in)
+                self.log.info("Output parameters: %s", rx_model.ami_params_out)
+                self.log.info("Message: %s", rx_model.msg)
                 if rx_cfg.fetch_param_val(["Reserved_Parameters", "Init_Returns_Impulse"]):
                     ctle_out_h = array(rx_model.initOut) * ts
                 elif not rx_cfg.fetch_param_val(["Reserved_Parameters", "GetWave_Exists"]):
-                    self.handle_error(
-                        "ERROR: Both 'Init_Returns_Impulse' and 'GetWave_Exists' are False!\n \
-                            I cannot continue.\nThis condition is supposed to be caught sooner in the flow."
+                    popup_error(
+                        "Both 'Init_Returns_Impulse' and 'GetWave_Exists' are False!", ValueError()
                     )
                     self.status = "Simulation Error."
                     return
-                elif not self.rx_use_getwave:
-                    self.handle_error(
-                        "ERROR: You have elected not to use GetWave for a model, which does not return an impulse response!\n \
-                            I cannot continue.\nPlease, select 'Use GetWave' and try again.",
-                        "PyBERT Alert",
+                elif not self.rx.use_getwave:
+                    popup_error(
+                        "You have elected not to use GetWave for a model, which does not \
+                        return an impulse response! Aborting... Please, select 'Use GetWave'",
+                        ValueError(),
                     )
                     self.status = "Simulation Error."
                     return
-                if self.rx_use_getwave:
-                    if False:
-                        ctle_out, clock_times = rx_model.getWave(rx_in, 32)
-                    else:
-                        ctle_out, clock_times = rx_model.getWave(rx_in, len(rx_in))
-                    self.log(rx_model.ami_params_out)
+                if self.rx.use_getwave:
+                    ctle_out, clock_times = rx_model.getWave(rx_in, len(rx_in))
+                    self.log.info(rx_model.ami_params_out)
 
                     ctle_H = fft(ctle_out * hann(len(ctle_out))) / fft(rx_in * hann(len(rx_in)))
                     ctle_h = real(ifft(ctle_H)[: len(chnl_h)])
@@ -436,8 +1036,8 @@ class Simulation(object):
                     ctle_out = convolve(rx_in, ctle_h)
                 ctle_s = ctle_h.cumsum()
             else:
-                if self.use_ctle_file:
-                    ctle_h = import_channel(self.ctle_file, ts)
+                if self.eq.use_ctle_file:
+                    ctle_h = import_channel(self.eq.ctle_file, ts)
                     if max(abs(ctle_h)) < 100.0:  # step response?
                         ctle_h = diff(ctle_h)  # impulse response is derivative of step response.
                     else:
@@ -451,7 +1051,7 @@ class Simulation(object):
                     ctle_h *= abs(ctle_H[0]) / sum(ctle_h)
                 ctle_out = convolve(rx_in, ctle_h)
                 ctle_out -= mean(ctle_out)  # Force zero mean.
-                if self.ctle_mode == "AGC":  # Automatic gain control engaged?
+                if self.rx.ctle_mode == "AGC":  # Automatic gain control engaged?
                     ctle_out *= 2.0 * decision_scaler / ctle_out.ptp()
                 ctle_s = ctle_h.cumsum()
                 ctle_out_h = convolve(tx_out_h, ctle_h)[: len(tx_out_h)]
@@ -488,7 +1088,7 @@ class Simulation(object):
 
         # Generate the output from, and the incremental/cumulative impulse/step/frequency responses of, the DFE.
         try:
-            if self.use_dfe:
+            if self.eq.use_dfe:
                 dfe = DFE(
                     n_taps,
                     gain,
@@ -530,7 +1130,9 @@ class Simulation(object):
             bits_out = array(bits_out)
             auto_corr = (
                 1.0
-                * correlate(bits_out[(nbits - eye_bits) :], bits[(nbits - eye_bits) :], mode="same")
+                * correlate(
+                    bits_out[(nbits - eye_bits) :], bits[(nbits - eye_bits) :], mode="same"
+                )
                 / sum(bits[(nbits - eye_bits) :])
             )
             auto_corr = auto_corr[len(auto_corr) // 2 :]
@@ -702,7 +1304,12 @@ class Simulation(object):
             ideal_xings = array([x for x in list(ideal_xings) if x > ignore_until])
             min_delay = ignore_until + conv_dly
             actual_xings = find_crossings(
-                t, dfe_out, decision_scaler, min_delay=min_delay, mod_type=mod_type, rising_first=False
+                t,
+                dfe_out,
+                decision_scaler,
+                min_delay=min_delay,
+                mod_type=mod_type,
+                rising_first=False,
             )
             (
                 jitter,
@@ -744,16 +1351,15 @@ class Simulation(object):
         # Update plots.
         try:
             if update_plots:
-                update_results(self)
+                self.update_results()
                 if not initial_run:
-                    update_eyes(self)
+                    self.update_eyes()
 
             self.plotting_perf = nbits * nspb / (clock() - split_time)
             self.status = "Ready."
         except Exception:
             self.status = "Exception: plotting"
             raise
-
 
     # Plot updating
     def update_results(self):
@@ -877,7 +1483,9 @@ class Simulation(object):
 
         # Frequency responses
         self.plotdata.set_data("chnl_H", 20.0 * log10(abs(self.chnl_H[1:len_f_GHz])))
-        self.plotdata.set_data("chnl_trimmed_H", 20.0 * log10(abs(self.chnl_trimmed_H[1:len_f_GHz])))
+        self.plotdata.set_data(
+            "chnl_trimmed_H", 20.0 * log10(abs(self.chnl_trimmed_H[1:len_f_GHz]))
+        )
         self.plotdata.set_data("tx_H", 20.0 * log10(abs(self.tx_H[1:len_f_GHz])))
         self.plotdata.set_data("tx_out_H", 20.0 * log10(abs(self.tx_out_H[1:len_f_GHz])))
         self.plotdata.set_data("ctle_H", 20.0 * log10(abs(self.ctle_H[1:len_f_GHz])))
@@ -910,7 +1518,8 @@ class Simulation(object):
             "jitter_spectrum_chnl", 10.0 * (log10(self.jitter_spectrum_chnl[1:]) - log10_ui)
         )
         self.plotdata.set_data(
-            "jitter_ind_spectrum_chnl", 10.0 * (log10(self.jitter_ind_spectrum_chnl[1:]) - log10_ui)
+            "jitter_ind_spectrum_chnl",
+            10.0 * (log10(self.jitter_ind_spectrum_chnl[1:]) - log10_ui),
         )
         self.plotdata.set_data("thresh_chnl", 10.0 * (log10(self.thresh_chnl[1:]) - log10_ui))
         self.plotdata.set_data(
@@ -924,7 +1533,8 @@ class Simulation(object):
             "jitter_spectrum_ctle", 10.0 * (log10(self.jitter_spectrum_ctle[1:]) - log10_ui)
         )
         self.plotdata.set_data(
-            "jitter_ind_spectrum_ctle", 10.0 * (log10(self.jitter_ind_spectrum_ctle[1:]) - log10_ui)
+            "jitter_ind_spectrum_ctle",
+            10.0 * (log10(self.jitter_ind_spectrum_ctle[1:]) - log10_ui),
         )
         self.plotdata.set_data("thresh_ctle", 10.0 * (log10(self.thresh_ctle[1:]) - log10_ui))
         self.plotdata.set_data(
@@ -971,7 +1581,9 @@ class Simulation(object):
         bathtub_dfe.reverse()
         bathtub_dfe = array(bathtub_dfe + list(cumsum(jitter_ext_dfe[: half_len + 1])))
         bathtub_dfe = where(
-            bathtub_dfe < MIN_BATHTUB_VAL, 0.1 * MIN_BATHTUB_VAL * ones(len(bathtub_dfe)), bathtub_dfe
+            bathtub_dfe < MIN_BATHTUB_VAL,
+            0.1 * MIN_BATHTUB_VAL * ones(len(bathtub_dfe)),
+            bathtub_dfe,
         )  # To avoid Chaco log scale plot wierdness.
         self.plotdata.set_data("bathtub_dfe", log10(bathtub_dfe))
 
@@ -996,7 +1608,6 @@ class Simulation(object):
         self.plotdata.set_data("eye_tx", eye_tx)
         self.plotdata.set_data("eye_ctle", eye_ctle)
         self.plotdata.set_data("eye_dfe", eye_dfe)
-
 
     def update_eyes(self):
         """

@@ -11,7 +11,7 @@ integration into the larger *PyBERT* framework.
 
 Copyright (c) 2019 by David Banas; All rights reserved World wide.
 """
-from typing import Sequence, Tuple, List
+from typing import List, Sequence, Tuple
 
 from numpy import array, mean, sign, where
 
@@ -26,7 +26,7 @@ class CDR:
         self,
         delta_t: float,
         alpha: float,
-        ui: float,
+        unit_interval: float,
         n_lock_ave: int = 500,
         rel_lock_tol: float = 0.01,
         lock_sustain: int = 500,
@@ -36,7 +36,7 @@ class CDR:
             delta_t (float): The proportional branch correction, in seconds.
             alpha (float): The integral branch correction, normalized to
                 proportional branch correction.
-            ui (float): The nominal unit interval, in seconds.
+            unit_interval (float): The nominal unit interval, in seconds.
             n_lock_ave (Optional, int): Number of unit intervals to use for
                 determining lock. Defaults to 500.
             rel_lock_tol(Optional, float): Lock tolerance, relative to
@@ -46,13 +46,13 @@ class CDR:
 
         Notes:
             The code does not care what units are actually used for
-            'delta_t' and 'ui'; only that they are the same.
+            'delta_t' and 'unit_interval'; only that they are the same.
         """
 
         self.delta_t = delta_t
         self.alpha = alpha
-        self.nom_ui = ui
-        self._ui = ui
+        self.nominal_unit_interval = unit_interval
+        self._unit_interval = unit_interval
         self.n_lock_ave = n_lock_ave
         self.rel_lock_tol = rel_lock_tol
         self._locked = False
@@ -62,10 +62,10 @@ class CDR:
         self.lockeds: List = []
 
     @property
-    def ui(self) -> float:
+    def unit_interval(self) -> float:
         """The current unit interval estimate."""
 
-        return self._ui
+        return self._unit_interval
 
     @property
     def locked(self) -> bool:
@@ -80,7 +80,7 @@ class CDR:
         Should be called, when the clock has just struck.
 
         Synopsis:
-          (ui, locked) = adapt(samples)
+          (unit_interval, locked) = adapt(samples)
 
         Args:
             samples: A list of 3 samples of the input waveform, as follows:
@@ -90,7 +90,7 @@ class CDR:
                 - at the current clock time
 
         Returns:
-            ui:
+            unit_interval:
                 The new unit interval estimate, in seconds.
             locked:
                 Boolean flag indicating 'locked' status.
@@ -116,7 +116,7 @@ class CDR:
         else:  # Late clock; decrease period.
             proportional_correction = -delta_t
         integral_correction += self.alpha * proportional_correction
-        unit_interval = self.nom_ui + integral_correction + proportional_correction
+        unit_interval = self.nominal_unit_interval + integral_correction + proportional_correction
 
         integral_corrections.append(integral_correction)
         if len(integral_corrections) > n_lock_ave:
@@ -145,6 +145,6 @@ class CDR:
         self.integral_corrections = integral_corrections
         self.proportional_corrections = proportional_corrections
         self.lockeds = lockeds
-        self._ui = unit_interval
+        self._unit_interval = unit_interval
 
         return (unit_interval, locked)

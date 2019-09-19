@@ -12,9 +12,13 @@ configuration could be saved and later restored.
 
 Copyright (c) 2017 by David Banas; All rights reserved World wide.
 """
+import pickle
+
+from pyface.api import OK, FileDialog
+from traits.api import File
 
 
-class PyBertCfg:
+class ConfigurationData:
     """
     PyBERT simulation configuration data encapsulation class.
 
@@ -28,6 +32,7 @@ class PyBertCfg:
         Copy just that subset of the supplied PyBERT instance's
         __dict__, which should be saved during pickling.
         """
+        self.cfg_file = File("", entries=5, filter=["*.pybert_cfg"])
 
         # Simulation Control
         self.bit_rate = the_PyBERT.bit_rate
@@ -110,3 +115,34 @@ class PyBertCfg:
 
         # Analysis
         self.thresh = the_PyBERT.thresh
+
+    def save(self):
+        """Pickle out the current configuration."""
+        dlg = FileDialog(action="save as", wildcard="*.pybert_cfg", default_path=self.cfg_file)
+        if dlg.open() == OK:
+            pybert_configuration = PyBertCfg(self)
+            with open(dlg.path, "wb") as the_file:
+                pickle.dump(pybert_configuration, the_file)
+            self.cfg_file = dlg.path
+
+    def load(self):
+        """Read in the pickled configuration."""
+        the_pybert = info.object
+        dlg = FileDialog(action="open", wildcard="*.pybert_cfg", default_path=the_pybert.cfg_file)
+        if dlg.open() == OK:
+            with open(dlg.path, "rb") as the_file:
+                pybert_configuration = pickle.load(the_file)
+            if not isinstance(pybert_configuration, PyBertCfg):
+                raise Exception("The data structure read in is NOT of type: PyBertCfg!")
+            for prop, value in vars(pybert_configuration).items():
+                if prop == "tx_taps":
+                    for count, (enabled, val) in enumerate(value):
+                        setattr(self.channel.eq.tx_taps[count], "enabled", enabled)
+                        setattr(self.channel.eq.tx_taps[count], "value", val)
+                elif prop == "tx_tap_tuners":
+                    for count, (enabled, val) in enumerate(value):
+                        setattr(self.channel.eq.tx_tap_tuners[count], "enabled", enabled)
+                        setattr(self.channel.eq.tx_tap_tuners[count], "value", val)
+                else:
+                    setattr(self, prop, value)
+            self.cfg_file = dlg.path

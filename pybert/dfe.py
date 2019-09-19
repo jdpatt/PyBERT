@@ -15,8 +15,7 @@ from numpy import array, sign, zeros
 from scipy.signal import iirfilter
 
 from pybert.cdr import CDR
-
-gNch_taps = 3  # Number of taps used in summing node filter.
+from pybert.defaults import SUM_NUM_TAPS
 
 
 class LfilterSS:
@@ -73,7 +72,7 @@ class DFE:
         gain,
         delta_t,
         alpha,
-        ui,
+        unit_interval,
         n_spb,
         decision_scaler,
         mod_type=0,
@@ -97,7 +96,7 @@ class DFE:
 
           - alpha            CDR integral branch constant (normalized to delta_t)
 
-          - ui               nominal unit interval (ps)
+          - unit_interval               nominal unit interval (ps)
 
           - n_spb            # of samples per unit interval
 
@@ -132,18 +131,18 @@ class DFE:
         """
 
         # Design summing node filter.
-        fs = n_spb / ui
-        (b, a) = iirfilter(gNch_taps - 1, bandwidth / (fs / 2), btype="lowpass")
+        fs = n_spb / unit_interval
+        (b, a) = iirfilter(SUM_NUM_TAPS - 1, bandwidth / (fs / 2), btype="lowpass")
         self.summing_filter = LfilterSS(b, a)
 
         # Initialize class variables.
         self.tap_weights = [0.0] * n_taps
         self.tap_values = [0.0] * n_taps
         self.gain = gain
-        self.ui = ui
+        self.unit_interval = unit_interval
         self.decision_scaler = decision_scaler
         self.mod_type = mod_type
-        self.cdr = CDR(delta_t, alpha, ui, n_lock_ave, rel_lock_tol, lock_sustain)
+        self.cdr = CDR(delta_t, alpha, unit_interval, n_lock_ave, rel_lock_tol, lock_sustain)
         self.n_ave = n_ave
         self.corrections = zeros(n_taps)
         self.ideal = ideal
@@ -285,7 +284,7 @@ class DFE:
                     tap_weights([[float]]):
                         List of list of tap weights showing how the DFE
                         adapted over time.
-                    ui_ests([float]):
+                    unit_interval_ests([float]):
                         List of unit interval estimates, showing how the
                         CDR adapted.
                     clocks([int]):
@@ -303,7 +302,7 @@ class DFE:
             Exception: If the requested modulation type is unknown.
         """
 
-        ui = self.ui
+        unit_interval = self.unit_interval
         decision_scaler = self.decision_scaler
         n_ave = self.n_ave
         summing_filter = self.summing_filter
@@ -317,27 +316,29 @@ class DFE:
         nxt_filter_out = 0
         last_clock_sample = 0
         next_boundary_time = 0
-        next_clock_time = ui / 2.0
+        next_clock_time = unit_interval / 2.0
         locked = False
 
         res = []
         tap_weights = [self.tap_weights]
-        ui_ests = []
+        unit_interval_ests = []
         lockeds = []
         clocks = zeros(len(sample_times))
         clock_times = [next_clock_time]
         bits = []
-        for (t, x) in zip(sample_times, signal):
+        for (time, x_at_time) in zip(sample_times, signal):
             if not ideal:
-                sum_out = summing_filter.step(x - filter_out)
+                sum_out = summing_filter.step(x_at_time - filter_out)
             else:
-                sum_out = x - filter_out
+                sum_out = x_at_time - filter_out
             res.append(sum_out)
-            if t >= next_boundary_time:
+            if time >= next_boundary_time:
                 boundary_sample = sum_out
                 filter_out = nxt_filter_out
-                next_boundary_time += ui  # Necessary, in order to prevent premature reentry.
-            if t >= next_clock_time:
+                next_boundary_time += (
+                    unit_interval
+                )  # Necessary, in order to prevent premature reentry.
+            if time >= next_clock_time:
                 clk_cntr += 1
                 clocks[smpl_cntr] = 1
                 current_clock_sample = sum_out
@@ -355,7 +356,7 @@ class DFE:
                     pass
                 else:
                     raise Exception("ERROR: DFE.run(): Unrecognized modulation type!")
-                ui, locked = self.cdr.adapt(samples)
+                unit_interval, locked = self.cdr.adapt(samples)
                 decision, new_bits = self.decide(sum_out)
                 bits.extend(new_bits)
                 slicer_output = decision * decision_scaler
@@ -367,13 +368,13 @@ class DFE:
                     nxt_filter_out = self.step(decision, 0.0, update)
                 tap_weights.append(self.tap_weights)
                 last_clock_sample = sum_out
-                next_boundary_time = next_clock_time + ui / 2.0
-                next_clock_time += ui
+                next_boundary_time = next_clock_time + unit_interval / 2.0
+                next_clock_time += unit_interval
                 clock_times.append(next_clock_time)
-            ui_ests.append(ui)
+            unit_interval_ests.append(unit_interval)
             lockeds.append(locked)
             smpl_cntr += 1
 
-        self.ui = ui
+        self.unit_interval = unit_interval
 
-        return (res, tap_weights, ui_ests, clocks, lockeds, clock_times, bits)
+        return (res, tap_weights, unit_interval_ests, clocks, lockeds, clock_times, bits)

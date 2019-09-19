@@ -6,9 +6,9 @@ Original date:   September 27, 2014 (Copied from pybert_cntrl.py.)
 
 Copyright (c) 2014 David Banas; all rights reserved World wide.
 """
-from pathlib import Path
 import re
 from functools import reduce
+from pathlib import Path
 
 import numpy as np
 from numpy import (
@@ -37,6 +37,7 @@ from numpy import (
 from numpy.fft import fft, ifft
 from scipy.signal import freqs, get_window, invres
 from scipy.stats import norm
+
 import skrf as rf
 
 debug = False
