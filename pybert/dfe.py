@@ -182,11 +182,17 @@ class DFE:
         n_ave = self.n_ave
 
         # Calculate this step's corrections and add to running total.
-        corrections = [old + new for (old, new) in zip(self.corrections, [val * error * gain for val in tap_values])]
+        corrections = [
+            old + new
+            for (old, new) in zip(self.corrections, [val * error * gain for val in tap_values])
+        ]
 
         # Update the tap weights with the average corrections, if appropriate.
         if update:
-            tap_weights = [weight + correction / n_ave for (weight, correction) in zip(tap_weights, corrections)]
+            tap_weights = [
+                weight + correction / n_ave
+                for (weight, correction) in zip(tap_weights, corrections)
+            ]
             corrections = zeros(len(corrections))  # Start the averaging process over, again.
 
         # Step the filter delay chain and generate the new output.

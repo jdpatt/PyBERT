@@ -1,5 +1,4 @@
-"""
-General purpose utilities for PyBERT.
+"""General purpose utilities for PyBERT.
 
 Original author: David Banas <capn.freako@gmail.com>
 
@@ -64,7 +63,12 @@ def moving_average(a, n=3):
 
 
 def find_crossing_times(
-    t, x, min_delay: float = 0.0, rising_first: bool = True, min_init_dev: float = 0.1, thresh: float = 0.0
+    t,
+    x,
+    min_delay: float = 0.0,
+    rising_first: bool = True,
+    min_init_dev: float = 0.1,
+    thresh: float = 0.0,
 ):
     """
     Finds the threshold crossing times of the input signal.
@@ -121,9 +125,9 @@ def find_crossing_times(
 
     i = 0
     if min_delay:
-        assert min_delay < xings[-1], "min_delay ({}) must be less than last crossing time ({}).".format(
-            min_delay, xings[-1]
-        )
+        assert (
+            min_delay < xings[-1]
+        ), "min_delay ({}) must be less than last crossing time ({}).".format(min_delay, xings[-1])
         while xings[i] < min_delay:
             i += 1
 
@@ -148,7 +152,15 @@ def find_crossing_times(
     return array(xings[i:])
 
 
-def find_crossings(t, x, amplitude, min_delay: float = 0.0, rising_first: bool = True, min_init_dev=0.1, mod_type=0):
+def find_crossings(
+    t,
+    x,
+    amplitude,
+    min_delay: float = 0.0,
+    rising_first: bool = True,
+    min_init_dev=0.1,
+    mod_type=0,
+):
     """
     Finds the crossing times in a signal, according to the modulation type.
 
@@ -178,14 +190,16 @@ def find_crossings(t, x, amplitude, min_delay: float = 0.0, rising_first: bool =
     Returns: The signal threshold crossing times.
     """
 
-    assert mod_type >= 0 and mod_type <= 2, "ERROR: pybert_util.find_crossings(): Unknown modulation type: {}".format(
-        mod_type
-    )
+    assert (
+        mod_type >= 0 and mod_type <= 2
+    ), "ERROR: pybert_util.find_crossings(): Unknown modulation type: {}".format(mod_type)
 
     xings = []
     if mod_type == 0:  # NRZ
         xings.append(
-            find_crossing_times(t, x, min_delay=min_delay, rising_first=rising_first, min_init_dev=min_init_dev)
+            find_crossing_times(
+                t, x, min_delay=min_delay, rising_first=rising_first, min_init_dev=min_init_dev
+            )
         )
     elif mod_type == 1:  # Duo-binary
         xings.append(
@@ -208,7 +222,9 @@ def find_crossings(t, x, amplitude, min_delay: float = 0.0, rising_first: bool =
                 thresh=(0.5 * amplitude),
             )
         )
-    elif mod_type == 2:  # PAM-4 (Enabling the +/-0.67 cases yields multiple ideal crossings at the same edge.)
+    elif (
+        mod_type == 2
+    ):  # PAM-4 (Enabling the +/-0.67 cases yields multiple ideal crossings at the same edge.)
         xings.append(
             find_crossing_times(
                 t,
@@ -225,7 +241,9 @@ def find_crossings(t, x, amplitude, min_delay: float = 0.0, rising_first: bool =
     return sort(concatenate(xings))
 
 
-def calc_jitter(ui, nui, pattern_len, ideal_xings, actual_xings, rel_thresh=6, num_bins=99, zero_mean=True):
+def calc_jitter(
+    ui, nui, pattern_len, ideal_xings, actual_xings, rel_thresh=6, num_bins=99, zero_mean=True
+):
     """
     Calculate the jitter in a set of actual zero crossings, given the ideal crossings and unit interval.
 
@@ -269,7 +287,9 @@ def calc_jitter(ui, nui, pattern_len, ideal_xings, actual_xings, rel_thresh=6, n
             x, [-ui] + [-ui / 2.0 + i * ui / (num_bins - 2) for i in range(num_bins - 1)] + [ui]
         )
         bin_centers = (
-            [-ui / 2.0] + [mean([bin_edges[i + 1], bin_edges[i + 2]]) for i in range(len(bin_edges) - 3)] + [ui / 2.0]
+            [-ui / 2.0]
+            + [mean([bin_edges[i + 1], bin_edges[i + 2]]) for i in range(len(bin_edges) - 3)]
+            + [ui / 2.0]
         )
 
         return (array(list(map(float, hist))) / sum(hist), bin_centers)
@@ -289,7 +309,9 @@ def calc_jitter(ui, nui, pattern_len, ideal_xings, actual_xings, rel_thresh=6, n
         print("len(ideal_xings):", len(ideal_xings))
         print("min(ideal_xings):", min(ideal_xings))
         print("max(ideal_xings):", max(ideal_xings))
-        raise AssertionError("pybert_util.calc_jitter(): Odd number of (or, no) crossings per pattern detected!")
+        raise AssertionError(
+            "pybert_util.calc_jitter(): Odd number of (or, no) crossings per pattern detected!"
+        )
     num_patterns = nui // pattern_len
 
     # Assemble the TIE track.
@@ -311,7 +333,9 @@ def calc_jitter(ui, nui, pattern_len, ideal_xings, actual_xings, rel_thresh=6, n
             i += 1
         if i == len(actual_xings):  # We've exhausted the list of actual crossings; we're done.
             break
-        if actual_xings[i] > max_t:  # Means the xing we're looking for didn't occur, in the actual signal.
+        if (
+            actual_xings[i] > max_t
+        ):  # Means the xing we're looking for didn't occur, in the actual signal.
             jitter.append(3.0 * ui / 4.0)  # Pad the jitter w/ alternating +/- 3UI/4.
             jitter.append(-3.0 * ui / 4.0)  # (Will get pulled into [-UI/2, UI/2], later.
             skip_next_ideal_xing = True  # If we missed one, we missed two.
@@ -365,7 +389,9 @@ def calc_jitter(ui, nui, pattern_len, ideal_xings, actual_xings, rel_thresh=6, n
     # --- (It's necessary to keep track of those elements in the resultant vector, which aren't paddings; hence, 'valid_ix'.)
     x, valid_ix = make_uniform(t_jitter, jitter, ui, nui)
     y = fft(x)
-    jitter_spectrum = abs(y[: len(y) // 2]) / sqrt(len(jitter))  # Normalized, in order to make power correct.
+    jitter_spectrum = abs(y[: len(y) // 2]) / sqrt(
+        len(jitter)
+    )  # Normalized, in order to make power correct.
     f0 = 1.0 / (ui * nui)
     spectrum_freqs = [i * f0 for i in range(len(y) // 2)]
 
@@ -381,11 +407,15 @@ def calc_jitter(ui, nui, pattern_len, ideal_xings, actual_xings, rel_thresh=6, n
     y_var = moving_average((y_mag - y_mean) ** 2, n=len(y_mag) // 10)
     y_sigma = sqrt(y_var)
     thresh = y_mean + rel_thresh * y_sigma
-    y_per = where(y_mag > thresh, y, zeros(len(y)))  # Periodic components are those lying above the threshold.
+    y_per = where(
+        y_mag > thresh, y, zeros(len(y))
+    )  # Periodic components are those lying above the threshold.
     y_rnd = where(y_mag > thresh, zeros(len(y)), y)  # Random components are those lying below.
     y_rnd = abs(y_rnd)
     rj = sqrt(mean((y_rnd - mean(y_rnd)) ** 2))
-    tie_per = real(ifft(y_per)).take(valid_ix) * sqrt(len(tie_ind))  # Restoring shape of vector to its original,
+    tie_per = real(ifft(y_per)).take(valid_ix) * sqrt(
+        len(tie_ind)
+    )  # Restoring shape of vector to its original,
     pj = tie_per.ptp()  # non-uniformly sampled state.
 
     # --- Save the spectrum, for display purposes.
@@ -517,7 +547,9 @@ def calc_gamma(R0, w0, Rdc, Z0, v0, Theta0, ws):
     R = sqrt(power(Rdc, 2) + power(Rac, 2))  # total resistance vector
     L0 = Z0 / v0  # "external" inductance per unit length (H/m)
     C0 = 1.0 / (Z0 * v0)  # nominal capacitance per unit length (F/m)
-    C = C0 * power((1j * w / w0), (-2.0 * Theta0 / pi))  # complex capacitance per unit length (F/m)
+    C = C0 * power(
+        (1j * w / w0), (-2.0 * Theta0 / pi)
+    )  # complex capacitance per unit length (F/m)
     gamma = sqrt((1j * w * L0 + R) * (1j * w * C))  # propagation constant (nepers/m)
     Zc = sqrt((1j * w * L0 + R) / (1j * w * C))  # characteristic impedance (Ohms)
 
@@ -562,7 +594,9 @@ def calc_G(H, Rs, Cs, Zc, RL, Cp, CL, ws):
     R2 = (Zs - Zc) / (Zs + Zc)
     # Fully loaded channel transfer function:
     G = A * H * (1 + R1) / (1 - R1 * R2 * H ** 2)
-    G = G * (((RL / (1j * w * Cp / 2)) / (RL + 1 / (1j * w * Cp / 2))) / ZL)  # Corrected for divider action.
+    G = G * (
+        ((RL / (1j * w * Cp / 2)) / (RL + 1 / (1j * w * Cp / 2))) / ZL
+    )  # Corrected for divider action.
     # (i.e. - We're interested in what appears across RL.)
     return G
 
@@ -612,7 +646,8 @@ def calc_eye(ui, samps_per_ui, height, ys, y_max, clock_times=None):
             interp_fac = (start_time - start_ix * tsamp) // tsamp
             i = 0
             for (samp1, samp2) in zip(
-                ys[start_ix : start_ix + 2 * samps_per_ui], ys[start_ix + 1 : start_ix + 1 + 2 * samps_per_ui]
+                ys[start_ix : start_ix + 2 * samps_per_ui],
+                ys[start_ix + 1 : start_ix + 1 + 2 * samps_per_ui],
             ):
                 y = samp1 + (samp2 - samp1) * interp_fac
                 img_array[int(y * y_scale + 0.5) + y_offset, i] += 1
@@ -701,12 +736,14 @@ def make_ctle(rx_bw, peak_freq, peak_mag, w, mode="Passive", dc_offset=0):
     elif mode in ("Manual", "AGC"):
         H *= pow(10.0, dc_offset / 20.0) / abs(H[0])  # Enforce d.c. offset.
     else:
-        raise RuntimeError("pybert_util.make_ctle(): Unrecognized value for 'mode' parameter: {}.".format(mode))
+        raise RuntimeError(
+            "pybert_util.make_ctle(): Unrecognized value for 'mode' parameter: {}.".format(mode)
+        )
 
     return (w, H)
 
 
-def trim_impulse(g, min_len=0, max_len=1000000):
+def trim_impulse(g, min_len=0, max_len=1_000_000):
     """
     Trim impulse response, for more useful display, by:
       - clipping off the tail, after 99.8% of the total power has been
@@ -859,7 +896,9 @@ def import_freq(filename, sample_per, padded=False, windowed=False, f_step=10e6)
     fmin = f_step
     fmax = f[-1]
     f = np.arange(fmin, fmax + fmin, fmin)
-    F = rf.Frequency.from_f(f / 1e9)  # skrf.Frequency.from_f() expects its argument to be in units of GHz.
+    F = rf.Frequency.from_f(
+        f / 1e9
+    )  # skrf.Frequency.from_f() expects its argument to be in units of GHz.
 
     # Form impulse response from frequency response.
     H = sdd_21(ntwk).interpolate_from_f(F).s[:, 0, 0]
@@ -918,10 +957,8 @@ def safe_log10(x):
 
     if hasattr(x, "__len__"):
         x = where(x == 0, 1.0e-20 * ones(len(x)), x)
-    else:
-        if x == 0:
-            x = 1.0e-20
-
+    elif x == 0:
+        x = 1.0e-20
     return log10(x)
 
 

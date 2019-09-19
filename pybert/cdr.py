@@ -116,7 +116,7 @@ class CDR:
         else:  # Late clock; decrease period.
             proportional_correction = -delta_t
         integral_correction += self.alpha * proportional_correction
-        ui = self.nom_ui + integral_correction + proportional_correction
+        unit_interval = self.nom_ui + integral_correction + proportional_correction
 
         integral_corrections.append(integral_correction)
         if len(integral_corrections) > n_lock_ave:
@@ -127,7 +127,10 @@ class CDR:
         if len(proportional_corrections) == n_lock_ave:
             x = array(integral_corrections)  # - mean(integral_corrections)
             var = sum(x ** 2) / n_lock_ave
-            lock = abs(mean(proportional_corrections) / delta_t) < rel_lock_tol and (var / delta_t) < rel_lock_tol
+            lock = (
+                abs(mean(proportional_corrections) / delta_t) < rel_lock_tol
+                and (var / delta_t) < rel_lock_tol
+            )
             lockeds.append(lock)
             if len(lockeds) > lock_sustain:
                 lockeds.pop(0)
@@ -142,6 +145,6 @@ class CDR:
         self.integral_corrections = integral_corrections
         self.proportional_corrections = proportional_corrections
         self.lockeds = lockeds
-        self._ui = ui
+        self._ui = unit_interval
 
-        return (ui, locked)
+        return (unit_interval, locked)

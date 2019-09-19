@@ -7,6 +7,7 @@ Original date:   August 24, 2014 (Copied from pybert.py, as part of a major code
 
 Copyright (c) 2014 David Banas; all rights reserved World wide.
 """
+import logging
 import pickle
 from threading import Thread
 
@@ -14,6 +15,7 @@ from enable.component_editor import ComponentEditor
 from pyface.api import OK, FileDialog
 from pyface.image_resource import ImageResource
 from traits.api import Instance
+from traitsui.message import message
 from traitsui.api import (
     Action,
     CheckListEditor,
@@ -28,9 +30,9 @@ from traitsui.api import (
     View,
 )
 
-from pybert.pybert_cfg import PyBertCfg
-from pybert.pybert_cntrl import my_run_sweeps
-from pybert.pybert_data import PyBertData
+from pybert.configuration import PyBertCfg
+from pybert.simulation import my_run_sweeps
+from pybert.data import PyBertData
 
 
 class RunSimThread(Thread):
@@ -64,7 +66,9 @@ class MyHandler(Handler):
     def do_save_cfg(self, info):
         """Pickle out the current configuration."""
         the_pybert = info.object
-        dlg = FileDialog(action="save as", wildcard="*.pybert_cfg", default_path=the_pybert.cfg_file)
+        dlg = FileDialog(
+            action="save as", wildcard="*.pybert_cfg", default_path=the_pybert.cfg_file
+        )
         if dlg.open() == OK:
             the_PyBertCfg = PyBertCfg(the_pybert)
             try:
@@ -72,7 +76,9 @@ class MyHandler(Handler):
                     pickle.dump(the_PyBertCfg, the_file)
                 the_pybert.cfg_file = dlg.path
             except Exception as err:
-                error_message = "The following error occured:\n\t{}\nThe configuration was NOT saved.".format(err)
+                error_message = "The following error occured:\n\t{}\nThe configuration was NOT saved.".format(
+                    err
+                )
                 the_pybert.handle_error(error_message)
 
     def do_load_cfg(self, info):
@@ -98,13 +104,17 @@ class MyHandler(Handler):
                         setattr(the_pybert, prop, value)
                 the_pybert.cfg_file = dlg.path
             except Exception as err:
-                error_message = "The following error occured:\n\t{}\nThe configuration was NOT loaded.".format(err)
+                error_message = "The following error occured:\n\t{}\nThe configuration was NOT loaded.".format(
+                    err
+                )
                 the_pybert.handle_error(error_message)
 
     def do_save_data(self, info):
         """Pickle out all the generated data."""
         the_pybert = info.object
-        dlg = FileDialog(action="save as", wildcard="*.pybert_data", default_path=the_pybert.data_file)
+        dlg = FileDialog(
+            action="save as", wildcard="*.pybert_data", default_path=the_pybert.data_file
+        )
         if dlg.open() == OK:
             try:
                 plotdata = PyBertData(the_pybert)
@@ -112,13 +122,17 @@ class MyHandler(Handler):
                     pickle.dump(plotdata, the_file)
                 the_pybert.data_file = dlg.path
             except Exception as err:
-                error_message = "The following error occured:\n\t{}\nThe waveform data was NOT saved.".format(err)
+                error_message = "The following error occured:\n\t{}\nThe waveform data was NOT saved.".format(
+                    err
+                )
                 the_pybert.handle_error(error_message)
 
     def do_load_data(self, info):
         """Read in the pickled data.'"""
         the_pybert = info.object
-        dlg = FileDialog(action="open", wildcard="*.pybert_data", default_path=the_pybert.data_file)
+        dlg = FileDialog(
+            action="open", wildcard="*.pybert_data", default_path=the_pybert.data_file
+        )
         if dlg.open() == OK:
             try:
                 with open(dlg.path, "rt") as the_file:
@@ -139,26 +153,40 @@ class MyHandler(Handler):
                     if "Reference" not in container[0].plots:
                         (ix, prefix) = (0, "chnl")
                         item_name = prefix + "_" + suffix + "_ref"
-                        container[ix].plot(("t_ns_chnl", item_name), type="line", color="darkcyan", name="Inc_ref")
+                        container[ix].plot(
+                            ("t_ns_chnl", item_name), type="line", color="darkcyan", name="Inc_ref"
+                        )
                         for (ix, prefix) in [(1, "tx"), (2, "ctle"), (3, "dfe")]:
                             item_name = prefix + "_out_" + suffix + "_ref"
                             container[ix].plot(
-                                ("t_ns_chnl", item_name), type="line", color="darkmagenta", name="Cum_ref"
+                                ("t_ns_chnl", item_name),
+                                type="line",
+                                color="darkmagenta",
+                                name="Cum_ref",
                             )
                         if has_both:
                             for (ix, prefix) in [(1, "tx"), (2, "ctle"), (3, "dfe")]:
                                 item_name = prefix + "_" + suffix + "_ref"
                                 container[ix].plot(
-                                    ("t_ns_chnl", item_name), type="line", color="darkcyan", name="Inc_ref"
+                                    ("t_ns_chnl", item_name),
+                                    type="line",
+                                    color="darkcyan",
+                                    name="Inc_ref",
                                 )
 
                 # - frequency domain
-                for (container, suffix, has_both) in [(the_pybert.plots_H.component_grid.flat, "H", True)]:
+                for (container, suffix, has_both) in [
+                    (the_pybert.plots_H.component_grid.flat, "H", True)
+                ]:
                     if "Reference" not in container[0].plots:
                         (ix, prefix) = (0, "chnl")
                         item_name = prefix + "_" + suffix + "_ref"
                         container[ix].plot(
-                            ("f_GHz", item_name), type="line", color="darkcyan", name="Inc_ref", index_scale="log"
+                            ("f_GHz", item_name),
+                            type="line",
+                            color="darkcyan",
+                            name="Inc_ref",
+                            index_scale="log",
                         )
                         for (ix, prefix) in [(1, "tx"), (2, "ctle"), (3, "dfe")]:
                             item_name = prefix + "_out_" + suffix + "_ref"
@@ -182,7 +210,9 @@ class MyHandler(Handler):
 
             except Exception as err:
                 print(item_name)
-                error_message = "The following error occured:\n\t{}\nThe waveform data was NOT loaded.".format(err)
+                error_message = "The following error occured:\n\t{}\nThe waveform data was NOT loaded.".format(
+                    err
+                )
                 the_pybert.handle_error(error_message)
 
 
@@ -225,11 +255,15 @@ traits_view = View(
                                 name="mod_type",
                                 label="Modulation",
                                 tooltip="line signalling/modulation scheme",
-                                editor=CheckListEditor(values=[(0, "NRZ"), (1, "Duo-binary"), (2, "PAM-4")]),
+                                editor=CheckListEditor(
+                                    values=[(0, "NRZ"), (1, "Duo-binary"), (2, "PAM-4")]
+                                ),
                             ),
                         ),
                         VGroup(
-                            Item(name="do_sweep", label="Do Sweep", tooltip="Run parameter sweeps."),
+                            Item(
+                                name="do_sweep", label="Do Sweep", tooltip="Run parameter sweeps."
+                            ),
                             Item(
                                 name="sweep_aves",
                                 label="SweepAves",
@@ -250,10 +284,26 @@ traits_view = View(
                             ),
                         ),
                         VGroup(
-                            Item(name="vod", label="Vod (V)", tooltip="Tx output voltage into matched load"),
-                            Item(name="rn", label="Rn (V)", tooltip="standard deviation of random noise"),
-                            Item(name="pn_mag", label="Pn (V)", tooltip="peak magnitude of periodic noise"),
-                            Item(name="pn_freq", label="f(Pn) (MHz)", tooltip="frequency of periodic noise"),
+                            Item(
+                                name="vod",
+                                label="Vod (V)",
+                                tooltip="Tx output voltage into matched load",
+                            ),
+                            Item(
+                                name="rn",
+                                label="Rn (V)",
+                                tooltip="standard deviation of random noise",
+                            ),
+                            Item(
+                                name="pn_mag",
+                                label="Pn (V)",
+                                tooltip="peak magnitude of periodic noise",
+                            ),
+                            Item(
+                                name="pn_freq",
+                                label="f(Pn) (MHz)",
+                                tooltip="frequency of periodic noise",
+                            ),
                         ),
                     ),
                     HGroup(
@@ -267,7 +317,11 @@ traits_view = View(
                             label="Impulse Response Length (ns)",
                             tooltip="Manual impulse response length override",
                         ),
-                        Item(name="debug", label="Debug", tooltip="Enable to log extra information to console."),
+                        Item(
+                            name="debug",
+                            label="Debug",
+                            tooltip="Enable to log extra information to console.",
+                        ),
                         label="Analysis Parameters",
                         show_border=True,
                     ),
@@ -281,9 +335,18 @@ traits_view = View(
                             show_label=False,
                             tooltip="Select channel frequency/impulse/step response from file.",
                         ),
-                        Item(name="ch_file", label="File", enabled_when="use_ch_file == True", springy=True),
-                        Item(name="padded", label="Zero-padded", enabled_when="use_ch_file == True"),
-                        Item(name="windowed", label="Windowed", enabled_when="use_ch_file == True"),
+                        Item(
+                            name="ch_file",
+                            label="File",
+                            enabled_when="use_ch_file == True",
+                            springy=True,
+                        ),
+                        Item(
+                            name="padded", label="Zero-padded", enabled_when="use_ch_file == True"
+                        ),
+                        Item(
+                            name="windowed", label="Windowed", enabled_when="use_ch_file == True"
+                        ),
                         Item(
                             name="f_step",
                             label="f_step",
@@ -368,12 +431,30 @@ traits_view = View(
                         HGroup(
                             VGroup(
                                 HGroup(
-                                    Item(name="tx_ami_valid", show_label=False, style="simple", enabled_when="False"),
-                                    Item(name="tx_ami_file", label="AMI File:", tooltip="Choose AMI file."),
+                                    Item(
+                                        name="tx_ami_valid",
+                                        show_label=False,
+                                        style="simple",
+                                        enabled_when="False",
+                                    ),
+                                    Item(
+                                        name="tx_ami_file",
+                                        label="AMI File:",
+                                        tooltip="Choose AMI file.",
+                                    ),
                                 ),
                                 HGroup(
-                                    Item(name="tx_dll_valid", show_label=False, style="simple", enabled_when="False"),
-                                    Item(name="tx_dll_file", label="DLL File:", tooltip="Choose DLL file."),
+                                    Item(
+                                        name="tx_dll_valid",
+                                        show_label=False,
+                                        style="simple",
+                                        enabled_when="False",
+                                    ),
+                                    Item(
+                                        name="tx_dll_file",
+                                        label="DLL File:",
+                                        tooltip="Choose DLL file.",
+                                    ),
                                 ),
                             ),
                             VGroup(
@@ -409,7 +490,11 @@ traits_view = View(
                                     ObjectColumn(name="enabled", style="simple"),
                                     ObjectColumn(name="min_val", horizontal_alignment="center"),
                                     ObjectColumn(name="max_val", horizontal_alignment="center"),
-                                    ObjectColumn(name="value", format="%+05.3f", horizontal_alignment="center"),
+                                    ObjectColumn(
+                                        name="value",
+                                        format="%+05.3f",
+                                        horizontal_alignment="center",
+                                    ),
                                     ObjectColumn(name="steps", horizontal_alignment="center"),
                                 ],
                                 configurable=False,
@@ -433,12 +518,30 @@ traits_view = View(
                         HGroup(
                             VGroup(
                                 HGroup(
-                                    Item(name="rx_ami_valid", show_label=False, style="simple", enabled_when="False"),
-                                    Item(name="rx_ami_file", label="AMI File:", tooltip="Choose AMI file."),
+                                    Item(
+                                        name="rx_ami_valid",
+                                        show_label=False,
+                                        style="simple",
+                                        enabled_when="False",
+                                    ),
+                                    Item(
+                                        name="rx_ami_file",
+                                        label="AMI File:",
+                                        tooltip="Choose AMI file.",
+                                    ),
                                 ),
                                 HGroup(
-                                    Item(name="rx_dll_valid", show_label=False, style="simple", enabled_when="False"),
-                                    Item(name="rx_dll_file", label="DLL File:", tooltip="Choose DLL file."),
+                                    Item(
+                                        name="rx_dll_valid",
+                                        show_label=False,
+                                        style="simple",
+                                        enabled_when="False",
+                                    ),
+                                    Item(
+                                        name="rx_dll_file",
+                                        label="DLL File:",
+                                        tooltip="Choose DLL file.",
+                                    ),
                                 ),
                             ),
                             VGroup(
@@ -473,7 +576,11 @@ traits_view = View(
                                     label="fromFile",
                                     tooltip="Select CTLE impulse/step response from file.",
                                 ),
-                                Item(name="ctle_file", label="Filename", enabled_when="use_ctle_file == True"),
+                                Item(
+                                    name="ctle_file",
+                                    label="Filename",
+                                    enabled_when="use_ctle_file == True",
+                                ),
                             ),
                             HGroup(
                                 Item(
@@ -523,8 +630,16 @@ traits_view = View(
             HGroup(
                 VGroup(
                     HGroup(
-                        Item(name="delta_t", label="Delta-t (ps)", tooltip="magnitude of CDR proportional branch"),
-                        Item(name="alpha", label="Alpha", tooltip="relative magnitude of CDR integral branch"),
+                        Item(
+                            name="delta_t",
+                            label="Delta-t (ps)",
+                            tooltip="magnitude of CDR proportional branch",
+                        ),
+                        Item(
+                            name="alpha",
+                            label="Alpha",
+                            tooltip="relative magnitude of CDR integral branch",
+                        ),
                     ),
                     HGroup(
                         Item(
@@ -533,7 +648,9 @@ traits_view = View(
                             tooltip="# of UI estimates to average, when determining lock",
                         ),
                         Item(
-                            name="rel_lock_tol", label="Lock Tol.", tooltip="relative tolerance for determining lock"
+                            name="rel_lock_tol",
+                            label="Lock Tol.",
+                            tooltip="relative tolerance for determining lock",
                         ),
                         Item(
                             name="lock_sustain",
@@ -558,10 +675,18 @@ traits_view = View(
                     HGroup(
                         Item(name="n_taps", label="Taps", tooltip="# of taps"),
                         Item(name="gain", label="Gain", tooltip="error feedback gain"),
-                        Item(name="decision_scaler", label="Level", tooltip="target output magnitude"),
+                        Item(
+                            name="decision_scaler",
+                            label="Level",
+                            tooltip="target output magnitude",
+                        ),
                     ),
                     HGroup(
-                        Item(name="n_ave", label="Nave.", tooltip="# of CDR adaptations per DFE adaptation"),
+                        Item(
+                            name="n_ave",
+                            label="Nave.",
+                            tooltip="# of CDR adaptations per DFE adaptation",
+                        ),
                         Item(
                             name="sum_bw",
                             label="BW (GHz)",
@@ -579,7 +704,11 @@ traits_view = View(
             label="Config.",
             id="config",
         ),
-        Group(Item("plots_dfe", editor=ComponentEditor(), show_label=False), label="DFE", id="plots_dfe"),
+        Group(
+            Item("plots_dfe", editor=ComponentEditor(), show_label=False),
+            label="DFE",
+            id="plots_dfe",
+        ),
         # "EQ Tune" tab.
         VGroup(
             HGroup(
@@ -610,7 +739,11 @@ traits_view = View(
                 ),
                 HGroup(
                     VGroup(
-                        Item(name="peak_freq_tune", label="CTLE fp (GHz)", tooltip="CTLE peaking frequency (GHz)"),
+                        Item(
+                            name="peak_freq_tune",
+                            label="CTLE fp (GHz)",
+                            tooltip="CTLE peaking frequency (GHz)",
+                        ),
                         Item(
                             name="rx_bw_tune",
                             label="Bandwidth (GHz)",
@@ -623,7 +756,11 @@ traits_view = View(
                             format_str="%4.1f",
                         ),
                         HGroup(
-                            Item(name="ctle_mode_tune", label="CTLE mode", tooltip="CTLE Operating Mode"),
+                            Item(
+                                name="ctle_mode_tune",
+                                label="CTLE mode",
+                                tooltip="CTLE Operating Mode",
+                            ),
                             Item(
                                 name="ctle_offset_tune",
                                 tooltip="CTLE d.c. offset (dB)",
@@ -632,7 +769,11 @@ traits_view = View(
                             ),
                         ),
                         HGroup(
-                            Item(name="use_dfe_tune", label="Use DFE:", tooltip="Include ideal DFE in optimization."),
+                            Item(
+                                name="use_dfe_tune",
+                                label="Use DFE:",
+                                tooltip="Include ideal DFE in optimization.",
+                            ),
                             Item(name="n_taps_tune", label="Taps", tooltip="Number of DFE taps."),
                         ),
                     ),
@@ -669,8 +810,14 @@ traits_view = View(
             ),
             Item("plot_h_tune", editor=ComponentEditor(), show_label=False, springy=True),
             HGroup(
-                Item("btn_rst_eq", show_label=False, tooltip="Reset all values to those on the 'Config.' tab."),
-                Item("btn_save_eq", show_label=False, tooltip="Store all values to 'Config.' tab."),
+                Item(
+                    "btn_rst_eq",
+                    show_label=False,
+                    tooltip="Reset all values to those on the 'Config.' tab.",
+                ),
+                Item(
+                    "btn_save_eq", show_label=False, tooltip="Store all values to 'Config.' tab."
+                ),
                 Item("btn_opt_tx", show_label=False, tooltip="Run Tx tap weight optimization."),
                 Item("btn_opt_rx", show_label=False, tooltip="Run Rx CTLE optimization."),
                 Item("btn_coopt", show_label=False, tooltip="Run co-optimization."),
@@ -679,12 +826,36 @@ traits_view = View(
             label="EQ Tune",
             id="eq_tune",
         ),
-        Group(Item("plots_h", editor=ComponentEditor(), show_label=False), label="Impulses", id="plots_h"),
-        Group(Item("plots_s", editor=ComponentEditor(), show_label=False), label="Steps", id="plots_s"),
-        Group(Item("plots_p", editor=ComponentEditor(), show_label=False), label="Pulses", id="plots_p"),
-        Group(Item("plots_H", editor=ComponentEditor(), show_label=False), label="Freq. Resp.", id="plots_H"),
-        Group(Item("plots_out", editor=ComponentEditor(), show_label=False), label="Outputs", id="plots_out"),
-        Group(Item("plots_eye", editor=ComponentEditor(), show_label=False), label="Eyes", id="plots_eye"),
+        Group(
+            Item("plots_h", editor=ComponentEditor(), show_label=False),
+            label="Impulses",
+            id="plots_h",
+        ),
+        Group(
+            Item("plots_s", editor=ComponentEditor(), show_label=False),
+            label="Steps",
+            id="plots_s",
+        ),
+        Group(
+            Item("plots_p", editor=ComponentEditor(), show_label=False),
+            label="Pulses",
+            id="plots_p",
+        ),
+        Group(
+            Item("plots_H", editor=ComponentEditor(), show_label=False),
+            label="Freq. Resp.",
+            id="plots_H",
+        ),
+        Group(
+            Item("plots_out", editor=ComponentEditor(), show_label=False),
+            label="Outputs",
+            id="plots_out",
+        ),
+        Group(
+            Item("plots_eye", editor=ComponentEditor(), show_label=False),
+            label="Eyes",
+            id="plots_eye",
+        ),
         Group(
             Item("plots_jitter_dist", editor=ComponentEditor(), show_label=False),
             label="Jitter Dist.",
@@ -695,7 +866,11 @@ traits_view = View(
             label="Jitter Spec.",
             id="plots_jitter_spec",
         ),
-        Group(Item("plots_bathtub", editor=ComponentEditor(), show_label=False), label="Bathtubs", id="plots_bathtub"),
+        Group(
+            Item("plots_bathtub", editor=ComponentEditor(), show_label=False),
+            label="Bathtubs",
+            id="plots_bathtub",
+        ),
         Group(Item("jitter_info", style="readonly", show_label=False), label="Jitter Info"),
         Group(Item("sweep_info", style="readonly", show_label=False), label="Sweep Info"),
         Group(
@@ -715,5 +890,14 @@ traits_view = View(
     title="PyBERT",
     width=0.95,
     height=1,
-    icon=ImageResource("icon.png")
+    icon=ImageResource("icon.png"),
 )
+
+def popup_error(error):
+    """If debug, raise else just prompt the user."""
+    log = logging.getLogger("pybert.view")
+    log.error(error)
+    if debug:
+        message(error, "PyBERT Debug Alert")
+        raise error
+    message(error, "PyBERT Alert")

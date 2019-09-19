@@ -1,7 +1,23 @@
-from logging import getLogger
+import logging
+from threading import Event, Thread
+from time import sleep
+
+from scipy.optimize import minimize, minimize_scalar
+from traits.api import (
+    Bool,
+    Enum,
+    File,
+    Float,
+    Instance,
+    Int,
+    List,
+)
 
 from pybert.buffer import Transmitter, Receiver
 
+gDebugOptimize = False
+gMaxCTLEPeak = 20.0  # max. allowed CTLE peaking (dB) (when optimizing, only)
+gMaxCTLEFreq = 20.0  # max. allowed CTLE peak frequency (GHz) (when optimizing, only)
 
 class StoppableThread(Thread):
     """
@@ -205,18 +221,20 @@ class CoOptThread(StoppableThread):
 #     - (See "High Speed Signal Propagation", Sec. 3.1.)
 #     - ToDo: These are the values for 24 guage twisted copper pair; need to add other options.
 gRdc = 0.1876  # Ohms/m
-gw0 = 10.0e6  # 10 MHz is recommended in Ch. 8 of his second book, in which UTP is described in detail.
+gw0 = (
+    10.0e6
+)  # 10 MHz is recommended in Ch. 8 of his second book, in which UTP is described in detail.
 gR0 = 1.452  # skin-effect resistance (Ohms/m)
 gTheta0 = 0.02  # loss tangent
 gZ0 = 100.0  # characteristic impedance in LC region (Ohms)
 gv0 = 0.67  # relative propagation velocity (c)
 gl_ch = 1.0  # cable length (m)
-gRn = (
-    0.001
-)  # standard deviation of Gaussian random noise (V) (Applied at end of channel, so as to appear white to Rx.)
+
+
 
 class Channel(object):
     """docstring for Channel"""
+
     def __init__(self):
         super(Channel, self).__init__()
         self.log = logging.getLogger("pybert.channel")
@@ -224,11 +242,15 @@ class Channel(object):
         self.use_ch_file = Bool(False)  #: Import channel description from file? (Default = False)
         self.padded = Bool(False)  #: Zero pad imported Touchstone data? (Default = False)
         self.windowed = Bool(False)  #: Apply windowing to the Touchstone data? (Default = False)
-        self.f_step = Float(10)  #: Frequency step to use when constructing H(f). (Default = 10 MHz)
+        self.f_step = Float(
+            10
+        )  #: Frequency step to use when constructing H(f). (Default = 10 MHz)
         self.ch_file = File(
             "", entries=5, filter=["*.s4p", "*.S4P", "*.csv", "*.CSV", "*.txt", "*.TXT", "*.*"]
         )  #: Channel file name.
-        self.impulse_length = Float(0.0)  #: Impulse response length. (Determined automatically, when 0.)
+        self.impulse_length = Float(
+            0.0
+        )  #: Impulse response length. (Determined automatically, when 0.)
         self.Rdc = Float(gRdc)  #: Channel d.c. resistance (Ohms/m).
         self.w0 = Float(gw0)  #: Channel transition frequency (rads./s).
         self.R0 = Float(gR0)  #: Channel skin effect resistance (Ohms/m).
@@ -260,3 +282,81 @@ class Channel(object):
         tx_opt_thread = Instance(TxOptThread)  #: Tx EQ optimization thread.
         rx_opt_thread = Instance(RxOptThread)  #: Rx EQ optimization thread.
         coopt_thread = Instance(CoOptThread)  #: EQ co-optimization thread.
+
+    def _btn_opt_tx_fired(self):
+        if (
+            self.tx_opt_thread
+            and self.tx_opt_thread.isAlive()
+            or not any([self.tx_tap_tuners[i].enabled for i in range(len(self.tx_tap_tuners))])
+        ):
+            pass
+        else:
+            self._do_opt_tx()
+
+    def _do_opt_tx(self, update_status=True):
+        self.tx_opt_thread = TxOptThread()
+        self.tx_opt_thread.pybert = self
+        self.tx_opt_thread.update_status = update_status
+        self.tx_opt_thread.start()
+
+    def _btn_opt_rx_fired(self):
+        if self.rx_opt_thread and self.rx_opt_thread.isAlive() or self.ctle_mode_tune == "Off":
+            pass
+        else:
+            self.rx_opt_thread = RxOptThread()
+            self.rx_opt_thread.pybert = self
+            self.rx_opt_thread.start()
+
+    def _btn_coopt_fired(self):
+        if self.coopt_thread and self.coopt_thread.isAlive():
+            pass
+        else:
+            self.coopt_thread = CoOptThread()
+            self.coopt_thread.pybert = self
+            self.coopt_thread.start()
+
+    # Independent variable setting intercepts
+    # (Primarily, for debugging.)
+    def _set_ctle_peak_mag_tune(self, val):
+        if val > gMaxCTLEPeak or val < 0.0:
+            raise RuntimeError("CTLE peak magnitude out of range!")
+        self.peak_mag_tune = val
+
+        # Button handlers
+    def _btn_rst_eq_fired(self):
+        """Reset the equalization."""
+        for i in range(4):
+            self.tx_tap_tuners[i].value = self.tx_taps[i].value
+            self.tx_tap_tuners[i].enabled = self.tx_taps[i].enabled
+        self.peak_freq_tune = self.peak_freq
+        self.peak_mag_tune = self.peak_mag
+        self.rx_bw_tune = self.rx_bw
+        self.ctle_mode_tune = self.ctle_mode
+        self.ctle_offset_tune = self.ctle_offset
+        self.use_dfe_tune = self.use_dfe
+        self.n_taps_tune = self.n_taps
+
+    def _btn_save_eq_fired(self):
+        """Save the equalization."""
+        for i in range(4):
+            self.tx_taps[i].value = self.tx_tap_tuners[i].value
+            self.tx_taps[i].enabled = self.tx_tap_tuners[i].enabled
+        self.peak_freq = self.peak_freq_tune
+        self.peak_mag = self.peak_mag_tune
+        self.rx_bw = self.rx_bw_tune
+        self.ctle_mode = self.ctle_mode_tune
+        self.ctle_offset = self.ctle_offset_tune
+        self.use_dfe = self.use_dfe_tune
+        self.n_taps = self.n_taps_tune
+
+
+    def _btn_abort_fired(self):
+        if self.coopt_thread and self.coopt_thread.isAlive():
+            self.coopt_thread.stop()
+            self.coopt_thread.join(10)
+        if self.tx_opt_thread and self.tx_opt_thread.isAlive():
+            self.tx_opt_thread.stop()
+            self.tx_opt_thread.join(10)
+        if self.rx_opt_thread and self.rx_opt_thread.isAlive():
+            self.rx_opt_thread.stop()
+            self.rx_opt_thread.join(10)

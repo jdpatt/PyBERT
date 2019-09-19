@@ -15,26 +15,22 @@ can be used to explore the concepts of serial communication link design.
 Copyright (c) 2014 by David Banas; All rights reserved World wide.
 """
 from traits.trait_base import ETSConfig
+
 ETSConfig.toolkit = "qt4"
 
-from datetime import datetime
 import logging
 import logging.handlers
 import platform
-from threading import Event, Thread
-from time import sleep
 
 from chaco.api import ArrayPlotData, GridPlotContainer
 from numpy import array, convolve, cos, diff, exp, ones, pad, pi, real, resize, sinc, where, zeros
 from numpy.fft import fft, ifft
 from numpy.random import randint
-from scipy.optimize import minimize, minimize_scalar
 from traits.api import (
     HTML,
     Array,
     Bool,
     Button,
-    Enum,
     File,
     Float,
     HasTraits,
@@ -42,14 +38,10 @@ from traits.api import (
     Int,
     List,
     Property,
-    Range,
     String,
     cached_property,
 )
-from traitsui.message import message
 
-from pyibisami.ami_parse import AMIParamConfigurator
-from pyibisami.ami_model import AMIModel
 
 from pybert import __version__ as VERSION
 from pybert import __date__ as DATE
@@ -57,9 +49,9 @@ from pybert import __authors__ as AUTHORS
 from pybert import __copy__ as COPY
 
 from pybert.simulation import Simulation
-from pybert.pybert_help import help_str
-from pybert.pybert_plot import make_plots
-from pybert.pybert_util import (
+from pybert.help import help_str
+from pybert.plot import make_plots
+from pybert.utility import (
     calc_G,
     calc_gamma,
     import_channel,
@@ -69,33 +61,11 @@ from pybert.pybert_util import (
     safe_log10,
     trim_impulse,
 )
-from pybert.pybert_view import traits_view
+from pybert.view import traits_view
+
 
 gDebugStatus = False
-gDebugOptimize = False
-gMaxCTLEPeak = 20.0  # max. allowed CTLE peaking (dB) (when optimizing, only)
-gMaxCTLEFreq = 20.0  # max. allowed CTLE peak frequency (GHz) (when optimizing, only)
 
-# Default model parameters - Modify these to customize the default simulation.
-# - Simulation Control
-gBitRate = 10  # (Gbps)
-gNbits = 8000  # number of bits to run
-gPatLen = 127  # repeating bit pattern length
-gNspb = 32  # samples per bit
-gNumAve = 1  # Number of bit error samples to average, when sweeping.
-
-# - DFE
-gDecisionScaler = 0.5
-gNtaps = 5
-gGain = 0.5
-gNave = 100
-gDfeBW = 12.0  # DFE summing node bandwidth (GHz)
-# - CDR
-gDeltaT = 0.1  # (ps)
-gAlpha = 0.01
-gNLockAve = 500  # number of UI used to average CDR locked status.
-gRelLockTol = 0.1  # relative lock tolerance of CDR.
-gLockSustain = 500
 # - Analysis
 gThresh = 6  # threshold for identifying periodic jitter spectral elements (sigma)
 
@@ -107,31 +77,16 @@ class PyBERT(HasTraits):
     Useful for exploring the concepts of serial communication link design.
     """
 
-    # Independent variables
-
-    # - DFE
-    use_dfe = Bool(gUseDfe)  #: True = use a DFE (Bool).
-    sum_ideal = Bool(gDfeIdeal)  #: True = use an ideal (i.e. - infinite bandwidth) summing node (Bool).
-    decision_scaler = Float(gDecisionScaler)  #: DFE slicer output voltage (V).
-    gain = Float(gGain)  #: DFE error gain (unitless).
-    n_ave = Float(gNave)  #: DFE # of averages to take, before making tap corrections.
-    n_taps = Int(gNtaps)  #: DFE # of taps.
-    _old_n_taps = n_taps
-    sum_bw = Float(gDfeBW)  #: DFE summing node bandwidth (Used when sum_ideal=False.) (GHz).
-
-    # - CDR
-    delta_t = Float(gDeltaT)  #: CDR proportional branch magnitude (ps).
-    alpha = Float(gAlpha)  #: CDR integral branch magnitude (unitless).
-    n_lock_ave = Int(gNLockAve)  #: CDR # of averages to take in determining lock.
-    rel_lock_tol = Float(gRelLockTol)  #: CDR relative tolerance to use in determining lock.
-    lock_sustain = Int(gLockSustain)  #: CDR hysteresis to use in determining lock.
-
     # - Analysis
     thresh = Int(gThresh)  #: Threshold for identifying periodic jitter components (sigma).
 
     # Misc.
-    cfg_file = File("", entries=5, filter=["*.pybert_cfg"])  #: PyBERT configuration data storage file (File).
-    data_file = File("", entries=5, filter=["*.pybert_data"])  #: PyBERT results data storage file (File).
+    cfg_file = File(
+        "", entries=5, filter=["*.pybert_cfg"]
+    )  #: PyBERT configuration data storage file (File).
+    data_file = File(
+        "", entries=5, filter=["*.pybert_data"]
+    )  #: PyBERT results data storage file (File).
 
     # Plots (plot containers, actually)
     plotdata = ArrayPlotData()
@@ -221,15 +176,6 @@ class PyBERT(HasTraits):
     btn_cfg_tx = Button(label="Configure")
     btn_cfg_rx = Button(label="Configure")
 
-
-    def handle_error(self, error):
-        """If debug, raise else just prompt the user."""
-        self.log.error(error)
-        if self.debug:
-            message(error, "PyBERT Debug Alert")
-            raise error
-        message(error, "PyBERT Alert")
-
     # Default initialization
     def __init__(self, run_simulation=True):
         """
@@ -261,95 +207,12 @@ class PyBERT(HasTraits):
         simulation = Simulation()
         if run_simulation:
             # Running the simulation will fill in the required data structure.
-            simulation.run(self, initial_run=True)
+            simulation.my_run_simulation(self, initial_run=True)
 
             # Once the required data structure is filled in, we can create the plots.
             make_plots(self, n_dfe_taps=gNtaps)
         else:
             self.calc_chnl_h()  # Prevents missing attribute error in _get_ctle_out_h_tune().
-
-    # Button handlers
-    def _btn_rst_eq_fired(self):
-        """Reset the equalization."""
-        for i in range(4):
-            self.tx_tap_tuners[i].value = self.tx_taps[i].value
-            self.tx_tap_tuners[i].enabled = self.tx_taps[i].enabled
-        self.peak_freq_tune = self.peak_freq
-        self.peak_mag_tune = self.peak_mag
-        self.rx_bw_tune = self.rx_bw
-        self.ctle_mode_tune = self.ctle_mode
-        self.ctle_offset_tune = self.ctle_offset
-        self.use_dfe_tune = self.use_dfe
-        self.n_taps_tune = self.n_taps
-
-    def _btn_save_eq_fired(self):
-        """Save the equalization."""
-        for i in range(4):
-            self.tx_taps[i].value = self.tx_tap_tuners[i].value
-            self.tx_taps[i].enabled = self.tx_tap_tuners[i].enabled
-        self.peak_freq = self.peak_freq_tune
-        self.peak_mag = self.peak_mag_tune
-        self.rx_bw = self.rx_bw_tune
-        self.ctle_mode = self.ctle_mode_tune
-        self.ctle_offset = self.ctle_offset_tune
-        self.use_dfe = self.use_dfe_tune
-        self.n_taps = self.n_taps_tune
-
-    def _btn_opt_tx_fired(self):
-        if (
-            self.tx_opt_thread
-            and self.tx_opt_thread.isAlive()
-            or not any([self.tx_tap_tuners[i].enabled for i in range(len(self.tx_tap_tuners))])
-        ):
-            pass
-        else:
-            self._do_opt_tx()
-
-    def _do_opt_tx(self, update_status=True):
-        self.tx_opt_thread = TxOptThread()
-        self.tx_opt_thread.pybert = self
-        self.tx_opt_thread.update_status = update_status
-        self.tx_opt_thread.start()
-
-    def _btn_opt_rx_fired(self):
-        if self.rx_opt_thread and self.rx_opt_thread.isAlive() or self.ctle_mode_tune == "Off":
-            pass
-        else:
-            self.rx_opt_thread = RxOptThread()
-            self.rx_opt_thread.pybert = self
-            self.rx_opt_thread.start()
-
-    def _btn_coopt_fired(self):
-        if self.coopt_thread and self.coopt_thread.isAlive():
-            pass
-        else:
-            self.coopt_thread = CoOptThread()
-            self.coopt_thread.pybert = self
-            self.coopt_thread.start()
-
-    def _btn_abort_fired(self):
-        if self.coopt_thread and self.coopt_thread.isAlive():
-            self.coopt_thread.stop()
-            self.coopt_thread.join(10)
-        if self.tx_opt_thread and self.tx_opt_thread.isAlive():
-            self.tx_opt_thread.stop()
-            self.tx_opt_thread.join(10)
-        if self.rx_opt_thread and self.rx_opt_thread.isAlive():
-            self.rx_opt_thread.stop()
-            self.rx_opt_thread.join(10)
-
-    def _btn_cfg_tx_fired(self):
-        self._tx_cfg()
-
-    def _btn_cfg_rx_fired(self):
-        self._rx_cfg()
-
-    # Independent variable setting intercepts
-    # (Primarily, for debugging.)
-    def _set_ctle_peak_mag_tune(self, val):
-        if val > gMaxCTLEPeak or val < 0.0:
-            raise RuntimeError("CTLE peak magnitude out of range!")
-        self.peak_mag_tune = val
 
     # Dependent variable definitions
     @cached_property
@@ -389,7 +252,10 @@ class PyBERT(HasTraits):
         f0 = 1.0 / (t[1] * npts)
         half_npts = npts // 2
 
-        return array([i * f0 for i in range(half_npts + 1)] + [(half_npts - i) * -f0 for i in range(1, half_npts)])
+        return array(
+            [i * f0 for i in range(half_npts + 1)]
+            + [(half_npts - i) * -f0 for i in range(1, half_npts)]
+        )
 
     @cached_property
     def _get_w(self):
@@ -513,10 +379,16 @@ class PyBERT(HasTraits):
             ideal_h = where(t < -ui / 2.0, zeros(len(t)), ideal_h)
             ideal_h = where(t > ui / 2.0, zeros(len(t)), ideal_h)
         else:
-            raise Exception("PyBERT._get_ideal_h(): ERROR: Unrecognized ideal impulse response type.")
+            raise Exception(
+                "PyBERT._get_ideal_h(): ERROR: Unrecognized ideal impulse response type."
+            )
 
-        if mod_type == 1:  # Duo-binary relies upon the total link impulse response to perform the required addition.
-            ideal_h = 0.5 * (ideal_h + pad(ideal_h[:-nspui], (nspui, 0), "constant", constant_values=(0, 0)))
+        if (
+            mod_type == 1
+        ):  # Duo-binary relies upon the total link impulse response to perform the required addition.
+            ideal_h = 0.5 * (
+                ideal_h + pad(ideal_h[:-nspui], (nspui, 0), "constant", constant_values=(0, 0))
+            )
 
         return ideal_h
 
@@ -643,24 +515,28 @@ class PyBERT(HasTraits):
             info_str += "<TH>Jitter Component</TH><TH>Input (ps)</TH><TH>Output (ps)</TH><TH>Rejection (dB)</TH>\n"
             info_str += "</TR>\n"
             info_str += '<TR align="right">\n'
-            info_str += '<TD align="center">ISI</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n' % (
-                isi_chnl,
-                isi_tx,
-                10.0 * safe_log10(isi_rej_tx),
+            info_str += (
+                '<TD align="center">ISI</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n'
+                % (isi_chnl, isi_tx, 10.0 * safe_log10(isi_rej_tx))
             )
             info_str += "</TR>\n"
             info_str += '<TR align="right">\n'
-            info_str += '<TD align="center">DCD</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n' % (
-                dcd_chnl,
-                dcd_tx,
-                10.0 * safe_log10(dcd_rej_tx),
+            info_str += (
+                '<TD align="center">DCD</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n'
+                % (dcd_chnl, dcd_tx, 10.0 * safe_log10(dcd_rej_tx))
             )
             info_str += "</TR>\n"
             info_str += '<TR align="right">\n'
-            info_str += '<TD align="center">Pj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>n/a</TD>\n' % (pj_chnl, pj_tx)
+            info_str += '<TD align="center">Pj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>n/a</TD>\n' % (
+                pj_chnl,
+                pj_tx,
+            )
             info_str += "</TR>\n"
             info_str += '<TR align="right">\n'
-            info_str += '<TD align="center">Rj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>n/a</TD>\n' % (rj_chnl, rj_tx)
+            info_str += '<TD align="center">Rj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>n/a</TD>\n' % (
+                rj_chnl,
+                rj_tx,
+            )
             info_str += "</TR>\n"
             info_str += "</TABLE>\n"
 
@@ -670,31 +546,27 @@ class PyBERT(HasTraits):
             info_str += "<TH>Jitter Component</TH><TH>Input (ps)</TH><TH>Output (ps)</TH><TH>Rejection (dB)</TH>\n"
             info_str += "</TR>\n"
             info_str += '<TR align="right">\n'
-            info_str += '<TD align="center">ISI</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n' % (
-                isi_tx,
-                isi_ctle,
-                10.0 * safe_log10(isi_rej_ctle),
+            info_str += (
+                '<TD align="center">ISI</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n'
+                % (isi_tx, isi_ctle, 10.0 * safe_log10(isi_rej_ctle))
             )
             info_str += "</TR>\n"
             info_str += '<TR align="right">\n'
-            info_str += '<TD align="center">DCD</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n' % (
-                dcd_tx,
-                dcd_ctle,
-                10.0 * safe_log10(dcd_rej_ctle),
+            info_str += (
+                '<TD align="center">DCD</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n'
+                % (dcd_tx, dcd_ctle, 10.0 * safe_log10(dcd_rej_ctle))
             )
             info_str += "</TR>\n"
             info_str += '<TR align="right">\n'
-            info_str += '<TD align="center">Pj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n' % (
-                pj_tx,
-                pj_ctle,
-                10.0 * safe_log10(pj_rej_ctle),
+            info_str += (
+                '<TD align="center">Pj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n'
+                % (pj_tx, pj_ctle, 10.0 * safe_log10(pj_rej_ctle))
             )
             info_str += "</TR>\n"
             info_str += '<TR align="right">\n'
-            info_str += '<TD align="center">Rj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n' % (
-                rj_tx,
-                rj_ctle,
-                10.0 * safe_log10(rj_rej_ctle),
+            info_str += (
+                '<TD align="center">Rj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n'
+                % (rj_tx, rj_ctle, 10.0 * safe_log10(rj_rej_ctle))
             )
             info_str += "</TR>\n"
             info_str += "</TABLE>\n"
@@ -705,31 +577,27 @@ class PyBERT(HasTraits):
             info_str += "<TH>Jitter Component</TH><TH>Input (ps)</TH><TH>Output (ps)</TH><TH>Rejection (dB)</TH>\n"
             info_str += "</TR>\n"
             info_str += '<TR align="right">\n'
-            info_str += '<TD align="center">ISI</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n' % (
-                isi_ctle,
-                isi_dfe,
-                10.0 * safe_log10(isi_rej_dfe),
+            info_str += (
+                '<TD align="center">ISI</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n'
+                % (isi_ctle, isi_dfe, 10.0 * safe_log10(isi_rej_dfe))
             )
             info_str += "</TR>\n"
             info_str += '<TR align="right">\n'
-            info_str += '<TD align="center">DCD</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n' % (
-                dcd_ctle,
-                dcd_dfe,
-                10.0 * safe_log10(dcd_rej_dfe),
+            info_str += (
+                '<TD align="center">DCD</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n'
+                % (dcd_ctle, dcd_dfe, 10.0 * safe_log10(dcd_rej_dfe))
             )
             info_str += "</TR>\n"
             info_str += '<TR align="right">\n'
-            info_str += '<TD align="center">Pj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n' % (
-                pj_ctle,
-                pj_dfe,
-                10.0 * safe_log10(pj_rej_dfe),
+            info_str += (
+                '<TD align="center">Pj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n'
+                % (pj_ctle, pj_dfe, 10.0 * safe_log10(pj_rej_dfe))
             )
             info_str += "</TR>\n"
             info_str += '<TR align="right">\n'
-            info_str += '<TD align="center">Rj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n' % (
-                rj_ctle,
-                rj_dfe,
-                10.0 * safe_log10(rj_rej_dfe),
+            info_str += (
+                '<TD align="center">Rj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n'
+                % (rj_ctle, rj_dfe, 10.0 * safe_log10(rj_rej_dfe))
             )
             info_str += "</TR>\n"
             info_str += "</TABLE>\n"
@@ -740,31 +608,27 @@ class PyBERT(HasTraits):
             info_str += "<TH>Jitter Component</TH><TH>Input (ps)</TH><TH>Output (ps)</TH><TH>Rejection (dB)</TH>\n"
             info_str += "</TR>\n"
             info_str += '<TR align="right">\n'
-            info_str += '<TD align="center">ISI</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n' % (
-                isi_chnl,
-                isi_dfe,
-                10.0 * safe_log10(isi_rej_total),
+            info_str += (
+                '<TD align="center">ISI</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n'
+                % (isi_chnl, isi_dfe, 10.0 * safe_log10(isi_rej_total))
             )
             info_str += "</TR>\n"
             info_str += '<TR align="right">\n'
-            info_str += '<TD align="center">DCD</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n' % (
-                dcd_chnl,
-                dcd_dfe,
-                10.0 * safe_log10(dcd_rej_total),
+            info_str += (
+                '<TD align="center">DCD</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n'
+                % (dcd_chnl, dcd_dfe, 10.0 * safe_log10(dcd_rej_total))
             )
             info_str += "</TR>\n"
             info_str += '<TR align="right">\n'
-            info_str += '<TD align="center">Pj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n' % (
-                pj_tx,
-                pj_dfe,
-                10.0 * safe_log10(pj_rej_total),
+            info_str += (
+                '<TD align="center">Pj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n'
+                % (pj_tx, pj_dfe, 10.0 * safe_log10(pj_rej_total))
             )
             info_str += "</TR>\n"
             info_str += '<TR align="right">\n'
-            info_str += '<TD align="center">Rj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n' % (
-                rj_tx,
-                rj_dfe,
-                10.0 * safe_log10(rj_rej_total),
+            info_str += (
+                '<TD align="center">Rj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n'
+                % (rj_tx, rj_dfe, 10.0 * safe_log10(rj_rej_total))
             )
             info_str += "</TR>\n"
             info_str += "</TABLE>\n"
@@ -783,27 +647,38 @@ class PyBERT(HasTraits):
         info_str += "      <TH>Component</TH><TH>Performance (Msmpls./min.)</TH>\n"
         info_str += "    </TR>\n"
         info_str += '    <TR align="right">\n'
-        info_str += '      <TD align="center">Channel</TD><TD>%6.3f</TD>\n' % (self.channel_perf * 60.0e-6)
+        info_str += '      <TD align="center">Channel</TD><TD>%6.3f</TD>\n' % (
+            self.channel_perf * 60.0e-6
+        )
         info_str += "    </TR>\n"
         info_str += '    <TR align="right">\n'
-        info_str += '      <TD align="center">Tx Preemphasis</TD><TD>%6.3f</TD>\n' % (self.tx_perf * 60.0e-6)
+        info_str += '      <TD align="center">Tx Preemphasis</TD><TD>%6.3f</TD>\n' % (
+            self.tx_perf * 60.0e-6
+        )
         info_str += "    </TR>\n"
         info_str += '    <TR align="right">\n'
-        info_str += '      <TD align="center">CTLE</TD><TD>%6.3f</TD>\n' % (self.ctle_perf * 60.0e-6)
+        info_str += '      <TD align="center">CTLE</TD><TD>%6.3f</TD>\n' % (
+            self.ctle_perf * 60.0e-6
+        )
         info_str += "    </TR>\n"
         info_str += '    <TR align="right">\n'
         info_str += '      <TD align="center">DFE</TD><TD>%6.3f</TD>\n' % (self.dfe_perf * 60.0e-6)
         info_str += "    </TR>\n"
         info_str += '    <TR align="right">\n'
-        info_str += '      <TD align="center">Jitter Analysis</TD><TD>%6.3f</TD>\n' % (self.jitter_perf * 60.0e-6)
-        info_str += "    </TR>\n"
-        info_str += '    <TR align="right">\n'
-        info_str += '      <TD align="center"><strong>TOTAL</strong></TD><TD><strong>%6.3f</strong></TD>\n' % (
-            self.total_perf * 60.0e-6
+        info_str += '      <TD align="center">Jitter Analysis</TD><TD>%6.3f</TD>\n' % (
+            self.jitter_perf * 60.0e-6
         )
         info_str += "    </TR>\n"
         info_str += '    <TR align="right">\n'
-        info_str += '      <TD align="center">Plotting</TD><TD>%6.3f</TD>\n' % (self.plotting_perf * 60.0e-6)
+        info_str += (
+            '      <TD align="center"><strong>TOTAL</strong></TD><TD><strong>%6.3f</strong></TD>\n'
+            % (self.total_perf * 60.0e-6)
+        )
+        info_str += "    </TR>\n"
+        info_str += '    <TR align="right">\n'
+        info_str += '      <TD align="center">Plotting</TD><TD>%6.3f</TD>\n' % (
+            self.plotting_perf * 60.0e-6
+        )
         info_str += "    </TR>\n"
         info_str += "  </TABLE>\n"
 
@@ -842,11 +717,14 @@ class PyBERT(HasTraits):
         status_str += dly_str + err_str + pwr_str
 
         try:
-            jit_str = "         | Jitter (ps):    ISI=%6.3f    DCD=%6.3f    Pj=%6.3f    Rj=%6.3f" % (
-                self.isi_dfe * 1.0e12,
-                self.dcd_dfe * 1.0e12,
-                self.pj_dfe * 1.0e12,
-                self.rj_dfe * 1.0e12,
+            jit_str = (
+                "         | Jitter (ps):    ISI=%6.3f    DCD=%6.3f    Pj=%6.3f    Rj=%6.3f"
+                % (
+                    self.isi_dfe * 1.0e12,
+                    self.dcd_dfe * 1.0e12,
+                    self.pj_dfe * 1.0e12,
+                    self.rj_dfe * 1.0e12,
+                )
             )
         except:
             jit_str = "         | (Jitter not available.)"
@@ -943,7 +821,12 @@ class PyBERT(HasTraits):
         self.plotdata.set_data("clocks_tune", clocks)
 
         if mod_type == 1:  # Handle duo-binary.
-            return isi - p[clock_pos] - p[clock_pos + nspui] + 2.0 * abs(p[clock_pos + nspui] - p[clock_pos])
+            return (
+                isi
+                - p[clock_pos]
+                - p[clock_pos + nspui]
+                + 2.0 * abs(p[clock_pos + nspui] - p[clock_pos])
+            )
         return isi - p[clock_pos]
 
     @cached_property
@@ -983,7 +866,6 @@ class PyBERT(HasTraits):
         else:
             for i in range(1, 4):
                 self.tx_tap_tuners[i].enabled = False
-
 
     # This function has been pulled outside of the standard Traits/UI "depends_on / @cached_property" mechanism,
     # in order to more tightly control when it executes. I wasn't able to get truly lazy evaluation, and
@@ -1039,7 +921,9 @@ class PyBERT(HasTraits):
             chnl_dly = l_ch / v0
             gamma, Zc = calc_gamma(R0, w0, Rdc, Z0, v0, Theta0, w)
             H = exp(-l_ch * gamma)
-            chnl_H = 2.0 * calc_G(H, Rs, Cs, Zc, RL, Cp, CL, w)  # Compensating for nominal /2 divider action.
+            chnl_H = 2.0 * calc_G(
+                H, Rs, Cs, Zc, RL, Cp, CL, w
+            )  # Compensating for nominal /2 divider action.
             chnl_h = real(ifft(chnl_H))
 
         min_len = 10 * nspui
@@ -1071,16 +955,12 @@ class PyBERT(HasTraits):
 def setup_logger(debug: bool = False):
     """Setup the logger and return the logging object."""
     logger = logging.getLogger("pybert")
-    
+
     # Setup the File Handler.  All messages are logged.
     fh = logging.handlers.RotatingFileHandler(
-        Path(__file__).parent.joinpath("pybert.log"),
-        maxBytes=10485760, # 10MB
-        backupCount=5
+        Path(__file__).parent.joinpath("pybert.log"), maxBytes=10485760, backupCount=5  # 10MB
     )
-    fh_format = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    )
+    fh_format = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     fh.setFormatter(fh_format)
     fh.setLevel(logging.DEBUG)
     logger.addHandler(fh)
@@ -1096,6 +976,7 @@ def setup_logger(debug: bool = False):
         logger.setLevel(logging.DEBUG)
     else:
         logger.setLevel(logging.INFO)
+    logger.info("Log file created at: %s", Path(__file__).parent)
     return logger
 
 
