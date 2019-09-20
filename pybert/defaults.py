@@ -15,7 +15,7 @@ NUM_AVG = 1  # Number of bit error samples to average, when sweeping.
 # - Channel Control ----------------------------------------------------------
 #     - parameters for Howard Johnson's "Metallic Transmission Model"
 #     - (See "High Speed Signal Propagation", Sec. 3.1.)
-#     - ToDo: These are the values for 24 guage twisted copper pair; need to add other options.
+#     - TODO: These are the values for 24 guage twisted copper pair; need to add other options.
 DC_RESISTANCE_PER_METER = 0.1876  # Ohms/m
 W_TRANSITION_FREQ = (
     10.0e6

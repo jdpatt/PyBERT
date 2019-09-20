@@ -12,6 +12,9 @@ result could be saved and later restored, as a reference waveform.
 
 Copyright (c) 2017 by David Banas; All rights reserved World wide.
 """
+# pylint: skip-file
+# TODO: This file needs to be completely rewritten
+
 import pickle
 
 from chaco.api import ArrayPlotData

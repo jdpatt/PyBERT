@@ -2,9 +2,6 @@
 from threading import Event, Thread
 from time import sleep
 
-from numpy import convolve, ones, pad, real
-from scipy.optimize import minimize, minimize_scalar
-
 from pybert import __authors__ as AUTHORS
 from pybert import __copy__ as COPY
 from pybert import __date__ as DATE
@@ -30,7 +27,9 @@ from pybert.defaults import (
     USE_DFE,
 )
 from pybert.view import popup_alert
+from scipy.optimize import minimize, minimize_scalar
 from traits.api import (
+    Array,
     Bool,
     Enum,
     File,
@@ -39,6 +38,7 @@ from traits.api import (
     Instance,
     Int,
     List,
+    Property,
     String,
     cached_property,
 )
@@ -326,7 +326,7 @@ class Equalization:
             DFE_NUM_AVG
         )  #: DFE # of averages to take, before making tap corrections.
         self.n_taps = Int(NUM_TAPS)  #: DFE # of taps.
-        self._old_n_taps = n_taps
+        self._old_n_taps = self.n_taps
         self.sum_bw = Float(
             DFE_BW
         )  #: DFE summing node bandwidth (Used when sum_ideal=False.) (GHz).
@@ -339,6 +339,23 @@ class Equalization:
             REL_LOCK_TOL
         )  #: CDR relative tolerance to use in determining lock.
         self.lock_sustain = Int(LOCK_SUSTAIN)  #: CDR hysteresis to use in determining lock.
+
+        self.tx_h_tune = Property(Array, depends_on=["tx_tap_tuners.value", "nspui"])
+        self.ctle_h_tune = Property(
+            Array,
+            depends_on=[
+                "peak_freq_tune",
+                "peak_mag_tune",
+                "rx_bw_tune",
+                "w",
+                "len_h",
+                "ctle_mode_tune",
+                "ctle_offset_tune",
+                "use_dfe_tune",
+                "n_taps_tune",
+            ],
+        )
+        self.ctle_out_h_tune = Property(Array, depends_on=["tx_h_tune", "ctle_h_tune", "chnl_h"])
 
     def reset_equalization(self):
         """Reset the equalization to the last set values."""
@@ -434,7 +451,7 @@ class Equalization:
     # Independent variable setting intercepts
     def _set_ctle_peak_mag_tune(self, val):
         if val > MAX_CTLE_PEAK or val < 0.0:
-            popup_alert(prompt, RuntimeError())
+            popup_alert("CTLE peak magnitude out of range!", RuntimeError())
         self.peak_mag_tune = val
 
     @cached_property
@@ -454,86 +471,3 @@ class Equalization:
         taps.insert(1, 1.0 - sum(map(abs, taps)))  # Assume one pre-tap.
 
         return taps
-
-    @cached_property
-    def _get_cost(self):
-        nspui = self.nspui
-        h = self.ctle_out_h_tune
-        mod_type = self.mod_type[0]
-
-        s = h.cumsum()
-        p = s - pad(s[:-nspui], (nspui, 0), "constant", constant_values=(0, 0))
-
-        (clock_pos, thresh) = pulse_center(p, nspui)
-        if clock_pos == -1:
-            return 1.0  # Returning a large cost lets it know it took a wrong turn.
-        clocks = thresh * ones(len(p))
-        if mod_type == 1:  # Handle duo-binary.
-            clock_pos -= nspui // 2
-        clocks[clock_pos] = 0.0
-        if mod_type == 1:  # Handle duo-binary.
-            clocks[clock_pos + nspui] = 0.0
-
-        # Cost is simply ISI minus main lobe amplitude.
-        # Note: post-cursor ISI is NOT included in cost, when we're using the DFE.
-        isi = 0.0
-        ix = clock_pos - nspui
-        while ix >= 0:
-            clocks[ix] = 0.0
-            isi += abs(p[ix])
-            ix -= nspui
-        ix = clock_pos + nspui
-        if mod_type == 1:  # Handle duo-binary.
-            ix += nspui
-        while ix < len(p):
-            clocks[ix] = 0.0
-            if not self.use_dfe_tune:
-                isi += abs(p[ix])
-            ix += nspui
-        if self.use_dfe_tune:
-            for i in range(self.n_taps_tune):
-                if clock_pos + nspui * (1 + i) < len(p):
-                    p[int(clock_pos + nspui * (0.5 + i)) :] -= p[clock_pos + nspui * (1 + i)]
-
-        self.plotdata.set_data("ctle_out_h_tune", p)
-        self.plotdata.set_data("clocks_tune", clocks)
-
-        if mod_type == 1:  # Handle duo-binary.
-            return (
-                isi
-                - p[clock_pos]
-                - p[clock_pos + nspui]
-                + 2.0 * abs(p[clock_pos + nspui] - p[clock_pos])
-            )
-        return isi - p[clock_pos]
-
-    @cached_property
-    def _get_rel_opt(self):
-        return -self.cost
-
-    @cached_property
-    def _get_ctle_h_tune(self):
-        w = self.w
-        len_h = self.len_h
-        rx_bw = self.rx_bw_tune * 1.0e9
-        peak_freq = self.peak_freq_tune * 1.0e9
-        peak_mag = self.peak_mag_tune
-        offset = self.ctle_offset_tune
-        mode = self.ctle_mode_tune
-
-        _, H = make_ctle(rx_bw, peak_freq, peak_mag, w, mode, offset)
-        h = real(ifft(H))[:len_h]
-        h *= abs(H[0]) / sum(h)
-
-        return h
-
-    @cached_property
-    def _get_ctle_out_h_tune(self):
-        chnl_h = self.chnl_h
-        tx_h = self.tx_h_tune
-        ctle_h = self.ctle_h_tune
-
-        tx_out_h = convolve(tx_h, chnl_h)
-        h = convolve(ctle_h, tx_out_h)
-
-        return h

@@ -25,12 +25,11 @@ from pybert import __date__ as DATE
 from pybert import __version__ as VERSION
 from pybert.configuration import ConfigurationData
 from pybert.defaults import DEBUG, NUM_TAPS
-from pybert.help import HELP_STRING
-from pybert.plot import make_plots
 from pybert.simulation import Simulation
+from pybert.static import help_menu, jitter_rejection_menu, performance_menu, sweep_results_menu
 from pybert.view import TRAITS_VIEW, popup_alert
 from pybert.waveform_data import WaveformData
-from traits.api import Button, HasTraits, String
+from traits.api import Button, HasTraits, String, cached_property
 
 
 class PyBERT(HasTraits):
@@ -40,6 +39,7 @@ class PyBERT(HasTraits):
     Useful for exploring the concepts of serial communication link design.
     """
 
+    # pylint: disable=R0903
     def __init__(self, run_simulation: bool = True):
         """
         Initial plot setup occurs here.
@@ -67,8 +67,8 @@ class PyBERT(HasTraits):
 
         self.log.info("Starting PyBERT...")
 
-        self.config = ConfigurationData()
-        self.data = WaveformData()
+        self.config = ConfigurationData(self)
+        self.data = WaveformData(self)
         self.simulation = Simulation()
         self.channel = self.simulation.channel
 
@@ -84,7 +84,7 @@ class PyBERT(HasTraits):
         )
 
         # Help
-        self.help_tab = HELP_STRING
+        self.help_tab = help_menu()
 
         # Tab Buttons
         self.btn_rst_eq = Button(label="Reset Eq")
@@ -107,9 +107,9 @@ class PyBERT(HasTraits):
         if run_simulation:
             # Running the simulation will fill in the required data structure.
             self.simulation.my_run_simulation(initial_run=True)
-
             # Once the required data structure is filled in, we can create the plots.
-            make_plots(self, n_dfe_taps=NUM_TAPS)
+            self.simulation.plots.init_plots(self, NUM_TAPS)
+            self.simulation.update_eyes()
         else:
             self.channel.calc_chnl_h()  # Prevents missing attribute error in _get_ctle_out_h_tune().
 
@@ -194,6 +194,16 @@ class PyBERT(HasTraits):
     def _use_dfe_tune_changed(self, new_value):
         """The user turned on/off the tuned DFE."""
         self.channel.eq.toggle_tunded_dfe(new_value)
+
+    @cached_property
+    def _get_sweep_info(self):
+        return sweep_results_menu(self.simulation.sweep_results)
+
+    @cached_property
+    def _get_perf_info(self):
+        return performance_menu(
+            {key: value * 60.0e-6 for (key, value) in self.performance.items()}
+        )
 
 
 def setup_logger(debug: bool = False):

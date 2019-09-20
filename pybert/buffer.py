@@ -4,7 +4,7 @@ from logging import getLogger
 from pybert.defaults import (
     AC_CAPACITANCE,
     INPUT_CAPACITANCE,
-    INPUT_IMEDANCE,
+    INPUT_IMPEDANCE,
     OUTPUT_CAPACITANCE,
     OUTPUT_DRIVE_STRENGTH,
     OUTPUT_IMPEDANCE,
@@ -13,7 +13,7 @@ from pybert.defaults import (
     RANDOM_NOISE,
 )
 from pybert.view import popup_alert
-from pyibisami.ami_model import AMIModel
+from pyibisami.ami_model import AMIModel, AMIModelInitializer
 from pyibisami.ami_parse import AMIParamConfigurator
 from traits.api import Bool, File, Float, Range
 
@@ -82,6 +82,31 @@ class Transmitter(Buffer):
         )  #: Standard deviation of Gaussian random noise (V).
         self.rel_power = Float(1.0)  #: Tx power dissipation (W).
 
+    def initialize_model(self, sample_interval, channel_response, bit_time):
+        """Within the PyBERT computational environment, we use normalized impulse responses,
+        which have units of (V/ts), where 'ts' is the sample interval. However, IBIS-AMI models expect
+        units of (V/s). So, we have to scale accordingly, as we transit the boundary between these two worlds.
+
+        Get the model invoked and initialized, except for 'channel_response', which
+        we need to do several different ways, in order to gather all the data we need.
+        """
+        tx_param_dict = self.configurator.input_ami_params
+        tx_model_init = AMIModelInitializer(tx_param_dict)
+        tx_model_init.sample_interval = sample_interval  # Must be set, before 'channel_response'!
+        tx_model_init.channel_response = channel_response
+        tx_model_init.bit_time = bit_time
+        tx_model = AMIModel(self.dll_file)
+        tx_model.initialize(tx_model_init)
+        self.log.info("Tx IBIS-AMI model initialization results:")
+        self.log.info("Input parameters: %s", tx_model.ami_params_in)
+        self.log.info("Output parameters: %s", tx_model.ami_params_out)
+        self.log.info("Message: %s", tx_model.msg)
+        if not self.configurator.fetch_param_val(["Reserved_Parameters", "GetWave_Exists"]):
+            raise TypeError()
+        if not self.use_getwave:
+            raise ValueError()
+        return tx_model
+
 
 class Receiver(Buffer):
     """docstring for Receiver"""
@@ -89,8 +114,28 @@ class Receiver(Buffer):
     def __init__(self):
         super(Receiver, self).__init__()
         self.log.debug("Creating Rx")
-        self.input_impedance = Float(INPUT_IMEDANCE)  #: Rx input impedance (Ohm)
+        self.input_impedance = Float(INPUT_IMPEDANCE)  #: Rx input impedance (Ohm)
         self.input_capacitance = Range(
             low=0.001, value=INPUT_CAPACITANCE
         )  #: Rx parasitic input capacitance (pF)
         self.cac = Float(AC_CAPACITANCE)  #: Rx a.c. coupling capacitance (uF)
+
+    def initialize_model(self, sample_interval, channel_response, bit_time):
+        """Get the model invoked and initialized, except for 'channel_response', which
+        we need to do several different ways, in order to gather all the data we need."""
+        rx_param_dict = self.configurator.input_ami_params
+        rx_model_init = AMIModelInitializer(rx_param_dict)
+        rx_model_init.sample_interval = sample_interval  # Must be set, before 'channel_response'!
+        rx_model_init.channel_response = channel_response
+        rx_model_init.bit_time = bit_time
+        rx_model = AMIModel(self.dll_file)
+        rx_model.initialize(rx_model_init)
+        self.log.info("Rx IBIS-AMI model initialization results:")
+        self.log.info("Input parameters: %s", rx_model.ami_params_in)
+        self.log.info("Output parameters: %s", rx_model.ami_params_out)
+        self.log.info("Message: %s", rx_model.msg)
+        if not self.configurator.fetch_param_val(["Reserved_Parameters", "GetWave_Exists"]):
+            raise TypeError()
+        if not self.use_getwave:
+            raise ValueError()
+        return rx_model

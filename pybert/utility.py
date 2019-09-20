@@ -8,41 +8,12 @@ Copyright (c) 2014 David Banas; all rights reserved World wide.
 """
 import re
 from functools import reduce
+from logging import getLogger
 from pathlib import Path
 
 import numpy as np
-from numpy import (
-    array,
-    concatenate,
-    convolve,
-    cumsum,
-    diff,
-    float,
-    histogram,
-    insert,
-    log10,
-    mean,
-    ones,
-    pi,
-    power,
-    real,
-    reshape,
-    resize,
-    sign,
-    sort,
-    sqrt,
-    where,
-    zeros,
-)
-from numpy.fft import fft, ifft
-from scipy.signal import freqs, get_window, invres
-from scipy.stats import norm
-
 import skrf as rf
-
-debug = False
-gDebugOptimize = False
-gMaxCTLEPeak = 20  # max. allowed CTLE peaking (dB) (when optimizing, only)
+from scipy.signal import freqs, get_window, invres
 
 
 def moving_average(a, n=3):
@@ -58,9 +29,9 @@ def moving_average(a, n=3):
         vector unchanged.
     """
 
-    ret = cumsum(a, dtype=float)
+    ret = np.cumsum(a, dtype=np.float)
     ret[n:] = ret[n:] - ret[:-n]
-    return insert(ret[n - 1 :], 0, ret[n - 1] * ones(n - 1)) / n
+    return np.insert(ret[n - 1 :], 0, ret[n - 1] * np.ones(n - 1)) / n
 
 
 def find_crossing_times(
@@ -99,14 +70,15 @@ def find_crossing_times(
     if len(t) != len(x):
         raise ValueError("len(t) (%d) and len(x) (%d) need to be the same." % (len(t), len(x)))
 
-    t = array(t)
-    x = array(x)
+    t = np.array(t)
+    x = np.array(x)
 
     try:
         max_mag_x = max(abs(x))
-    except:
-        print("len(x):", len(x))
-        raise
+    except Exception as error:
+        log = getLogger()
+        log.error("len(x): %d", len(x))
+        raise error
     min_mag_x = min_init_dev * max_mag_x
     i = 0
     while abs(x[i]) < min_mag_x:
@@ -115,14 +87,14 @@ def find_crossing_times(
     x = x[i:] - thresh
     t = t[i:]
 
-    sign_x = sign(x)
-    sign_x = where(sign_x, sign_x, ones(len(sign_x)))  # "0"s can produce duplicate xings.
-    diff_sign_x = diff(sign_x)
-    xing_ix = where(diff_sign_x)[0]
+    sign_x = np.sign(x)
+    sign_x = np.where(sign_x, sign_x, np.ones(len(sign_x)))  # "0"s can produce duplicate xings.
+    diff_sign_x = np.diff(sign_x)
+    xing_ix = np.where(diff_sign_x)[0]
     xings = [t[i] + (t[i + 1] - t[i]) * x[i] / (x[i] - x[i + 1]) for i in xing_ix]
 
     if not xings:
-        return array([])
+        return np.array([])
 
     i = 0
     if min_delay:
@@ -132,25 +104,17 @@ def find_crossing_times(
         while xings[i] < min_delay:
             i += 1
 
-    if debug:
-        print("min_delay: {}".format(min_delay))
-        print("rising_first: {}".format(rising_first))
-        print("i: {}".format(i))
-        print("max_mag_x: {}".format(max_mag_x))
-        print("min_mag_x: {}".format(min_mag_x))
-        print("xings[0]: {}".format(xings[0]))
-        print("xings[i]: {}".format(xings[i]))
-
     try:
         if rising_first and diff_sign_x[xing_ix[i]] < 0.0:
             i += 1
-    except:
-        print("len(diff_sign_x):", len(diff_sign_x))
-        print("len(xing_ix):", len(xing_ix))
-        print("i:", i)
+    except Exception as error:
+        log = getLogger()
+        log.error("len(diff_sign_x): %d", len(diff_sign_x))
+        log.error("len(xing_ix): %d", len(xing_ix))
+        log.error("i: %d", i)
         raise
 
-    return array(xings[i:])
+    return np.array(xings[i:])
 
 
 def find_crossings(
@@ -190,10 +154,6 @@ def find_crossings(
 
     Returns: The signal threshold crossing times.
     """
-
-    assert (
-        mod_type >= 0 and mod_type <= 2
-    ), "ERROR: pybert_util.find_crossings(): Unknown modulation type: {}".format(mod_type)
 
     xings = []
     if mod_type == 0:  # NRZ
@@ -239,282 +199,7 @@ def find_crossings(
     else:
         raise ValueError(f"Unknown modulation type: {mod_type}")
 
-    return sort(concatenate(xings))
-
-
-def calc_jitter(
-    ui, nui, pattern_len, ideal_xings, actual_xings, rel_thresh=6, num_bins=99, zero_mean=True
-):
-    """
-    Calculate the jitter in a set of actual zero crossings, given the ideal crossings and unit interval.
-
-    Inputs:
-
-      - ui               : The nominal unit interval.
-      - nui              : The number of unit intervals spanned by the input signal.
-      - pattern_len      : The number of unit intervals, before input symbol stream repeats.
-      - ideal_xings      : The ideal zero crossing locations of the edges.
-      - actual_xings     : The actual zero crossing locations of the edges.
-      - rel_thresh       : (optional) The threshold for determining periodic jitter spectral components (sigma).
-      - num_bins         : (optional) The number of bins to use, when forming histograms.
-      - zero_mean        : (optional) Force the mean jitter to zero, when True.
-
-    Outputs:
-
-      - jitter   : The total jitter.
-      - t_jitter : The times (taken from 'ideal_xings') corresponding to the returned jitter values.
-      - isi      : The peak to peak jitter due to intersymbol interference.
-      - dcd      : The peak to peak jitter due to duty cycle distortion.
-      - pj       : The peak to peak jitter due to uncorrelated periodic sources.
-      - rj       : The standard deviation of the jitter due to uncorrelated unbounded random sources.
-      - tie_ind  : The data independent jitter.
-      - thresh   : Threshold for determining periodic components.
-      - jitter_spectrum  : The spectral magnitude of the total jitter.
-      - tie_ind_spectrum : The spectral magnitude of the data independent jitter.
-      - spectrum_freqs   : The frequencies corresponding to the spectrum components.
-      - hist        : The histogram of the actual jitter.
-      - hist_synth  : The histogram of the extrapolated jitter.
-      - bin_centers : The bin center values for both histograms.
-
-    """
-
-    def my_hist(x):
-        """
-        Calculates the probability mass function (PMF) of the input vector,
-        enforcing an output range of [-UI/2, +UI/2], sweeping everything in [-UI, -UI/2] into the first bin,
-        and everything in [UI/2, UI] into the last bin.
-        """
-        hist, bin_edges = histogram(
-            x, [-ui] + [-ui / 2.0 + i * ui / (num_bins - 2) for i in range(num_bins - 1)] + [ui]
-        )
-        bin_centers = (
-            [-ui / 2.0]
-            + [mean([bin_edges[i + 1], bin_edges[i + 2]]) for i in range(len(bin_edges) - 3)]
-            + [ui / 2.0]
-        )
-
-        return (array(list(map(float, hist))) / sum(hist), bin_centers)
-
-    # Check inputs.
-    if not ideal_xings.all():
-        raise ValueError("calc_jitter(): zero length ideal crossings vector received!")
-    if not actual_xings.all():
-        raise ValueError("calc_jitter(): zero length actual crossings vector received!")
-
-    # Line up first ideal/actual crossings, and count/validate crossings per pattern.
-    ideal_xings = array(ideal_xings) - (ideal_xings[0] - ui / 2.0)
-    actual_xings = array(actual_xings) - (actual_xings[0] - ui / 2.0)
-    xings_per_pattern = where(ideal_xings > (pattern_len * ui))[0][0]
-    if xings_per_pattern % 2 or not xings_per_pattern:
-        print("xings_per_pattern:", xings_per_pattern)
-        print("len(ideal_xings):", len(ideal_xings))
-        print("min(ideal_xings):", min(ideal_xings))
-        print("max(ideal_xings):", max(ideal_xings))
-        raise AssertionError(
-            "pybert_util.calc_jitter(): Odd number of (or, no) crossings per pattern detected!"
-        )
-    num_patterns = nui // pattern_len
-
-    # Assemble the TIE track.
-    i = 0
-    jitter = []
-    t_jitter = []
-    skip_next_ideal_xing = False
-    for ideal_xing in ideal_xings:
-        if skip_next_ideal_xing:
-            t_jitter.append(ideal_xing)
-            skip_next_ideal_xing = False
-            continue
-        # Confine our attention to those actual crossings occuring
-        # within the interval [-UI/2, +UI/2] centered around the
-        # ideal crossing.
-        min_t = ideal_xing - ui / 2.0
-        max_t = ideal_xing + ui / 2.0
-        while i < len(actual_xings) and actual_xings[i] < min_t:
-            i += 1
-        if i == len(actual_xings):  # We've exhausted the list of actual crossings; we're done.
-            break
-        if (
-            actual_xings[i] > max_t
-        ):  # Means the xing we're looking for didn't occur, in the actual signal.
-            jitter.append(3.0 * ui / 4.0)  # Pad the jitter w/ alternating +/- 3UI/4.
-            jitter.append(-3.0 * ui / 4.0)  # (Will get pulled into [-UI/2, UI/2], later.
-            skip_next_ideal_xing = True  # If we missed one, we missed two.
-        else:  # Noise may produce several crossings. We find all those
-            xings = []  # within the interval [-UI/2, +UI/2] centered
-            j = i  # around the ideal crossing, and take the average.
-            while j < len(actual_xings) and actual_xings[j] <= max_t:
-                xings.append(actual_xings[j])
-                j += 1
-            tie = mean(xings) - ideal_xing
-            jitter.append(tie)
-        t_jitter.append(ideal_xing)
-    jitter = array(jitter)
-
-    if debug:
-        print("mean(jitter):", mean(jitter))
-        print("len(jitter):", len(jitter))
-
-    if zero_mean:
-        jitter -= mean(jitter)
-
-    # Do the jitter decomposition.
-    # - Separate the rising and falling edges, shaped appropriately for averaging over the pattern period.
-    tie_risings = jitter.take(list(range(0, len(jitter), 2)))
-    tie_fallings = jitter.take(list(range(1, len(jitter), 2)))
-    tie_risings.resize(num_patterns * xings_per_pattern // 2)
-    tie_fallings.resize(num_patterns * xings_per_pattern // 2)
-    tie_risings = reshape(tie_risings, (num_patterns, xings_per_pattern // 2))
-    tie_fallings = reshape(tie_fallings, (num_patterns, xings_per_pattern // 2))
-
-    # - Use averaging to remove the uncorrelated components, before calculating data dependent components.
-    try:
-        tie_risings_ave = tie_risings.mean(axis=0)
-        tie_fallings_ave = tie_fallings.mean(axis=0)
-        isi = max(tie_risings_ave.ptp(), tie_fallings_ave.ptp())
-    except:
-        print("xings_per_pattern:", xings_per_pattern)
-        print("len(ideal_xings):", len(ideal_xings))
-        raise
-    isi = min(isi, ui)  # Cap the ISI at the unit interval.
-    dcd = abs(mean(tie_risings_ave) - mean(tie_fallings_ave))
-
-    # - Subtract the data dependent jitter from the original TIE track, in order to yield the data independent jitter.
-    tie_ave = sum(list(zip(tie_risings_ave, tie_fallings_ave)), ())
-    tie_ave = resize(tie_ave, len(jitter))
-    tie_ind = jitter - tie_ave
-
-    # - Use spectral analysis to help isolate the periodic components of the data independent jitter.
-    # -- Calculate the total jitter spectrum, for display purposes only.
-    # --- Make vector uniformly sampled in time, via zero padding where necessary.
-    # --- (It's necessary to keep track of those elements in the resultant vector, which aren't paddings; hence, 'valid_ix'.)
-    x, valid_ix = make_uniform(t_jitter, jitter, ui, nui)
-    y = fft(x)
-    jitter_spectrum = abs(y[: len(y) // 2]) / sqrt(
-        len(jitter)
-    )  # Normalized, in order to make power correct.
-    f0 = 1.0 / (ui * nui)
-    spectrum_freqs = [i * f0 for i in range(len(y) // 2)]
-
-    # -- Use the data independent jitter spectrum for our calculations.
-    tie_ind_uniform, valid_ix = make_uniform(t_jitter, tie_ind, ui, nui)
-
-    # --- Normalized, in order to make power correct, since we grab Rj from the freq. domain.
-    # --- (I'm using the length of the vector before zero padding, because zero padding doesn't add energy.)
-    # --- (This has the effect of making our final Rj estimate more conservative.)
-    y = fft(tie_ind_uniform) / sqrt(len(tie_ind))
-    y_mag = abs(y)
-    y_mean = moving_average(y_mag, n=len(y_mag) // 10)
-    y_var = moving_average((y_mag - y_mean) ** 2, n=len(y_mag) // 10)
-    y_sigma = sqrt(y_var)
-    thresh = y_mean + rel_thresh * y_sigma
-    y_per = where(
-        y_mag > thresh, y, zeros(len(y))
-    )  # Periodic components are those lying above the threshold.
-    y_rnd = where(y_mag > thresh, zeros(len(y)), y)  # Random components are those lying below.
-    y_rnd = abs(y_rnd)
-    rj = sqrt(mean((y_rnd - mean(y_rnd)) ** 2))
-    tie_per = real(ifft(y_per)).take(valid_ix) * sqrt(
-        len(tie_ind)
-    )  # Restoring shape of vector to its original,
-    pj = tie_per.ptp()  # non-uniformly sampled state.
-
-    # --- Save the spectrum, for display purposes.
-    tie_ind_spectrum = y_mag[: len(y_mag) // 2]
-
-    # - Reassemble the jitter, excluding the Rj.
-    # -- Here, we see why it was necessary to keep track of the non-padded elements with 'valid_ix':
-    # -- It was so that we could add the average and periodic components back together,
-    # -- maintaining correct alignment between them.
-    if len(tie_per) > len(tie_ave):
-        tie_per = tie_per[: len(tie_ave)]
-    if len(tie_per) < len(tie_ave):
-        tie_ave = tie_ave[: len(tie_per)]
-    jitter_synth = tie_ave + tie_per
-
-    # - Calculate the histogram of original, for comparison.
-    hist, bin_centers = my_hist(jitter)
-
-    # - Calculate the histogram of everything, except Rj.
-    hist_synth, bin_centers = my_hist(jitter_synth)
-
-    # - Extrapolate the tails by convolving w/ complete Gaussian.
-    rv = norm(loc=0.0, scale=rj)
-    rj_pdf = rv.pdf(bin_centers)
-    rj_pmf = rj_pdf / sum(rj_pdf)
-    hist_synth = convolve(hist_synth, rj_pmf)
-    tail_len = (len(bin_centers) - 1) // 2
-    hist_synth = (
-        [sum(hist_synth[: tail_len + 1])]
-        + list(hist_synth[tail_len + 1 : len(hist_synth) - tail_len - 1])
-        + [sum(hist_synth[len(hist_synth) - tail_len - 1 :])]
-    )
-
-    return (
-        jitter,
-        t_jitter,
-        isi,
-        dcd,
-        pj,
-        rj,
-        tie_ind,
-        thresh[: len(thresh) // 2],
-        jitter_spectrum,
-        tie_ind_spectrum,
-        spectrum_freqs,
-        hist,
-        hist_synth,
-        bin_centers,
-    )
-
-
-def make_uniform(t, jitter, ui, nbits):
-    """
-    Make the jitter vector uniformly sampled in time, by zero-filling where necessary.
-
-    The trick, here, is creating a uniformly sampled input vector for the FFT operation,
-    since the jitter samples are almost certainly not uniformly sampled.
-    We do this by simply zero padding the missing samples.
-
-    Inputs:
-
-    - t      : The sample times for the 'jitter' vector.
-
-    - jitter : The input jitter samples.
-
-    - ui     : The nominal unit interval.
-
-    - nbits  : The desired number of unit intervals, in the time domain.
-
-    Output:
-
-    - y      : The uniformly sampled, zero padded jitter vector.
-
-    - y_ix   : The indices where y is valid (i.e. - not zero padded).
-
-    """
-
-    if len(t) < len(jitter):
-        jitter = jitter[: len(t)]
-
-    run_lengths = list(map(int, diff(t) / ui + 0.5))
-    valid_ix = [0] + list(cumsum(run_lengths))
-    valid_ix = [x for x in valid_ix if x < nbits]
-    missing = where(array(run_lengths) > 1)[0]
-    num_insertions = 0
-    jitter = list(jitter)  # Because we use 'insert'.
-
-    for i in missing:
-        for _ in range(run_lengths[i] - 1):
-            jitter.insert(i + 1 + num_insertions, 0.0)
-            num_insertions += 1
-
-    if len(jitter) < nbits:
-        jitter.extend([0.0] * (nbits - len(jitter)))
-    if len(jitter) > nbits:
-        jitter = jitter[:nbits]
-
-    return jitter, valid_ix
+    return np.sort(np.concatenate(xings))
 
 
 def calc_gamma(R0, w0, Rdc, Z0, v0, Theta0, ws):
@@ -538,21 +223,21 @@ def calc_gamma(R0, w0, Rdc, Z0, v0, Theta0, ws):
       - Zc          frequency dependent characteristic impedance
     """
 
-    w = array(ws).copy()
+    w = np.array(ws).copy()
 
     # Guard against /0.
     if w[0] == 0:
         w[0] = 1.0e-12
 
-    Rac = R0 * sqrt(2 * 1j * w / w0)  # AC resistance vector
-    R = sqrt(power(Rdc, 2) + power(Rac, 2))  # total resistance vector
+    Rac = R0 * np.sqrt(2 * 1j * w / w0)  # AC resistance vector
+    R = np.sqrt(np.power(Rdc, 2) + np.power(Rac, 2))  # total resistance vector
     L0 = Z0 / v0  # "external" inductance per unit length (H/m)
     C0 = 1.0 / (Z0 * v0)  # nominal capacitance per unit length (F/m)
-    C = C0 * power(
-        (1j * w / w0), (-2.0 * Theta0 / pi)
+    C = C0 * np.power(
+        (1j * w / w0), (-2.0 * Theta0 / np.pi)
     )  # complex capacitance per unit length (F/m)
-    gamma = sqrt((1j * w * L0 + R) * (1j * w * C))  # propagation constant (nepers/m)
-    Zc = sqrt((1j * w * L0 + R) / (1j * w * C))  # characteristic impedance (Ohms)
+    gamma = np.sqrt((1j * w * L0 + R) * (1j * w * C))  # propagation constant (nepers/m)
+    Zc = np.sqrt((1j * w * L0 + R) / (1j * w * C))  # characteristic impedance (Ohms)
 
     return (gamma, Zc)
 
@@ -575,7 +260,7 @@ def calc_G(H, Rs, Cs, Zc, RL, Cp, CL, ws):
       - G     frequency dependent transfer function of channel
     """
 
-    w = array(ws).copy()
+    w = np.array(ws).copy()
 
     # Guard against /0.
     if w[0] == 0:
@@ -626,7 +311,7 @@ def calc_eye(ui, samps_per_ui, height, ys, y_max, clock_times=None):
     """
 
     # List/array necessities.
-    ys = array(ys)
+    ys = np.array(ys)
 
     # Intermediate variable calculation.
     tsamp = ui / samps_per_ui
@@ -637,7 +322,7 @@ def calc_eye(ui, samps_per_ui, height, ys, y_max, clock_times=None):
     y_offset = height // 2  # (pixels)
 
     # Generate the "heat" picture array.
-    img_array = zeros([height, width])
+    img_array = np.zeros([height, width])
     if clock_times:
         for clock_time in clock_times:
             start_time = clock_time - ui
@@ -654,7 +339,7 @@ def calc_eye(ui, samps_per_ui, height, ys, y_max, clock_times=None):
                 img_array[int(y * y_scale + 0.5) + y_offset, i] += 1
                 i += 1
     else:
-        start_ix = where(diff(sign(ys)))[0][0] + samps_per_ui // 2
+        start_ix = np.where(np.diff(np.sign(ys)))[0][0] + samps_per_ui // 2
         last_start_ix = len(ys) - 2 * samps_per_ui
         while start_ix < last_start_ix:
             i = 0
@@ -718,10 +403,10 @@ def make_ctle(rx_bw, peak_freq, peak_mag, w, mode="Passive", dc_offset=0):
     """
 
     if mode == "Off":
-        return (w, ones(len(w)))
+        return (w, np.ones(len(w)))
 
-    p2 = -2.0 * pi * rx_bw
-    p1 = -2.0 * pi * peak_freq
+    p2 = -2.0 * np.pi * rx_bw
+    p1 = -2.0 * np.pi * peak_freq
     z = p1 / pow(10.0, peak_mag / 20.0)
     if p2 != p1:
         r1 = (z - p1) / (p2 - p1)
@@ -768,7 +453,7 @@ def trim_impulse(g, min_len=0, max_len=1_000_000):
     """
 
     # Trim off potential FFT artifacts from the end and capture peak location.
-    g = array(g[: int(0.9 * len(g))])
+    g = np.array(g[: int(0.9 * len(g))])
     max_ix = np.argmax(g)
 
     # Capture 99.8% of the total energy.
@@ -816,6 +501,7 @@ def interp_time(ts, xs, sample_per):
 
     Returns: Resampled waveform.
     """
+
     tmax = ts[-1]
     res = []
     t = 0.0
@@ -826,7 +512,7 @@ def interp_time(ts, xs, sample_per):
         res.append(xs[i - 1] + (xs[i] - xs[i - 1]) * (t - ts[i - 1]) / (ts[i] - ts[i - 1]))
         t += sample_per
 
-    return array(res)
+    return np.array(res)
 
 
 def import_time(filename, sample_per):
@@ -847,8 +533,8 @@ def import_time(filename, sample_per):
     with open(filename, mode="rU") as file:
         for line in file:
             try:
-                tmp = list(map(float, [_f for _f in re.split("[, ;:]+", line) if _f][0:2]))
-            except:
+                tmp = list(map(np.float, [_f for _f in re.split("[, ;:]+", line) if _f][0:2]))
+            except Exception:
                 continue
             ts.append(tmp[0])
             xs.append(tmp[1])
@@ -866,7 +552,7 @@ def sdd_21(ntwk):
     Returns: Sdd[2,1].
     """
 
-    if real(ntwk.s21.s[0, 0, 0]) < 0.5:  # 1 ==> 3 port numbering?
+    if np.real(ntwk.s21.s[0, 0, 0]) < 0.5:  # 1 ==> 3 port numbering?
         ntwk.renumber((2, 3), (3, 2))
 
     return 0.5 * (ntwk.s21 - ntwk.s23 + ntwk.s43 - ntwk.s41)
@@ -953,14 +639,14 @@ def lfsr_bits(taps, seed):
         yield val & 1
 
 
-def safe_log10(x):
+def safe_log10(value):
     """Guards against pesky 'Divide by 0' error messages."""
 
-    if hasattr(x, "__len__"):
-        x = where(x == 0, 1.0e-20 * ones(len(x)), x)
-    elif x == 0:
-        x = 1.0e-20
-    return log10(x)
+    if hasattr(value, "__len__"):
+        value = np.where(value == 0, 1.0e-20 * np.ones(len(value)), value)
+    elif value == 0:
+        value = 1.0e-20
+    return np.log10(value)
 
 
 def pulse_center(p, nspui):
@@ -982,7 +668,7 @@ def pulse_center(p, nspui):
     div = 2.0
     p_max = p.max()
     thresh = p_max / div
-    main_lobe_ixs = where(p > thresh)[0]
+    main_lobe_ixs = np.where(p > thresh)[0]
     if not main_lobe_ixs.size:  # Sometimes, the optimizer really whacks out.
         return (-1, 0)  # Flag this, by returning an impossible index.
 
@@ -993,8 +679,8 @@ def pulse_center(p, nspui):
             thresh += p_max / div
         else:
             thresh -= p_max / div
-        main_lobe_ixs = where(p > thresh)[0]
+        main_lobe_ixs = np.where(p > thresh)[0]
         err = main_lobe_ixs[-1] - main_lobe_ixs[0] - nspui
 
-    clock_pos = int(mean([main_lobe_ixs[0], main_lobe_ixs[-1]]))
+    clock_pos = int(np.mean([main_lobe_ixs[0], main_lobe_ixs[-1]]))
     return (clock_pos, thresh)

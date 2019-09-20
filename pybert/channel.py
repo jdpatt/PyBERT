@@ -1,9 +1,9 @@
 """A serDes channel consists of a driver, a channel and a receiver."""
 from logging import getLogger
 
+import numpy as np
 from numpy import array, diff, exp, pad, real, where, zeros
 from numpy.fft import fft, ifft
-
 from pybert.buffer import Receiver, Transmitter
 from pybert.defaults import (
     CHANNEL_LENGTH,
@@ -15,11 +15,11 @@ from pybert.defaults import (
     W_TRANSITION_FREQ,
 )
 from pybert.equalization import Equalization
-from pybert.utility import calc_G, calc_gamma, import_channel, trim_impulse
-from traits.api import Bool, File, Float, Int, cached_property
+from pybert.utility import calc_G, calc_gamma, import_channel, make_ctle, trim_impulse
+from traits.api import Array, Bool, File, Float, Int, cached_property
 
 
-class Channel(object):
+class Channel:
     """docstring for Channel"""
 
     def __init__(self):
@@ -50,6 +50,10 @@ class Channel(object):
 
         self.len_h = Int(0)
         self.chnl_dly = Float(0.0)  #: Estimated channel delay (s).
+        self.chnl_h = Array()
+        self.chnl_H = Array()
+        self.chnl_trimmed_H = Array()
+        self.start_ix = Int(0)
 
         self.tx = Transmitter()
         self.rx = Receiver()
@@ -117,8 +121,8 @@ class Channel(object):
             Z0 = self.Z0
             Theta0 = self.Theta0
             w = self.w
-            Rs = self.tx.source_impedance
-            Cs = self.tx.source_capacitance * 1.0e-12
+            Rs = self.tx.output_impedance
+            Cs = self.tx.output_capacitance * 1.0e-12
             RL = self.rx.input_impedance
             Cp = self.rx.input_capacitance * 1.0e-12
             CL = self.rx.cac * 1.0e-6
@@ -155,3 +159,30 @@ class Channel(object):
         self.chnl_p = chnl_p
 
         return chnl_h
+
+    @cached_property
+    def _get_ctle_h_tune(self):
+        w = self.w
+        len_h = self.len_h
+        rx_bw = self.eq.rx_bw_tune * 1.0e9
+        peak_freq = self.eq.peak_freq_tune * 1.0e9
+        peak_mag = self.eq.peak_mag_tune
+        offset = self.eq.ctle_offset_tune
+        mode = self.eq.ctle_mode_tune
+
+        _, H = make_ctle(rx_bw, peak_freq, peak_mag, w, mode, offset)
+        h = real(ifft(H))[:len_h]
+        h *= abs(H[0]) / sum(h)
+
+        return h
+
+    @cached_property
+    def _get_ctle_out_h_tune(self):
+        chnl_h = self.chnl_h
+        tx_h = self.eq.tx_h_tune
+        ctle_h = self.eq.ctle_h_tune
+
+        tx_out_h = np.convolve(tx_h, chnl_h)
+        h = np.convolve(ctle_h, tx_out_h)
+
+        return h
