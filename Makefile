@@ -11,7 +11,7 @@ tests: test
 test:
 	# Can't get tox to work with conda and can't use pip because of enable/chaco.
 	# Requires "conda install pytest-cov"
-	py.test --basetemp={envtmpdir} -vv --cov=pybert --cov-report=html --cov-report=term-missing tests/
+	py.test -vv --cov=pybert --cov-report=html --cov-report=term-missing tests/
 
 docs:
 	# Docs doesn't rely on docker but does require tox to be installed via pip.

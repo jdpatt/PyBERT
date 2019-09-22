@@ -11,12 +11,15 @@ Notice: Before using this package for any purpose, you MUST read and understand 
 - <https://github.com/capn-freako/PyBERT/wiki/instant_gratification>
 
 ## Testing
-Tox is used for the test runner and documentation builder.  By default, it runs the following
-environments: _py36_, _py37_, _pylint_, _flake8_ and _docs_.  It will skip any missing python versions.
-* `pip install tox`
+Tox is used for linting and the documentation builder.  By default, it runs the following
+environments: _pylint_, _flake8_ and _docs_.  It will skip any missing python versions.
+* `pip install tox` or `conda install tox`
 * `tox`
 
 To run a single environment such as "docs" run: `tox -e docs`
+
+Testing is now run with `make tests` or `py.test -vv --cov=pybert --cov-report=html --cov-report=term-missing tests/`
+so that we don't have to fight tox/conda.
 
 ## Documentation
 PyBERT documentation exists in 2 separate forms:
