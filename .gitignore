@@ -30,3 +30,6 @@ tests/htmlcov
 venv
 env
 
+pybert.log
+htmlcov
+docs/build

@@ -2,10 +2,6 @@
 from threading import Event, Thread
 from time import sleep
 
-from pybert import __authors__ as AUTHORS
-from pybert import __copy__ as COPY
-from pybert import __date__ as DATE
-from pybert import __version__ as VERSION
 from pybert.defaults import (
     ALPHA,
     BANDWIDTH,
@@ -268,7 +264,7 @@ class TxTapTuner(HasTraits):
         self.steps = steps
 
 
-class Equalization:
+class Equalization(HasTraits):
     """docstring for Equalization"""
 
     def __init__(self):
@@ -460,14 +456,17 @@ class Equalization:
         Generate the Tx pre-emphasis FIR numerator.
         """
 
-        tap_tuners = self.tx_taps
+        return get_tap_fir_numerator(self.tx_taps)
 
-        taps = []
-        for tuner in tap_tuners:
-            if tuner.enabled:
-                taps.append(tuner.value)
-            else:
-                taps.append(0.0)
-        taps.insert(1, 1.0 - sum(map(abs, taps)))  # Assume one pre-tap.
 
-        return taps
+def get_tap_fir_numerator(tap_tuners):
+    """docstring"""
+    taps = []
+    for tuner in tap_tuners:
+        if tuner.enabled:
+            taps.append(tuner.value)
+        else:
+            taps.append(0.0)
+    taps.insert(1, 1.0 - sum(map(abs, taps)))  # Assume one pre-tap.
+
+    return taps

@@ -15,10 +15,10 @@ from pybert.defaults import (
 from pybert.view import popup_alert
 from pyibisami.ami_model import AMIModel, AMIModelInitializer
 from pyibisami.ami_parse import AMIParamConfigurator
-from traits.api import Bool, File, Float, Range
+from traits.api import Bool, File, Float, HasTraits, Range
 
 
-class Buffer:
+class Buffer(HasTraits):
     """Object to hold items common between the Tx and Rx buffers."""
 
     def __init__(self):

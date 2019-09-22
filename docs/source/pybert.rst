@@ -4,91 +4,131 @@ pybert package
 Submodules
 ----------
 
+pybert.buffer module
+--------------------
+
+.. automodule:: pybert.buffer
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 pybert.cdr module
 -----------------
 
 .. automodule:: pybert.cdr
-    :members:
-    :undoc-members:
-    :show-inheritance:
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+pybert.channel module
+---------------------
+
+.. automodule:: pybert.channel
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+pybert.configuration module
+---------------------------
+
+.. automodule:: pybert.configuration
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+pybert.defaults module
+----------------------
+
+.. automodule:: pybert.defaults
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
 pybert.dfe module
 -----------------
 
 .. automodule:: pybert.dfe
-    :members:
-    :undoc-members:
-    :show-inheritance:
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+pybert.equalization module
+--------------------------
+
+.. automodule:: pybert.equalization
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+pybert.jitter module
+--------------------
+
+.. automodule:: pybert.jitter
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+pybert.plot module
+------------------
+
+.. automodule:: pybert.plot
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
 pybert.pybert module
 --------------------
 
 .. automodule:: pybert.pybert
-    :members:
-    :undoc-members:
-    :show-inheritance:
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
-pybert.pybert\_cfg module
--------------------------
+pybert.simulation module
+------------------------
 
-.. automodule:: pybert.pybert_cfg
-    :members:
-    :undoc-members:
-    :show-inheritance:
+.. automodule:: pybert.simulation
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
-pybert.pybert\_cntrl module
----------------------------
+pybert.static module
+--------------------
 
-.. automodule:: pybert.pybert_cntrl
-    :members:
-    :undoc-members:
-    :show-inheritance:
+.. automodule:: pybert.static
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
-pybert.pybert\_data module
---------------------------
+pybert.utility module
+---------------------
 
-.. automodule:: pybert.pybert_data
-    :members:
-    :undoc-members:
-    :show-inheritance:
+.. automodule:: pybert.utility
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
-pybert.pybert\_help module
---------------------------
+pybert.view module
+------------------
 
-.. automodule:: pybert.pybert_help
-    :members:
-    :undoc-members:
-    :show-inheritance:
+.. automodule:: pybert.view
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
-pybert.pybert\_plot module
---------------------------
+pybert.waveform\_data module
+----------------------------
 
-.. automodule:: pybert.pybert_plot
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-pybert.pybert\_util module
---------------------------
-
-.. automodule:: pybert.pybert_util
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-pybert.pybert\_view module
---------------------------
-
-.. automodule:: pybert.pybert_view
-    :members:
-    :undoc-members:
-    :show-inheritance:
+.. automodule:: pybert.waveform_data
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
 
 Module contents
 ---------------
 
 .. automodule:: pybert
-    :members:
-    :undoc-members:
-    :show-inheritance:
+   :members:
+   :undoc-members:
+   :show-inheritance:

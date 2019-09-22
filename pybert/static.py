@@ -7,6 +7,7 @@ Original date:   April 15, 2015 (Copied from pybert.py.)
 
 Copyright (c) 2015 David Banas; all rights reserved World wide.
 """
+from pybert.utility import safe_log10
 
 
 def help_menu():
@@ -40,8 +41,42 @@ def help_menu():
 """
 
 
-def jitter_rejection_menu():
-    """Return the content for the jitter rejection tab of the GUI."""
+def jitter_rejection_menu(jitter):
+    """Return the content for the jitter rejection tab of the GUI.  We need to calculate the
+    jitter rejection ratios as well."""
+
+    isi_chnl = jitter[""].isi_chnl * 1.0e12
+    dcd_chnl = jitter[""].dcd_chnl * 1.0e12
+    pj_chnl = jitter[""].pj_chnl * 1.0e12
+    rj_chnl = jitter[""].rj_chnl * 1.0e12
+    isi_tx = jitter[""].isi_tx * 1.0e12
+    dcd_tx = jitter[""].dcd_tx * 1.0e12
+    pj_tx = jitter[""].pj_tx * 1.0e12
+    rj_tx = jitter[""].rj_tx * 1.0e12
+    isi_ctle = jitter[""].isi_ctle * 1.0e12
+    dcd_ctle = jitter[""].dcd_ctle * 1.0e12
+    pj_ctle = jitter[""].pj_ctle * 1.0e12
+    rj_ctle = jitter[""].rj_ctle * 1.0e12
+    isi_dfe = jitter[""].isi_dfe * 1.0e12
+    dcd_dfe = jitter[""].dcd_dfe * 1.0e12
+    pj_dfe = jitter[""].pj_dfe * 1.0e12
+    rj_dfe = jitter[""].rj_dfe * 1.0e12
+
+    isi_rej_tx = calc_reject(isi_chnl, isi_tx)
+    dcd_rej_tx = calc_reject(dcd_chnl, dcd_tx)
+    isi_rej_ctle = calc_reject(isi_tx, isi_ctle)
+    dcd_rej_ctle = calc_reject(dcd_tx, dcd_ctle)
+    pj_rej_ctle = calc_reject(pj_tx, pj_ctle)
+    rj_rej_ctle = calc_reject(rj_tx, rj_ctle)
+    isi_rej_dfe = calc_reject(isi_ctle, isi_dfe)
+    dcd_rej_dfe = calc_reject(dcd_ctle, dcd_dfe)
+    pj_rej_dfe = calc_reject(pj_ctle, pj_dfe)
+    rj_rej_dfe = calc_reject(rj_ctle, rj_dfe)
+    isi_rej_total = calc_reject(isi_chnl, isi_dfe)
+    dcd_rej_total = calc_reject(dcd_chnl, dcd_dfe)
+    pj_rej_total = calc_reject(pj_tx, pj_dfe)
+    rj_rej_total = calc_reject(rj_tx, rj_dfe)
+
     return (
         "<H1>Jitter Rejection by Equalization Component</H1>"
         "<H2>Tx Preemphasis</H2>"
@@ -50,15 +85,15 @@ def jitter_rejection_menu():
         "<TH>Jitter Component</TH><TH>Input (ps)</TH><TH>Output (ps)</TH><TH>Rejection (dB)</TH>"
         "</TR>"
         '<TR align="right">'
-        f'<TD align="center">ISI</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>'
+        f'<TD align="center">ISI</TD><TD>{isi_chnl:6.3f}</TD><TD>{isi_tx:6.3f}</TD><TD>{isi_rej_tx:4.1f}</TD>'
         "</TR>"
         '<TR align="right">'
-        f'<TD align="center">DCD</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>'
+        f'<TD align="center">DCD</TD><TD>{dcd_chnl:6.3f}</TD><TD>{dcd_tx:6.3f}</TD><TD>{dcd_rej_tx:4.1f}</TD>'
         '<TR align="right">'
-        f'<TD align="center">Pj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>n/a</TD>'
+        f'<TD align="center">Pj</TD><TD>{pj_chnl:6.3f}</TD><TD>{pj_tx:6.3f}</TD><TD>n/a</TD>'
         "</TR>"
         '<TR align="right">'
-        f'<TD align="center">Rj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>n/a</TD>'
+        f'<TD align="center">Rj</TD><TD>{rj_chnl:6.3f}</TD><TD>{rj_tx:6.3f}</TD><TD>n/a</TD>'
         "</TR>"
         "</TABLE>"
         "<H2>CTLE</H2>"
@@ -67,16 +102,16 @@ def jitter_rejection_menu():
         "<TH>Jitter Component</TH><TH>Input (ps)</TH><TH>Output (ps)</TH><TH>Rejection (dB)</TH>"
         "</TR>"
         '<TR align="right">'
-        f'<TD align="center">ISI</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>'
+        f'<TD align="center">ISI</TD><TD>{isi_tx:6.3f}</TD><TD>{isi_ctle:6.3f}</TD><TD>{isi_rej_ctle:4.1f}</TD>'
         "</TR>"
         '<TR align="right">'
-        f'<TD align="center">DCD</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>'
+        f'<TD align="center">DCD</TD><TD>{dcd_tx:6.3f}</TD><TD>{dcd_ctle:6.3f}</TD><TD>{dcd_rej_ctle:4.1f}</TD>'
         "</TR>"
         '<TR align="right">'
-        f'<TD align="center">Pj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>'
+        f'<TD align="center">Pj</TD><TD>{pj_tx:6.3f}</TD><TD>{pj_ctle:6.3f}</TD><TD>{pj_rej_ctle:4.1f}</TD>'
         "</TR>"
         '<TR align="right">'
-        f'<TD align="center">Rj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>'
+        f'<TD align="center">Rj</TD><TD>{rj_tx:6.3f}</TD><TD>{rj_ctle:6.3f}</TD><TD>{rj_rej_ctle:4.1f}</TD>'
         "</TR>"
         "</TABLE>"
         "<H2>DFE</H2>"
@@ -85,16 +120,16 @@ def jitter_rejection_menu():
         "<TH>Jitter Component</TH><TH>Input (ps)</TH><TH>Output (ps)</TH><TH>Rejection (dB)</TH>"
         "</TR>"
         '<TR align="right">'
-        f'<TD align="center">ISI</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>'
+        f'<TD align="center">ISI</TD><TD>{isi_ctle:6.3f}</TD><TD>{isi_dfe:6.3f}</TD><TD>{isi_rej_dfe:4.1f}</TD>'
         "</TR>"
         '<TR align="right">'
-        f'<TD align="center">DCD</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>'
+        f'<TD align="center">DCD</TD><TD>{dcd_ctle:6.3f}</TD><TD>{dcd_dfe:6.3f}</TD><TD>{dcd_rej_dfe:4.1f}</TD>'
         "</TR>"
         '<TR align="right">'
-        f'<TD align="center">Pj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>'
+        f'<TD align="center">Pj</TD><TD>{pj_ctle:6.3f}</TD><TD>{pj_dfe:6.3f}</TD><TD>{pj_rej_dfe:4.1f}</TD>'
         "</TR>"
         '<TR align="right">'
-        f'<TD align="center">Rj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>'
+        f'<TD align="center">Rj</TD><TD>{rj_ctle:6.3f}</TD><TD>{rj_dfe:6.3f}</TD><TD>{rj_rej_dfe:4.1f}</TD>'
         "</TR>"
         "</TABLE>"
         "<H2>TOTAL</H2>"
@@ -103,18 +138,23 @@ def jitter_rejection_menu():
         "<TH>Jitter Component</TH><TH>Input (ps)</TH><TH>Output (ps)</TH><TH>Rejection (dB)</TH>"
         "</TR>"
         '<TR align="right">'
-        f'<TD align="center">ISI</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>'
+        f'<TD align="center">ISI</TD><TD>{isi_chnl:6.3f}</TD><TD>{isi_dfe:6.3f}</TD><TD>{isi_rej_total:4.1f}</TD>'
         '<TR align="right">'
-        f'<TD align="center">DCD</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>'
+        f'<TD align="center">DCD</TD><TD>{dcd_chnl:6.3f}</TD><TD>{dcd_dfe:6.3f}</TD><TD>{dcd_rej_total:4.1f}</TD>'
         "</TR>"
         '<TR align="right">'
-        f'<TD align="center">Pj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>'
+        f'<TD align="center">Pj</TD><TD>{pj_tx:6.3f}</TD><TD>{pj_dfe:6.3f}</TD><TD>{pj_rej_total:4.1f}</TD>'
         "</TR>"
         '<TR align="right">'
-        f'<TD align="center">Rj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>'
+        f'<TD align="center">Rj</TD><TD>{rj_tx:6.3f}</TD><TD>{rj_dfe:6.3f}</TD><TD>{rj_rej_total:4.1f}</TD>'
         "</TR>"
         "</TABLE>"
     )
+
+
+def calc_reject(num, dem):
+    """Calculate rejection ratio or return 1.0e20."""
+    return 10.0 * safe_log10(num / dem if dem else 1.0e20)
 
 
 def performance_menu(perf):
@@ -172,3 +212,25 @@ def sweep_results_menu(sweep_results):
         f"{sweep_table}"
         "</TABLE>"
     )
+
+
+def status_string(status, total_perf, channel_delay, bit_errors, relative_power, jitter):
+    """Return the status string across the bottom of the GUI."""
+    status = (
+        f"{status} | Perf. (Ms/m):    {total_perf:4.1}"
+        f"         | ChnlDly (ns):    {channel_delay:5.3f}"
+        f"         | BitErrs: {bit_errors}"
+        f"         | TxPwr (W): {relative_power:4.2}"
+    )
+    try:
+        jitter_status = (
+            f"         | Jitter (ps):    "
+            f"ISI={jitter.isi * 1.0e12:6.3f}    "
+            f"DCD={jitter.dcd * 1.0e12:6.3f}    "
+            f"Pj={jitter.pj * 1.0e12:6.3f}    "
+            f"Rj={jitter.rj * 1.0e12:6.3f}"
+        )
+    except Exception:
+        jitter_status = "         | (Jitter not available.)"
+
+    return status + jitter_status

@@ -1,4 +1,4 @@
-.PHONY: tox clean test lint etags conda-build conda-skeleton chaco enable pyibis-ami pybert
+.PHONY: tox clean test tests lint etags conda-build conda-skeleton chaco enable pyibis-ami pybert
 
 tox:
 	tox
@@ -6,8 +6,12 @@ tox:
 lint:
 	tox -e pylint
 
+tests: test
+
 test:
-	tox -e py37
+	# Can't get tox to work with conda and can't use pip because of enable/chaco.
+	# Requires "conda install pytest-cov"
+	py.test --basetemp={envtmpdir} -vv --cov=pybert --cov-report=html --cov-report=term-missing tests/
 
 docs:
 	# Docs doesn't rely on docker but does require tox to be installed via pip.

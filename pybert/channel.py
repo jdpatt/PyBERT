@@ -4,7 +4,6 @@ from logging import getLogger
 import numpy as np
 from numpy import array, diff, exp, pad, real, where, zeros
 from numpy.fft import fft, ifft
-from pybert.buffer import Receiver, Transmitter
 from pybert.defaults import (
     CHANNEL_LENGTH,
     CHARACTERISTIC_IMPEDANCE,
@@ -14,12 +13,12 @@ from pybert.defaults import (
     SKIN_EFFECT_RESISTANCE,
     W_TRANSITION_FREQ,
 )
-from pybert.equalization import Equalization
+from pybert.equalization import get_tap_fir_numerator
 from pybert.utility import calc_G, calc_gamma, import_channel, make_ctle, trim_impulse
-from traits.api import Array, Bool, File, Float, Int, cached_property
+from traits.api import Array, Bool, File, Float, HasTraits, Int, cached_property
 
 
-class Channel:
+class Channel(HasTraits):
     """docstring for Channel"""
 
     def __init__(self):
@@ -55,22 +54,11 @@ class Channel:
         self.chnl_trimmed_H = Array()
         self.start_ix = Int(0)
 
-        self.tx = Transmitter()
-        self.rx = Receiver()
-        self.eq = Equalization()
-
     @cached_property
     def _get_tx_h_tune(self):
         nspui = self.nspui
-        tap_tuners = self.eq.tx_tap_tuners
 
-        taps = []
-        for tuner in tap_tuners:
-            if tuner.enabled:
-                taps.append(tuner.value)
-            else:
-                taps.append(0.0)
-        taps.insert(1, 1.0 - sum(map(abs, taps)))  # Assume one pre-tap.
+        taps = get_tap_fir_numerator(self.eq.tx_tap_tuners)
 
         h = sum([[x] + list(zeros(nspui - 1)) for x in taps], [])
 

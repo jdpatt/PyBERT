@@ -23,12 +23,20 @@ from pybert import __authors__ as AUTHORS
 from pybert import __copy__ as COPY
 from pybert import __date__ as DATE
 from pybert import __version__ as VERSION
-from pybert.configuration import ConfigurationData
+
+# from pybert.configuration import ConfigurationData
 from pybert.defaults import DEBUG, NUM_TAPS
 from pybert.simulation import Simulation
-from pybert.static import help_menu, jitter_rejection_menu, performance_menu, sweep_results_menu
+from pybert.static import (
+    help_menu,
+    jitter_rejection_menu,
+    performance_menu,
+    status_string,
+    sweep_results_menu,
+)
 from pybert.view import TRAITS_VIEW, popup_alert
-from pybert.waveform_data import WaveformData
+
+# from pybert.waveform_data import WaveformData
 from traits.api import Button, HasTraits, String, cached_property
 
 
@@ -67,12 +75,12 @@ class PyBERT(HasTraits):
 
         self.log.info("Starting PyBERT...")
 
-        self.config = ConfigurationData(self)
-        self.data = WaveformData(self)
-        self.simulation = Simulation()
-        self.channel = self.simulation.channel
-
-        self.status = String("Ready.")  #: PyBERT status (String).
+        # self.config = ConfigurationData(self)
+        # self.data = WaveformData(self)
+        self.sim = Simulation()
+        self.channel = self.sim.channel
+        self.tx = self.sim.tx
+        self.status = self.sim.status  #: PyBERT status (String).
 
         # About
         self.ident = String(
@@ -106,10 +114,10 @@ class PyBERT(HasTraits):
 
         if run_simulation:
             # Running the simulation will fill in the required data structure.
-            self.simulation.my_run_simulation(initial_run=True)
+            self.sim.my_run_simulation(initial_run=True)
             # Once the required data structure is filled in, we can create the plots.
-            self.simulation.plots.init_plots(self, NUM_TAPS)
-            self.simulation.update_eyes()
+            self.sim.plots.init_plots(self, NUM_TAPS)
+            self.sim.update_eyes()
         else:
             self.channel.calc_chnl_h()  # Prevents missing attribute error in _get_ctle_out_h_tune().
 
@@ -148,11 +156,11 @@ class PyBERT(HasTraits):
 
     def _btn_run_sim_fired(self):
         """Start a new simulation."""
-        self.simulation.run()
+        self.sim.run()
 
     def _btn_stop_sim_fired(self):
         """Stop the current simulation."""
-        self.simulation.abort()
+        self.sim.abort()
 
     def _btn_save_data_fired(self):
         """Save all the waveform data."""
@@ -197,7 +205,7 @@ class PyBERT(HasTraits):
 
     @cached_property
     def _get_sweep_info(self):
-        return sweep_results_menu(self.simulation.sweep_results)
+        return sweep_results_menu(self.sim.sweep_results)
 
     @cached_property
     def _get_perf_info(self):
@@ -205,14 +213,34 @@ class PyBERT(HasTraits):
             {key: value * 60.0e-6 for (key, value) in self.performance.items()}
         )
 
+    @cached_property
+    def _get_jitter_info(self):
+        try:
+            jitter_info = jitter_rejection_menu(self.sim.jitter)
+        except Exception as error:
+            jitter_info = "<H1>Jitter Rejection by Equalization Component</H1>\n"
+            popup_alert("Jitter Calculation Failed", error)
+        return jitter_info
+
+    @cached_property
+    def _get_status_str(self):
+        return status_string(
+            self.status,
+            self.sim.performance["total"],
+            self.channel.chnl_dly,
+            self.sim.bit_errors,
+            self.tx.relative_power,
+            self.sim.jitter["dfe"],
+        )
+
 
 def setup_logger(debug: bool = False):
     """Setup the logger and return the logging object."""
     logger = logging.getLogger("pybert")
-
+    log_file_path = Path(__file__).parent.joinpath("pybert.log")
     # Setup the File Handler.  All messages are logged.
     file_handler = logging.handlers.RotatingFileHandler(
-        Path(__file__).parent.joinpath("pybert.log"), maxBytes=10485760, backupCount=5  # 10MB
+        log_file_path, maxBytes=10485760, backupCount=5  # 10MB
     )
     fh_format = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     file_handler.setFormatter(fh_format)
@@ -221,16 +249,17 @@ def setup_logger(debug: bool = False):
 
     # Setup the Console Handler.  Only INFO or HIGH gets shown
     console_handler = logging.StreamHandler()
-    ch_format = logging.Formatter("%(message)s")
+    ch_format = logging.Formatter("%(levelname)s - %(message)s")
     console_handler.setFormatter(ch_format)
-    console_handler.setLevel(logging.INFO)
     logger.addHandler(console_handler)
 
     if debug:
+        console_handler.setLevel(logging.DEBUG)
         logger.setLevel(logging.DEBUG)
     else:
+        console_handler.setLevel(logging.INFO)
         logger.setLevel(logging.INFO)
-    logger.info("Log file created at: %s", Path(__file__).parent)
+    logger.info("Log file created at: %s", log_file_path)
     return logger
 
 

@@ -33,6 +33,7 @@ from numpy import (
 )
 from numpy.fft import fft, ifft
 from numpy.random import normal, randint
+from pybert.buffer import Receiver, Transmitter
 from pybert.channel import Channel
 from pybert.defaults import (
     BIT_RATE,
@@ -45,6 +46,7 @@ from pybert.defaults import (
     THRESHOLD,
 )
 from pybert.dfe import DFE
+from pybert.equalization import Equalization
 from pybert.jitter import Jitter
 from pybert.plot import Plots
 from pybert.utility import (
@@ -54,7 +56,6 @@ from pybert.utility import (
     lfsr_bits,
     make_ctle,
     pulse_center,
-    safe_log10,
 )
 from pybert.view import popup_alert
 from scipy.signal import iirfilter, lfilter
@@ -63,7 +64,9 @@ from traits.api import (
     HTML,
     Array,
     Bool,
+    Dict,
     Float,
+    HasTraits,
     Instance,
     Int,
     List,
@@ -82,13 +85,15 @@ class RunSimThread(Thread):
         self.my_run_sweeps(self.the_pybert)
 
 
-class Simulation:
+class Simulation(HasTraits):
     """docstring for Simulation"""
 
     def __init__(self):
         super(Simulation, self).__init__()
         self.log = getLogger("pybert.simulation")
         self.log.debug("Creating Simulation Object")
+        self.status = String("Ready.")
+
         self.bit_rate = Range(low=0.1, high=120.0, value=BIT_RATE)  #: (Gbps)
         self.nbits = Range(low=1000, high=10000000, value=NUM_BITS)  #: Number of bits to simulate.
         self.pattern_len = Range(low=7, high=10000000, value=PATTERN_LEN)  #: PRBS pattern length.
@@ -102,20 +107,19 @@ class Simulation:
         self.sweep_aves = Int(NUM_AVG)
         self.do_sweep = Bool(False)  #: Run sweeps? (Default = False)
 
-        self.performance = {}
+        self.performance = Dict({})
         self.sweep_results = List([])
-        self.bit_errs = Int(0)  #: # of bit errors observed in last run.
+        self.bit_errors = Int(0)  #: # of bit errors observed in last run.
         self.run_count = Int(0)  # Used as a mechanism to force bit stream regeneration.
         self.thresh = THRESHOLD
 
         self.channel = Channel()
-        self.tx = self.channel.tx
-        self.rx = self.channel.rx
-        self.eq = self.channel.eq
+        self.tx = Transmitter()
+        self.rx = Receiver()
+        self.eq = Equalization()
+
         self.jitter = {}
         self.plots = Plots()
-
-        self.status = ""
 
         # Dependent variables
         # - Handled by the Traits/UI machinery. (Should only contain "low overhead" variables, which don't freeze the GUI noticeably.)
@@ -159,6 +163,16 @@ class Simulation:
         if self.run_sim_thread and self.run_sim_thread.isAlive():
             self.run_sim_thread.stop()
             self.log.warning("Simulation Aborted")
+
+    @property
+    def status(self):
+        return self.__status
+
+    @status.setter
+    def status(self, message):
+        """Override the status setter so that we can log all as debug messages."""
+        self.log.debug(message)
+        self.__status = message
 
     # Dependent variable definitions
     @cached_property
@@ -436,229 +450,6 @@ class Simulation:
 
         return err / p[clock_pos] ** 2
 
-    @cached_property
-    def _get_jitter_info(self):
-        try:
-            isi_chnl = self.isi_chnl * 1.0e12
-            dcd_chnl = self.dcd_chnl * 1.0e12
-            pj_chnl = self.pj_chnl * 1.0e12
-            rj_chnl = self.rj_chnl * 1.0e12
-            isi_tx = self.isi_tx * 1.0e12
-            dcd_tx = self.dcd_tx * 1.0e12
-            pj_tx = self.pj_tx * 1.0e12
-            rj_tx = self.rj_tx * 1.0e12
-            isi_ctle = self.isi_ctle * 1.0e12
-            dcd_ctle = self.dcd_ctle * 1.0e12
-            pj_ctle = self.pj_ctle * 1.0e12
-            rj_ctle = self.rj_ctle * 1.0e12
-            isi_dfe = self.isi_dfe * 1.0e12
-            dcd_dfe = self.dcd_dfe * 1.0e12
-            pj_dfe = self.pj_dfe * 1.0e12
-            rj_dfe = self.rj_dfe * 1.0e12
-
-            isi_rej_tx = 1.0e20
-            dcd_rej_tx = 1.0e20
-            isi_rej_ctle = 1.0e20
-            dcd_rej_ctle = 1.0e20
-            pj_rej_ctle = 1.0e20
-            rj_rej_ctle = 1.0e20
-            isi_rej_dfe = 1.0e20
-            dcd_rej_dfe = 1.0e20
-            pj_rej_dfe = 1.0e20
-            rj_rej_dfe = 1.0e20
-            isi_rej_total = 1.0e20
-            dcd_rej_total = 1.0e20
-            pj_rej_total = 1.0e20
-            rj_rej_total = 1.0e20
-
-            if isi_tx:
-                isi_rej_tx = isi_chnl / isi_tx
-            if dcd_tx:
-                dcd_rej_tx = dcd_chnl / dcd_tx
-            if isi_ctle:
-                isi_rej_ctle = isi_tx / isi_ctle
-            if dcd_ctle:
-                dcd_rej_ctle = dcd_tx / dcd_ctle
-            if pj_ctle:
-                pj_rej_ctle = pj_tx / pj_ctle
-            if rj_ctle:
-                rj_rej_ctle = rj_tx / rj_ctle
-            if isi_dfe:
-                isi_rej_dfe = isi_ctle / isi_dfe
-            if dcd_dfe:
-                dcd_rej_dfe = dcd_ctle / dcd_dfe
-            if pj_dfe:
-                pj_rej_dfe = pj_ctle / pj_dfe
-            if rj_dfe:
-                rj_rej_dfe = rj_ctle / rj_dfe
-            if isi_dfe:
-                isi_rej_total = isi_chnl / isi_dfe
-            if dcd_dfe:
-                dcd_rej_total = dcd_chnl / dcd_dfe
-            if pj_dfe:
-                pj_rej_total = pj_tx / pj_dfe
-            if rj_dfe:
-                rj_rej_total = rj_tx / rj_dfe
-
-            info_str = "<H1>Jitter Rejection by Equalization Component</H1>\n"
-
-            info_str += "<H2>Tx Preemphasis</H2>\n"
-            info_str += '<TABLE border="1">\n'
-            info_str += '<TR align="center">\n'
-            info_str += "<TH>Jitter Component</TH><TH>Input (ps)</TH><TH>Output (ps)</TH><TH>Rejection (dB)</TH>\n"
-            info_str += "</TR>\n"
-            info_str += '<TR align="right">\n'
-            info_str += (
-                '<TD align="center">ISI</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n'
-                % (isi_chnl, isi_tx, 10.0 * safe_log10(isi_rej_tx))
-            )
-            info_str += "</TR>\n"
-            info_str += '<TR align="right">\n'
-            info_str += (
-                '<TD align="center">DCD</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n'
-                % (dcd_chnl, dcd_tx, 10.0 * safe_log10(dcd_rej_tx))
-            )
-            info_str += "</TR>\n"
-            info_str += '<TR align="right">\n'
-            info_str += '<TD align="center">Pj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>n/a</TD>\n' % (
-                pj_chnl,
-                pj_tx,
-            )
-            info_str += "</TR>\n"
-            info_str += '<TR align="right">\n'
-            info_str += '<TD align="center">Rj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>n/a</TD>\n' % (
-                rj_chnl,
-                rj_tx,
-            )
-            info_str += "</TR>\n"
-            info_str += "</TABLE>\n"
-
-            info_str += "<H2>CTLE</H2>\n"
-            info_str += '<TABLE border="1">\n'
-            info_str += '<TR align="center">\n'
-            info_str += "<TH>Jitter Component</TH><TH>Input (ps)</TH><TH>Output (ps)</TH><TH>Rejection (dB)</TH>\n"
-            info_str += "</TR>\n"
-            info_str += '<TR align="right">\n'
-            info_str += (
-                '<TD align="center">ISI</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n'
-                % (isi_tx, isi_ctle, 10.0 * safe_log10(isi_rej_ctle))
-            )
-            info_str += "</TR>\n"
-            info_str += '<TR align="right">\n'
-            info_str += (
-                '<TD align="center">DCD</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n'
-                % (dcd_tx, dcd_ctle, 10.0 * safe_log10(dcd_rej_ctle))
-            )
-            info_str += "</TR>\n"
-            info_str += '<TR align="right">\n'
-            info_str += (
-                '<TD align="center">Pj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n'
-                % (pj_tx, pj_ctle, 10.0 * safe_log10(pj_rej_ctle))
-            )
-            info_str += "</TR>\n"
-            info_str += '<TR align="right">\n'
-            info_str += (
-                '<TD align="center">Rj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n'
-                % (rj_tx, rj_ctle, 10.0 * safe_log10(rj_rej_ctle))
-            )
-            info_str += "</TR>\n"
-            info_str += "</TABLE>\n"
-
-            info_str += "<H2>DFE</H2>\n"
-            info_str += '<TABLE border="1">\n'
-            info_str += '<TR align="center">\n'
-            info_str += "<TH>Jitter Component</TH><TH>Input (ps)</TH><TH>Output (ps)</TH><TH>Rejection (dB)</TH>\n"
-            info_str += "</TR>\n"
-            info_str += '<TR align="right">\n'
-            info_str += (
-                '<TD align="center">ISI</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n'
-                % (isi_ctle, isi_dfe, 10.0 * safe_log10(isi_rej_dfe))
-            )
-            info_str += "</TR>\n"
-            info_str += '<TR align="right">\n'
-            info_str += (
-                '<TD align="center">DCD</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n'
-                % (dcd_ctle, dcd_dfe, 10.0 * safe_log10(dcd_rej_dfe))
-            )
-            info_str += "</TR>\n"
-            info_str += '<TR align="right">\n'
-            info_str += (
-                '<TD align="center">Pj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n'
-                % (pj_ctle, pj_dfe, 10.0 * safe_log10(pj_rej_dfe))
-            )
-            info_str += "</TR>\n"
-            info_str += '<TR align="right">\n'
-            info_str += (
-                '<TD align="center">Rj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n'
-                % (rj_ctle, rj_dfe, 10.0 * safe_log10(rj_rej_dfe))
-            )
-            info_str += "</TR>\n"
-            info_str += "</TABLE>\n"
-
-            info_str += "<H2>TOTAL</H2>\n"
-            info_str += '<TABLE border="1">\n'
-            info_str += '<TR align="center">\n'
-            info_str += "<TH>Jitter Component</TH><TH>Input (ps)</TH><TH>Output (ps)</TH><TH>Rejection (dB)</TH>\n"
-            info_str += "</TR>\n"
-            info_str += '<TR align="right">\n'
-            info_str += (
-                '<TD align="center">ISI</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n'
-                % (isi_chnl, isi_dfe, 10.0 * safe_log10(isi_rej_total))
-            )
-            info_str += "</TR>\n"
-            info_str += '<TR align="right">\n'
-            info_str += (
-                '<TD align="center">DCD</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n'
-                % (dcd_chnl, dcd_dfe, 10.0 * safe_log10(dcd_rej_total))
-            )
-            info_str += "</TR>\n"
-            info_str += '<TR align="right">\n'
-            info_str += (
-                '<TD align="center">Pj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n'
-                % (pj_tx, pj_dfe, 10.0 * safe_log10(pj_rej_total))
-            )
-            info_str += "</TR>\n"
-            info_str += '<TR align="right">\n'
-            info_str += (
-                '<TD align="center">Rj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n'
-                % (rj_tx, rj_dfe, 10.0 * safe_log10(rj_rej_total))
-            )
-            info_str += "</TR>\n"
-            info_str += "</TABLE>\n"
-        except Exception as error:
-            info_str = "<H1>Jitter Rejection by Equalization Component</H1>\n"
-            popup_alert("Jitter Calculation Failed", error)
-
-        return info_str
-
-    @cached_property
-    def _get_status_str(self):
-        status_str = "%-20s | Perf. (Ms/m):    %4.1f" % (
-            self.status,
-            self.performance["total"] * 60.0e-6,
-        )
-        dly_str = "         | ChnlDly (ns):    %5.3f" % (self.channel.chnl_dly * 1.0e9)
-        err_str = "         | BitErrs: %d" % self.bit_errs
-        pwr_str = "         | TxPwr (W): %4.2f" % self.rel_power
-        status_str += dly_str + err_str + pwr_str
-
-        try:
-            jit_str = (
-                "         | Jitter (ps):    ISI=%6.3f    DCD=%6.3f    Pj=%6.3f    Rj=%6.3f"
-                % (
-                    self.isi_dfe * 1.0e12,
-                    self.dcd_dfe * 1.0e12,
-                    self.pj_dfe * 1.0e12,
-                    self.rj_dfe * 1.0e12,
-                )
-            )
-        except Exception:
-            jit_str = "         | (Jitter not available.)"
-
-        status_str += jit_str
-
-        return status_str
-
     def my_run_sweeps(self):
         """
         Runs the simulation sweeps.
@@ -736,8 +527,9 @@ class Simulation:
         sweep_num = self.sweep_num
 
         start_time = clock()
-        self.status = "Running channel...(sweep %d of %d)" % (sweep_num, num_sweeps)
-
+        self.status = f"Running channel...(sweep {sweep_num} of {num_sweeps})"
+        self.log.debug(type(self.run_count))
+        self.log.debug(type(1))
         self.run_count += 1  # Force regeneration of bit stream.
 
         # Pull class variables into local storage, performing unit conversion where necessary.
@@ -810,7 +602,7 @@ class Simulation:
 
             self.performance["channel"] = nbits * nspb / (clock() - start_time)
             split_time = clock()
-            self.status = "Running Tx...(sweep %d of %d)" % (sweep_num, num_sweeps)
+            self.status = f"Running Tx...(sweep {sweep_num} of {num_sweeps})"
         except Exception:
             self.status = "Exception: channel"
             raise
@@ -915,7 +707,7 @@ class Simulation:
 
             self.performance["tx"] = nbits * nspb / (clock() - split_time)
             split_time = clock()
-            self.status = "Running CTLE...(sweep %d of %d)" % (sweep_num, num_sweeps)
+            self.status = f"Running CTLE...(sweep {sweep_num} of {num_sweeps})"
         except Exception:
             self.status = "Exception: Tx"
             raise
@@ -1010,7 +802,7 @@ class Simulation:
 
             self.performance["ctle"] = nbits * nspb / (clock() - split_time)
             split_time = clock()
-            self.status = "Running DFE/CDR...(sweep %d of %d)" % (sweep_num, num_sweeps)
+            self.status = f"Running DFE/CDR...(sweep {sweep_num} of {num_sweeps})"
         except Exception:
             self.status = "Exception: Rx"
             raise
@@ -1074,7 +866,7 @@ class Simulation:
             elif len(bits_tst) > len(bits_ref):
                 bits_tst = bits_tst[: len(bits_ref)]
             bit_errs = where(bits_tst ^ bits_ref)[0]
-            self.bit_errs = len(bit_errs)
+            self.bit_errors = len(bit_errs)
 
             dfe_h = array(
                 [1.0]
@@ -1101,7 +893,7 @@ class Simulation:
 
             self.performance["dfe"] = nbits * nspb / (clock() - split_time)
             split_time = clock()
-            self.status = "Analyzing jitter...(sweep %d of %d)" % (sweep_num, num_sweeps)
+            self.status = f"Analyzing jitter...(sweep {sweep_num} of {num_sweeps})"
         except Exception:
             self.status = "Exception: DFE"
             raise
@@ -1128,7 +920,7 @@ class Simulation:
             self.jitter["channel"] = Jitter.calc_jitter(
                 ui, nui, pattern_len, ideal_xings, actual_xings, rel_thresh
             )
-            self.jitter["f_MHz"] = array(spectrum_freqs) * 1.0e-6
+            self.jitter["f_MHz"] = array(self.jitter["channel"].spectrum_freqs) * 1.0e-6
 
             # - Tx output
             actual_xings = find_crossings(t, rx_in, decision_scaler, mod_type=mod_type)
@@ -1159,13 +951,13 @@ class Simulation:
             self.jitter["dfe"] = Jitter.calc_jitter(
                 ui, eye_uis, pattern_len, ideal_xings, actual_xings, rel_thresh
             )
-            self.jitter["f_MHz_dfe"] = array(spectrum_freqs) * 1.0e-6
-            self.jitter["rejection_ratio"] = zeros(len(self.self.jitter["dfe"].jitter_spectrum))
+            self.jitter["f_MHz_dfe"] = array(self.jitter["dfe"].spectrum_freqs) * 1.0e-6
+            self.jitter["rejection_ratio"] = zeros(len(self.jitter["dfe"].jitter_spectrum))
 
             self.performance["jitter"] = nbits * nspb / (clock() - split_time)
             self.performance["total"] = nbits * nspb / (clock() - start_time)
             split_time = clock()
-            self.status = "Updating plots...(sweep %d of %d)" % (sweep_num, num_sweeps)
+            self.status = f"Updating plots...(sweep {sweep_num} of {num_sweeps})"
         except Exception:
             self.status = "Exception: jitter"
 
@@ -1314,65 +1106,73 @@ class Simulation:
         self.plots.update_data("dfe_H", 20.0 * log10(abs(self.dfe_H[1:len_f_GHz])))
         self.plots.update_data("dfe_out_H", 20.0 * log10(abs(self.dfe_out_H[1:len_f_GHz])))
 
-        # Jitter distributions
-        jitter_ext_chnl = (
-            self.jitter_ext_chnl
-        )  # These are used, again, in bathtub curve generation, below.
-        jitter_ext_tx = self.jitter_ext_tx
-        jitter_ext_ctle = self.jitter_ext_ctle
-        jitter_ext_dfe = self.jitter_ext_dfe
-        self.plots.update_data("jitter_bins", array(self.jitter_bins) * 1.0e12)
-        self.plots.update_data("jitter_chnl", self.jitter_chnl)
-        self.plots.update_data("jitter_ext_chnl", jitter_ext_chnl)
-        self.plots.update_data("jitter_tx", self.jitter_tx)
-        self.plots.update_data("jitter_ext_tx", jitter_ext_tx)
-        self.plots.update_data("jitter_ctle", self.jitter_ctle)
-        self.plots.update_data("jitter_ext_ctle", jitter_ext_ctle)
-        self.plots.update_data("jitter_dfe", self.jitter_dfe)
-        self.plots.update_data("jitter_ext_dfe", jitter_ext_dfe)
+        self.plots.update_data("jitter_bins", array(self.jitter["channel"].jitter_bins) * 1.0e12)
+        self.plots.update_data("jitter_chnl", self.jitter["channel"].hist)
+        self.plots.update_data("jitter_ext_chnl", self.jitter["channel"].hist_synth)
+        self.plots.update_data("jitter_tx", self.jitter["tx"].hist)
+        self.plots.update_data("jitter_ext_tx", self.jitter["tx"].hist_synth)
+        self.plots.update_data("jitter_ctle", self.jitter["ctle"].hist)
+        self.plots.update_data("jitter_ext_ctle", self.jitter["ctle"].hist_synth)
+        self.plots.update_data("jitter_dfe", self.jitter["dfe"].hist)
+        self.plots.update_data("jitter_ext_dfe", self.jitter["dfe"].hist_synth)
 
         # Jitter spectrums
         log10_ui = log10(ui)
-        self.plots.update_data("f_MHz", self.f_MHz[1:])
-        self.plots.update_data("f_MHz_dfe", self.f_MHz_dfe[1:])
+        self.plots.update_data("f_MHz", self.jitter["f_MHz"][1:])
+        self.plots.update_data("f_MHz_dfe", self.jitter["f_MHz_dfe"][1:])
         self.plots.update_data(
-            "jitter_spectrum_chnl", 10.0 * (log10(self.jitter_spectrum_chnl[1:]) - log10_ui)
+            "jitter_spectrum_chnl",
+            10.0 * (log10(self.jitter["channel"].jitter_spectrum[1:]) - log10_ui),
         )
         self.plots.update_data(
             "jitter_ind_spectrum_chnl",
-            10.0 * (log10(self.jitter_ind_spectrum_chnl[1:]) - log10_ui),
-        )
-        self.plots.update_data("thresh_chnl", 10.0 * (log10(self.thresh_chnl[1:]) - log10_ui))
-        self.plots.update_data(
-            "jitter_spectrum_tx", 10.0 * (log10(self.jitter_spectrum_tx[1:]) - log10_ui)
+            10.0 * (log10(self.jitter["channel"].tie_ind_spectrum[1:]) - log10_ui),
         )
         self.plots.update_data(
-            "jitter_ind_spectrum_tx", 10.0 * (log10(self.jitter_ind_spectrum_tx[1:]) - log10_ui)
+            "thresh_chnl", 10.0 * (log10(self.jitter["channel"].thresh[1:]) - log10_ui)
         )
-        self.plots.update_data("thresh_tx", 10.0 * (log10(self.thresh_tx[1:]) - log10_ui))
         self.plots.update_data(
-            "jitter_spectrum_ctle", 10.0 * (log10(self.jitter_spectrum_ctle[1:]) - log10_ui)
+            "jitter_spectrum_tx", 10.0 * (log10(self.jitter["tx"].jitter_spectrum[1:]) - log10_ui)
+        )
+        self.plots.update_data(
+            "jitter_ind_spectrum_tx",
+            10.0 * (log10(self.jitter["tx"].tie_ind_spectrum[1:]) - log10_ui),
+        )
+        self.plots.update_data(
+            "thresh_tx", 10.0 * (log10(self.jitter["tx"].thresh[1:]) - log10_ui)
+        )
+        self.plots.update_data(
+            "jitter_spectrum_ctle",
+            10.0 * (log10(self.jitter["ctle"].jitter_spectrum[1:]) - log10_ui),
         )
         self.plots.update_data(
             "jitter_ind_spectrum_ctle",
-            10.0 * (log10(self.jitter_ind_spectrum_ctle[1:]) - log10_ui),
-        )
-        self.plots.update_data("thresh_ctle", 10.0 * (log10(self.thresh_ctle[1:]) - log10_ui))
-        self.plots.update_data(
-            "jitter_spectrum_dfe", 10.0 * (log10(self.jitter_spectrum_dfe[1:]) - log10_ui)
+            10.0 * (log10(self.jitter["ctle"].tie_ind_spectrum[1:]) - log10_ui),
         )
         self.plots.update_data(
-            "jitter_ind_spectrum_dfe", 10.0 * (log10(self.jitter_ind_spectrum_dfe[1:]) - log10_ui)
+            "thresh_ctle", 10.0 * (log10(self.jitter["ctle"].thresh[1:]) - log10_ui)
         )
-        self.plots.update_data("thresh_dfe", 10.0 * (log10(self.thresh_dfe[1:]) - log10_ui))
-        self.plots.update_data("jitter_rejection_ratio", self.jitter_rejection_ratio[1:])
+        self.plots.update_data(
+            "jitter_spectrum_dfe",
+            10.0 * (log10(self.jitter["dfe"].jitter_spectrum[1:]) - log10_ui),
+        )
+        self.plots.update_data(
+            "jitter_ind_spectrum_dfe",
+            10.0 * (log10(self.jitter["dfe"].tie_ind_spectrum[1:]) - log10_ui),
+        )
+        self.plots.update_data(
+            "thresh_dfe", 10.0 * (log10(self.jitter["dfe"].thresh[1:]) - log10_ui)
+        )
+        self.plots.update_data("jitter_rejection_ratio", self.jitter["rejection_ratio"][1:])
 
         # Bathtubs
-        half_len = len(jitter_ext_chnl) // 2
+        half_len = len(self.jitter["channel"].hist_synth) // 2
         #  - Channel
-        bathtub_chnl = list(cumsum(jitter_ext_chnl[-1 : -(half_len + 1) : -1]))
+        bathtub_chnl = list(cumsum(self.jitter["channel"].hist_synth[-1 : -(half_len + 1) : -1]))
         bathtub_chnl.reverse()
-        bathtub_chnl = array(bathtub_chnl + list(cumsum(jitter_ext_chnl[: half_len + 1])))
+        bathtub_chnl = array(
+            bathtub_chnl + list(cumsum(self.jitter["channel"].hist_synth[: half_len + 1]))
+        )
         bathtub_chnl = where(
             bathtub_chnl < MIN_BATHTUB_VAL,
             0.1 * MIN_BATHTUB_VAL * ones(len(bathtub_chnl)),
@@ -1380,32 +1180,36 @@ class Simulation:
         )  # To avoid Chaco log scale plot wierdness.
         self.plots.update_data("bathtub_chnl", log10(bathtub_chnl))
         #  - Tx
-        bathtub_tx = list(cumsum(jitter_ext_tx[-1 : -(half_len + 1) : -1]))
+        bathtub_tx = list(cumsum(self.jitter["tx"].hist_synth[-1 : -(half_len + 1) : -1]))
         bathtub_tx.reverse()
-        bathtub_tx = array(bathtub_tx + list(cumsum(jitter_ext_tx[: half_len + 1])))
+        bathtub_tx = array(bathtub_tx + list(cumsum(self.jitter["tx"].hist_synth[: half_len + 1])))
         bathtub_tx = where(
             bathtub_tx < MIN_BATHTUB_VAL, 0.1 * MIN_BATHTUB_VAL * ones(len(bathtub_tx)), bathtub_tx
         )  # To avoid Chaco log scale plot wierdness.
         self.plots.update_data("bathtub_tx", log10(bathtub_tx))
         #  - CTLE
-        bathtub_ctle = list(cumsum(jitter_ext_ctle[-1 : -(half_len + 1) : -1]))
+        bathtub_ctle = list(cumsum(self.jitter["ctle"].hist_synth[-1 : -(half_len + 1) : -1]))
         bathtub_ctle.reverse()
-        bathtub_ctle = array(bathtub_ctle + list(cumsum(jitter_ext_ctle[: half_len + 1])))
+        bathtub_ctle = array(
+            bathtub_ctle + list(cumsum(self.jitter["ctle"].hist_synth[: half_len + 1]))
+        )
         bathtub_ctle = where(
             bathtub_ctle < MIN_BATHTUB_VAL,
             0.1 * MIN_BATHTUB_VAL * ones(len(bathtub_ctle)),
             bathtub_ctle,
-        )  # To avoid Chaco log scale plot wierdness.
+        )  # To avoid Chaco log scale plot weirdness.
         self.plots.update_data("bathtub_ctle", log10(bathtub_ctle))
         #  - DFE
-        bathtub_dfe = list(cumsum(jitter_ext_dfe[-1 : -(half_len + 1) : -1]))
+        bathtub_dfe = list(cumsum(self.jitter["dfe"].hist_synth[-1 : -(half_len + 1) : -1]))
         bathtub_dfe.reverse()
-        bathtub_dfe = array(bathtub_dfe + list(cumsum(jitter_ext_dfe[: half_len + 1])))
+        bathtub_dfe = array(
+            bathtub_dfe + list(cumsum(self.jitter["dfe"].hist_synth[: half_len + 1]))
+        )
         bathtub_dfe = where(
             bathtub_dfe < MIN_BATHTUB_VAL,
             0.1 * MIN_BATHTUB_VAL * ones(len(bathtub_dfe)),
             bathtub_dfe,
-        )  # To avoid Chaco log scale plot wierdness.
+        )  # To avoid Chaco log scale plot weirdness.
         self.plots.update_data("bathtub_dfe", log10(bathtub_dfe))
 
         # Eyes

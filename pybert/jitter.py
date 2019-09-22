@@ -7,6 +7,10 @@ from numpy.fft import fft, ifft
 from pybert.utility import moving_average
 from scipy.stats import norm
 
+# TODO: I'm not happy with the new jitter container.  Maybe a dict in a dict instead of a class?
+#  Would update calc_jitter to return a dict instead of a class?
+#  This would allow use of dict comprehensions when calculating the jitter info strings.
+
 
 @dataclass
 class Jitter:
