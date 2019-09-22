@@ -6,17 +6,12 @@ Original Author: David Banas <capn.freako@gmail.com>
 Original Date:   9 May 2017
 
 This Python script provides a data structure for encapsulating the
-simulation results data of a PyBERT instance. It was first
-created, as a way to facilitate easier pickling, so that a particular
-result could be saved and later restored, as a reference waveform.
+simulation results data of a PyBERT instance. 
 
 Copyright (c) 2017 by David Banas; All rights reserved World wide.
 """
-# pylint: skip-file
-# TODO: This file needs to be completely rewritten
 
-import pickle
-
+import yaml
 from chaco.api import ArrayPlotData
 from pyface.api import OK, FileDialog
 from traits.api import File
@@ -72,26 +67,26 @@ class WaveformData:
         self.the_data = the_data
 
     def save(self):
-        """Pickle out all the generated data."""
+        """YAML out all the generated data."""
         the_pybert = info.object
         dlg = FileDialog(
             action="save as", wildcard="*.pybert_data", default_path=the_pybert.data_file
         )
         if dlg.open() == OK:
             plotdata = PyBertData(the_pybert)
-            with open(dlg.path, "wt") as the_file:
-                pickle.dump(plotdata, the_file)
+            with open(dlg.path, "w") as the_file:
+                yaml.dump(plotdata, the_file)
             the_pybert.data_file = dlg.path
 
     def load(self):
-        """Read in the pickled data.'"""
+        """Read in the YAML data.'"""
         the_pybert = info.object
         dlg = FileDialog(
             action="open", wildcard="*.pybert_data", default_path=the_pybert.data_file
         )
         if dlg.open() == OK:
-            with open(dlg.path, "rt") as the_file:
-                the_plotdata = pickle.load(the_file)
+            with open(dlg.path, "r") as the_file:
+                the_plotdata = yaml.full_load(the_file)
             if not isinstance(the_plotdata, PyBertData):
                 raise Exception("The data structure read in is NOT of type: ArrayPlotData!")
             for prop, value in the_plotdata.the_data.arrays.items():
