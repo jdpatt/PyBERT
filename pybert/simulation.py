@@ -1,11 +1,10 @@
 """Where all the magic happens."""
+from functools import lru_cache
 from logging import getLogger
 from threading import Thread
 from time import clock
 
 import numpy as np
-from chaco.api import Plot
-from chaco.tools.api import PanTool, ZoomTool
 from numpy import (
     arange,
     array,
@@ -48,33 +47,19 @@ from pybert.defaults import (
 from pybert.dfe import DFE
 from pybert.equalization import Equalization
 from pybert.jitter import Jitter
-from pybert.plot import Plots
+# from pybert.plot import Plots
 from pybert.utility import (
     calc_eye,
     find_crossings,
     import_channel,
     lfsr_bits,
     make_ctle,
+    MODULATION,
     pulse_center,
 )
-from pybert.view import popup_alert
+# from pybert.view import popup_alert
 from scipy.signal import iirfilter, lfilter
 from scipy.signal.windows import hann
-from traits.api import (
-    HTML,
-    Array,
-    Bool,
-    Dict,
-    Float,
-    HasTraits,
-    Instance,
-    Int,
-    List,
-    Property,
-    Range,
-    String,
-    cached_property,
-)
 
 
 class RunSimThread(Thread):
@@ -85,32 +70,30 @@ class RunSimThread(Thread):
         self.my_run_sweeps(self.the_pybert)
 
 
-class Simulation(HasTraits):
+class Simulation:
     """docstring for Simulation"""
 
     def __init__(self):
         super(Simulation, self).__init__()
         self.log = getLogger("pybert.simulation")
-        self.log.debug("Creating Simulation Object")
-        self.status = String("Ready.")
+        self.log.debug("Initializing Simulation")
+        self._status = "Ready."
 
-        self.bit_rate = Range(low=0.1, high=120.0, value=BIT_RATE)  #: (Gbps)
-        self.nbits = Range(low=1000, high=10000000, value=NUM_BITS)  #: Number of bits to simulate.
-        self.pattern_len = Range(low=7, high=10000000, value=PATTERN_LEN)  #: PRBS pattern length.
-        self.nspb = Range(
-            low=2, high=256, value=SAMPLES_PER_BIT
-        )  #: Signal vector samples per bit.
-        self.eye_bits = Int(NUM_BITS // 5)  #: # of bits used to form eye. (Default = last 20%)
-        self.mod_type = List([0])  #: 0 = NRZ; 1 = Duo-binary; 2 = PAM-4
-        self.num_sweeps = Int(1)  #: Number of sweeps to run.
-        self.sweep_num = Int(1)
-        self.sweep_aves = Int(NUM_AVG)
-        self.do_sweep = Bool(False)  #: Run sweeps? (Default = False)
+        self.bit_rate = BIT_RATE  #: (Gbps)
+        self.nbits = NUM_BITS  #: Number of bits to simulate.
+        self.pattern_len = PATTERN_LEN  #: PRBS pattern length.
+        self.nspb = SAMPLES_PER_BIT #: Signal vector samples per bit.
+        self.eye_bits = NUM_BITS // 5  #: # of bits used to form eye. (Default = last 20%)
+        self.mod_type = MODULATION.NRZ  #: 0 = NRZ; 1 = Duo-binary; 2 = PAM-4
+        self.num_sweeps = 1  #: Number of sweeps to run.
+        self.sweep_num = 1
+        self.sweep_aves = NUM_AVG
+        self.do_sweep = False  #: Run sweeps? (Default = False)
 
-        self.performance = Dict({})
-        self.sweep_results = List([])
-        self.bit_errors = Int(0)  #: # of bit errors observed in last run.
-        self.run_count = Int(0)  # Used as a mechanism to force bit stream regeneration.
+        self.performance = {}
+        self.sweep_results = []
+        self.bit_errors = 0  #: # of bit errors observed in last run.
+        self.run_count = 0  # Used as a mechanism to force bit stream regeneration.
         self.thresh = THRESHOLD
 
         self.channel = Channel()
@@ -119,34 +102,34 @@ class Simulation(HasTraits):
         self.eq = Equalization()
 
         self.jitter = {}
-        self.plots = Plots()
+        # self.plots = Plots()
 
         # Dependent variables
         # - Handled by the Traits/UI machinery. (Should only contain "low overhead" variables, which don't freeze the GUI noticeably.)
         #
         # - Note: Don't make properties, which have a high calculation overhead, dependencies of other properties!
         #         This will slow the GUI down noticeably.
-        self.jitter_info = Property(HTML, depends_on=["performance['jitter']"])
-        self.perf_info = Property(HTML, depends_on=["performance['total']"])
-        self.status_str = Property(String, depends_on=["status"])
-        self.sweep_info = Property(HTML, depends_on=["sweep_results"])
-        self.cost = Property(Float, depends_on=["ctle_out_h_tune", "nspui"])
-        self.rel_opt = Property(Float, depends_on=["cost"])
-        self.t = Property(Array, depends_on=["ui", "nspb", "nbits"])
-        self.t_ns = Property(Array, depends_on=["t"])
-        self.f = Property(Array, depends_on=["t"])
-        self.w = Property(Array, depends_on=["f"])
-        self.bits = Property(Array, depends_on=["pattern_len", "nbits", "run_count"])
-        self.symbols = Property(Array, depends_on=["bits", "mod_type", "vod"])
-        self.ffe = Property(Array, depends_on=["tx_taps.value", "tx_taps.enabled"])
-        self.ui = Property(Float, depends_on=["bit_rate", "mod_type"])
-        self.nui = Property(Int, depends_on=["nbits", "mod_type"])
-        self.nspui = Property(Int, depends_on=["nspb", "mod_type"])
-        self.eye_uis = Property(Int, depends_on=["eye_bits", "mod_type"])
-        self.dfe_out_p = Array()
-        self.przf_err = Property(Float, depends_on=["dfe_out_p"])
+        self.jitter_info = ""
+        self.perf_info = ""
+        self.status_str = ""
+        self.sweep_info = ""
+        self._cost: float = 0.0
+        self._rel_opt: float = 0.0
+        self._t = []
+        self._t_ns = []
+        self._f = 0.0
+        self._w = 0.0
+        self._bits = []
+        self._symbols = []
+        self._ffe = []
+        self._ui: float = 0.0
+        self._nui: int = 0
+        self._nspui: int = 0
+        self._eye_uis: int = 0
+        self._dfe_out_p = []
+        self._przf_err: float = 0.0
 
-        self.run_sim_thread = Instance(RunSimThread)
+        self.run_sim_thread = RunSimThread
 
     def run(self):
         """Spawn a simulation thread and run with the current settings."""
@@ -166,17 +149,19 @@ class Simulation(HasTraits):
 
     @property
     def status(self):
-        return self.__status
+        """Return the status string."""
+        return self._status
 
     @status.setter
     def status(self, message):
-        """Override the status setter so that we can log all as debug messages."""
-        self.log.debug(message)
-        self.__status = message
+        """Override the status setter so that we can log all messages."""
+        self.log.info(message)
+        self._status = message
 
     # Dependent variable definitions
-    @cached_property
-    def _get_t(self):
+    @property
+    @lru_cache(maxsize=None)
+    def t(self):
         """
         Calculate the system time vector, in seconds.
 
@@ -191,16 +176,18 @@ class Simulation(HasTraits):
 
         return array([i * t0 for i in range(npts)])
 
-    @cached_property
-    def _get_t_ns(self):
+    @property
+    @lru_cache(maxsize=None)
+    def t_ns(self):
         """
         Calculate the system time vector, in ns.
         """
 
-        return self.t * 1.0e9
+        return self._t * 1.0e9
 
-    @cached_property
-    def _get_f(self):
+    @property
+    @lru_cache(maxsize=None)
+    def f(self):
         """
         Calculate the frequency vector appropriate for indexing non-shifted FFT output, in Hz.
         # (i.e. - [0, f0, 2 * f0, ... , fN] + [-(fN - f0), -(fN - 2 * f0), ... , -f0]
@@ -217,23 +204,24 @@ class Simulation(HasTraits):
             + [(half_npts - i) * -f0 for i in range(1, half_npts)]
         )
 
-    @cached_property
-    def _get_w(self):
+    @property
+    @lru_cache(maxsize=None)
+    def w(self):
         """
         Calculate the frequency vector appropriate for indexing non-shifted FFT output, in rads./sec.
         """
 
-        return 2 * pi * self.f
+        return 2 * pi * self._f
 
-    @cached_property
-    def _get_bits(self):
+    @property
+    @lru_cache(maxsize=None)
+    def bits(self):
         """
         Generate the bit stream.
         """
 
         pattern_len = self.pattern_len
         nbits = self.nbits
-        mod_type = self.mod_type[0]
 
         bits = []
         seed = randint(128)
@@ -251,72 +239,73 @@ class Simulation(HasTraits):
         # We may want to talk to Mike Steinberger, of SiSoft, about his
         # correlation based approach to this alignment chore. It's
         # probably more robust.
-        if mod_type == 1:  # Duo-binary precodes, using XOR.
+        if self.mod_type == MODULATION.DUO:  # Use XOR.
             return resize(array([0, 0, 1, 0] + bits), nbits)
         return resize(array([0, 0, 1, 1] + bits), nbits)
 
-    @cached_property
-    def _get_ui(self):
+    @property
+    @lru_cache(maxsize=None)
+    def ui(self):
         """
         Returns the "unit interval" (i.e. - the nominal time span of each symbol moving through the channel).
         """
 
-        mod_type = self.mod_type[0]
         bit_rate = self.bit_rate * 1.0e9
 
         ui = 1.0 / bit_rate
-        if mod_type == 2:  # PAM-4
+        if self.mod_type == MODULATION.PAM4:
             ui *= 2.0
 
         return ui
 
-    @cached_property
-    def _get_nui(self):
+    @property
+    @lru_cache(maxsize=None)
+    def nui(self):
         """
         Returns the number of unit intervals in the test vectors.
         """
 
-        mod_type = self.mod_type[0]
         nbits = self.nbits
 
         nui = nbits
-        if mod_type == 2:  # PAM-4
+        if self.mod_type == MODULATION.PAM4:
             nui /= 2
 
         return nui
 
-    @cached_property
-    def _get_nspui(self):
+    @property
+    @lru_cache(maxsize=None)
+    def nspui(self):
         """
         Returns the number of samples per unit interval.
         """
 
-        mod_type = self.mod_type[0]
         nspb = self.nspb
 
         nspui = nspb
-        if mod_type == 2:  # PAM-4
+        if self.mod_type == MODULATION.PAM4:
             nspui *= 2
 
         return nspui
 
-    @cached_property
-    def _get_eye_uis(self):
+    @property
+    @lru_cache(maxsize=None)
+    def eye_uis(self):
         """
         Returns the number of unit intervals to use for eye construction.
         """
 
-        mod_type = self.mod_type[0]
         eye_bits = self.eye_bits
 
         eye_uis = eye_bits
-        if mod_type == 2:  # PAM-4
+        if self.mod_type == MODULATION.PAM4:
             eye_uis /= 2
 
         return eye_uis
 
-    @cached_property
-    def _get_ideal_h(self):
+    @property
+    @lru_cache(maxsize=None)
+    def ideal_h(self):
         """
         Returns the ideal link impulse response.
         """
@@ -324,7 +313,6 @@ class Simulation(HasTraits):
         ui = self.ui
         nspui = self.nspui
         t = self.t
-        mod_type = self.mod_type[0]
         ideal_type = self.ideal_type[0]
 
         t = array(t) - t[-1] / 2.0
@@ -341,32 +329,33 @@ class Simulation(HasTraits):
         else:
             popup_alert("Unrecognized ideal impulse response type.", ValueError())
         if (
-            mod_type == 1
-        ):  # Duo-binary relies upon the total link impulse response to perform the required addition.
+            mod_type == MODULATION.DUO
+        ):  
+        # Duo-binary relies upon the total link impulse response to perform the required addition.
             ideal_h = 0.5 * (
                 ideal_h + pad(ideal_h[:-nspui], (nspui, 0), "constant", constant_values=(0, 0))
             )
 
         return ideal_h
 
-    @cached_property
-    def _get_symbols(self):
+    @property
+    @lru_cache(maxsize=None)
+    def symbols(self):
         """
         Generate the symbol stream.
         """
 
-        mod_type = self.mod_type[0]
         vod = self.tx.vod
         bits = self.bits
 
-        if mod_type == 0:  # NRZ
+        if self.mod_type == MODULATION.NRZ:
             symbols = 2 * bits - 1
-        elif mod_type == 1:  # Duo-binary
+        elif self.mod_type == MODULATION.DUO:
             symbols = [bits[0]]
             for bit in bits[1:]:  # XOR pre-coding prevents infinite error propagation.
                 symbols.append(bit ^ symbols[-1])
             symbols = 2 * array(symbols) - 1
-        elif mod_type == 2:  # PAM-4
+        elif self.mod_type == MODULATION.PAM4:
             symbols = []
             for bits in zip(bits[0::2], bits[1::2]):
                 if bits == (0, 0):
@@ -381,11 +370,11 @@ class Simulation(HasTraits):
             popup_alert("Unknown modulation type requested!", ValueError())
         return array(symbols) * vod
 
-    @cached_property
-    def _get_cost(self):
+    @property
+    @lru_cache(maxsize=None)
+    def cost(self):
         nspui = self.nspui
         h = self.eq.ctle_out_h_tune
-        mod_type = self.mod_type[0]
 
         s = h.cumsum()
         p = s - pad(s[:-nspui], (nspui, 0), "constant", constant_values=(0, 0))
@@ -394,10 +383,10 @@ class Simulation(HasTraits):
         if clock_pos == -1:
             return 1.0  # Returning a large cost lets it know it took a wrong turn.
         clocks = thresh * ones(len(p))
-        if mod_type == 1:  # Handle duo-binary.
+        if self.mod_type == MODULATION.DUO:
             clock_pos -= nspui // 2
         clocks[clock_pos] = 0.0
-        if mod_type == 1:  # Handle duo-binary.
+        if self.mod_type == MODULATION.DUO:
             clocks[clock_pos + nspui] = 0.0
 
         # Cost is simply ISI minus main lobe amplitude.
@@ -409,7 +398,7 @@ class Simulation(HasTraits):
             isi += abs(p[ix])
             ix -= nspui
         ix = clock_pos + nspui
-        if mod_type == 1:  # Handle duo-binary.
+        if self.mod_type == MODULATION.DUO:
             ix += nspui
         while ix < len(p):
             clocks[ix] = 0.0
@@ -424,7 +413,7 @@ class Simulation(HasTraits):
         self.plots.update_data("ctle_out_h_tune", p)
         self.plots.update_data("clocks_tune", clocks)
 
-        if mod_type == 1:  # Handle duo-binary.
+        if self.mod_type == MODULATION.DUO:
             return (
                 isi
                 - p[clock_pos]
@@ -433,12 +422,14 @@ class Simulation(HasTraits):
             )
         return isi - p[clock_pos]
 
-    @cached_property
-    def _get_rel_opt(self):
+    @property
+    @lru_cache(maxsize=None)
+    def rel_opt(self):
         return -self.cost
 
-    @cached_property
-    def _get_przf_err(self):
+    @property
+    @lru_cache(maxsize=None)
+    def przf_err(self):
         p = self.dfe_out_p
         nspui = self.nspui
         n_taps = self.eq.n_taps
@@ -528,8 +519,6 @@ class Simulation(HasTraits):
 
         start_time = clock()
         self.status = f"Running channel...(sweep {sweep_num} of {num_sweeps})"
-        self.log.debug(type(self.run_count))
-        self.log.debug(type(1))
         self.run_count += 1  # Force regeneration of bit stream.
 
         # Pull class variables into local storage, performing unit conversion where necessary.
@@ -537,7 +526,7 @@ class Simulation(HasTraits):
         w = self.w
         bits = self.bits
         symbols = self.symbols
-        ffe = self.ffe
+        ffe = self.eq.ffe
         nbits = self.nbits
         nui = self.nui
         bit_rate = self.bit_rate * 1.0e9
@@ -566,7 +555,6 @@ class Simulation(HasTraits):
         lock_sustain = self.eq.lock_sustain
         bandwidth = self.eq.sum_bw * 1.0e9
         rel_thresh = self.thresh
-        mod_type = self.mod_type[0]
 
         try:
             # Calculate misc. values.
@@ -580,14 +568,14 @@ class Simulation(HasTraits):
             # impulse response, in order to produce the proper ideal signal.
             x = repeat(symbols, nspui)
             self.x = x
-            if mod_type == 1:  # Handle duo-binary case.
+            if self.mod_type == 1:  # Handle duo-binary case.
                 duob_h = array(([0.5] + [0.0] * (nspui - 1)) * 2)
                 x = convolve(x, duob_h)[: len(t)]
             self.ideal_signal = x
 
             # Find the ideal crossing times, for subsequent jitter analysis of transmitted signal.
             ideal_xings = find_crossings(
-                t, x, decision_scaler, min_delay=(ui / 2.0), mod_type=mod_type
+                t, x, decision_scaler, min_delay=(ui / 2.0), mod_type=self.mod_type
             )
             self.ideal_xings = ideal_xings
 
@@ -596,7 +584,7 @@ class Simulation(HasTraits):
             # Note: We're not using 'self.ideal_signal', because we rely on the system response to
             #       create the duobinary waveform. We only create it explicitly, above,
             #       so that we'll have an ideal reference for comparison.
-            chnl_h = self.channel.calc_chnl_h()
+            chnl_h = self.channel.calc_chnl_h(self.t, self.nspui, self.w)
             self.log.debug("Channel impulse response is %d samples long.", len(chnl_h))
             chnl_out = convolve(self.x, chnl_h)[: len(t)]
 
@@ -909,9 +897,9 @@ class Simulation(HasTraits):
         # -------------------------------------------------------------------------------------------
 
         try:
-            if mod_type == 1:  # Handle duo-binary case.
+            if self.mod_type == 1:  # Handle duo-binary case.
                 pattern_len *= 2  # Because, the XOR pre-coding can invert every other pattern rep.
-            if mod_type == 2:  # Handle PAM-4 case.
+            if self.mod_type == 2:  # Handle PAM-4 case.
                 if pattern_len % 2:
                     pattern_len *= 2  # Because, the bits are taken in pairs, to form the symbols.
 

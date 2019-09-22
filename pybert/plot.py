@@ -9,9 +9,9 @@ Copyright (c) 2015 David Banas; all rights reserved World wide.
 """
 from logging import getLogger
 
-from chaco.api import ArrayPlotData, ColorMapper, GridPlotContainer, Plot
-from chaco.tools.api import PanTool, ZoomTool
-from traits.api import Instance
+# from chaco.api import ArrayPlotData, ColorMapper, GridPlotContainer, Plot
+# from chaco.tools.api import PanTool, ZoomTool
+# from traits.api import Instance
 
 
 class Plots:
@@ -20,7 +20,7 @@ class Plots:
     def __init__(self):
         super(Plots, self).__init__()
         self.log = getLogger("pybert.plots")
-        self.log.debug("Creating Plot Object")
+        self.log.debug("Initializing Plot Object")
 
         # Plots (plot containers, actually)
         self.data = ArrayPlotData()

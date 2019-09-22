@@ -1,4 +1,7 @@
 """Module to handle all of the equalization features of pybert."""
+from dataclasses import dataclass
+from enum import Enum, auto
+from functools import lru_cache
 from threading import Event, Thread
 from time import sleep
 
@@ -24,20 +27,6 @@ from pybert.defaults import (
 )
 from pybert.view import popup_alert
 from scipy.optimize import minimize, minimize_scalar
-from traits.api import (
-    Array,
-    Bool,
-    Enum,
-    File,
-    Float,
-    HasTraits,
-    Instance,
-    Int,
-    List,
-    Property,
-    String,
-    cached_property,
-)
 
 
 class StoppableThread(Thread):
@@ -236,122 +225,82 @@ class CoOptThread(StoppableThread):
                 sleep(0.001)
         return pybert.cost
 
-
-class TxTapTuner(HasTraits):
+@dataclass
+class TxTapTuner:
     """Object used to populate the rows of the Tx FFE tap tuning table."""
-
-    name = String("(noname)")
-    enabled = Bool(False)
-    min_val = Float(0.0)
-    max_val = Float(0.0)
-    value = Float(0.0)
-    steps = Int(0)  # Non-zero means we want to sweep it.
-
-    def __init__(
-        self, name="(noname)", enabled=False, min_val=0.0, max_val=0.0, value=0.0, steps=0
-    ):
-        """Allows user to define properties, at instantiation."""
-
-        # Super-class initialization is ABSOLUTELY NECESSARY, in order
-        # to get all the Traits/UI machinery setup correctly.
-        super(TxTapTuner, self).__init__()
-
-        self.name = name
-        self.enabled = enabled
-        self.min_val = min_val
-        self.max_val = max_val
-        self.value = value
-        self.steps = steps
+    name: str = "(noname)"
+    enabled: bool = False
+    min_val: float = 0.0
+    max_val: float = 0.0
+    value: float = 0.0
+    steps: int = 0
 
 
-class Equalization(HasTraits):
+class CTLE_MODE(Enum):
+    OFF = auto()
+    PASSIVE = auto()
+    AGC = auto()
+    MANUAL = auto()
+
+
+class Equalization:
     """docstring for Equalization"""
 
     def __init__(self):
         super(Equalization, self).__init__()
-        self.tx_taps = List(
-            [
+        self.tx_taps = [
                 TxTapTuner(name="Pre-tap", enabled=True, min_val=-0.2, max_val=0.2, value=0.0),
                 TxTapTuner(name="Post-tap1", enabled=False, min_val=-0.4, max_val=0.4, value=0.0),
                 TxTapTuner(name="Post-tap2", enabled=False, min_val=-0.3, max_val=0.3, value=0.0),
                 TxTapTuner(name="Post-tap3", enabled=False, min_val=-0.2, max_val=0.2, value=0.0),
-            ]
-        )  #: List of TxTapTuner objects.
-        self.tx_tap_tuners = List(
-            [
+            ] #: List of TxTapTuner objects.
+        self.tx_tap_tuners = [
                 TxTapTuner(name="Pre-tap", enabled=True, min_val=-0.2, max_val=0.2, value=0.0),
                 TxTapTuner(name="Post-tap1", enabled=False, min_val=-0.4, max_val=0.4, value=0.0),
                 TxTapTuner(name="Post-tap2", enabled=False, min_val=-0.3, max_val=0.3, value=0.0),
                 TxTapTuner(name="Post-tap3", enabled=False, min_val=-0.2, max_val=0.2, value=0.0),
-            ]
-        )  #: EQ optimizer list of TxTapTuner objects.
-        self.use_ctle_file = Bool(False)  #: For importing CTLE impulse/step response directly.
-        self.ctle_file = File(
-            "", entries=5, filter=["*.csv"]
-        )  #: CTLE response file (when use_ctle_file = True).
-        self.rx_bw = Float(BANDWIDTH)  #: CTLE bandwidth (GHz).
-        self.peak_freq = Float(PEAK_FREQ)  #: CTLE peaking frequency (GHz)
-        self.peak_mag = Float(PEAK_MAG)  #: CTLE peaking magnitude (dB)
-        self.ctle_offset = Float(CTLE_OFFSET)  #: CTLE d.c. offset (dB)
-        self.ctle_mode = Enum(
-            "Off", "Passive", "AGC", "Manual"
-        )  #: CTLE mode ('Off', 'Passive', 'AGC', 'Manual').
+            ] #: EQ optimizer list of TxTapTuner objects.
+        self.use_ctle_file = False  #: For importing CTLE impulse/step response directly.
+        self.ctle_file = None  #: CTLE response file (when use_ctle_file = True). ["*.csv"]
+        self.rx_bw = BANDWIDTH  #: CTLE bandwidth (GHz).
+        self.peak_freq = PEAK_FREQ  #: CTLE peaking frequency (GHz)
+        self.peak_mag = PEAK_MAG  #: CTLE peaking magnitude (dB)
+        self.ctle_offset = CTLE_OFFSET  #: CTLE d.c. offset (dB)
+        self.ctle_mode = CTLE_MODE.OFF  #: CTLE mode ('Off', 'Passive', 'AGC', 'Manual').
 
-        self.rx_bw_tune = Float(BANDWIDTH)  #: EQ optimizer CTLE bandwidth (GHz).
-        self.peak_freq_tune = Float(PEAK_FREQ)  #: EQ optimizer CTLE peaking freq. (GHz).
-        self.peak_mag_tune = Float(PEAK_MAG)  #: EQ optimizer CTLE peaking mag. (dB).
-        self.ctle_offset_tune = Float(CTLE_OFFSET)  #: EQ optimizer CTLE d.c. offset (dB).
-        self.ctle_mode_tune = Enum(
-            "Off", "Passive", "AGC", "Manual"
-        )  #: EQ optimizer CTLE mode ('Off', 'Passive', 'AGC', 'Manual').
-        self.use_dfe_tune = Bool(USE_DFE)  #: EQ optimizer DFE select (Bool).
-        self.n_taps_tune = Int(NUM_TAPS)  #: EQ optimizer # DFE taps.
-        self.max_iter = Int(50)  #: EQ optimizer max. # of optimization iterations.
-        self.tx_opt_thread = Instance(TxOptThread)  #: Tx EQ optimization thread.
-        self.rx_opt_thread = Instance(RxOptThread)  #: Rx EQ optimization thread.
-        self.coopt_thread = Instance(CoOptThread)  #: EQ co-optimization thread.
+        self.rx_bw_tune = BANDWIDTH  #: EQ optimizer CTLE bandwidth (GHz).
+        self.peak_freq_tune = PEAK_FREQ  #: EQ optimizer CTLE peaking freq. (GHz).
+        self.peak_mag_tune = PEAK_MAG  #: EQ optimizer CTLE peaking mag. (dB).
+        self.ctle_offset_tune = CTLE_OFFSET  #: EQ optimizer CTLE d.c. offset (dB).
+        self.ctle_mode_tune = CTLE_MODE.OFF  #: EQ optimizer CTLE mode ('Off', 'Passive', 'AGC', 'Manual').
+        self.use_dfe_tune = USE_DFE  #: EQ optimizer DFE select (Bool).
+        self.n_taps_tune = NUM_TAPS  #: EQ optimizer # DFE taps.
+        self.max_iter = 50  #: EQ optimizer max. # of optimization iterations.
+        self.tx_opt_thread = TxOptThread  #: Tx EQ optimization thread.
+        self.rx_opt_thread = RxOptThread  #: Rx EQ optimization thread.
+        self.coopt_thread = CoOptThread  #: EQ co-optimization thread.
 
         # - DFE
-        self.use_dfe = Bool(USE_DFE)  #: True = use a DFE (Bool).
-        self.sum_ideal = Bool(
-            DFE_IDEAL
-        )  #: True = use an ideal (i.e. - infinite bandwidth) summing node (Bool).
-        self.decision_scaler = Float(DECISION_SCALER)  #: DFE slicer output voltage (V).
-        self.gain = Float(GAIN)  #: DFE error gain (unitless).
-        self.n_ave = Float(
-            DFE_NUM_AVG
-        )  #: DFE # of averages to take, before making tap corrections.
-        self.n_taps = Int(NUM_TAPS)  #: DFE # of taps.
+        self.use_dfe = USE_DFE  #: True = use a DFE (Bool).
+        self.sum_ideal = DFE_IDEAL #: True = use an ideal (i.e. - infinite bandwidth) summing node (Bool).
+        self.decision_scaler = DECISION_SCALER  #: DFE slicer output voltage (V).
+        self.gain = GAIN  #: DFE error gain (unitless).
+        self.n_ave = DFE_NUM_AVG #: DFE # of averages to take, before making tap corrections.
+        self.n_taps = NUM_TAPS  #: DFE # of taps.
         self._old_n_taps = self.n_taps
-        self.sum_bw = Float(
-            DFE_BW
-        )  #: DFE summing node bandwidth (Used when sum_ideal=False.) (GHz).
+        self.sum_bw = DFE_BW #: DFE summing node bandwidth (Used when sum_ideal=False.) (GHz).
 
         # - CDR
-        self.delta_t = Float(DELTA_T)  #: CDR proportional branch magnitude (ps).
-        self.alpha = Float(ALPHA)  #: CDR integral branch magnitude (unitless).
-        self.n_lock_ave = Int(NUM_LOCK_AVG)  #: CDR # of averages to take in determining lock.
-        self.rel_lock_tol = Float(
-            REL_LOCK_TOL
-        )  #: CDR relative tolerance to use in determining lock.
-        self.lock_sustain = Int(LOCK_SUSTAIN)  #: CDR hysteresis to use in determining lock.
+        self.delta_t = DELTA_T  #: CDR proportional branch magnitude (ps).
+        self.alpha = ALPHA  #: CDR integral branch magnitude (unitless).
+        self.n_lock_ave = NUM_LOCK_AVG  #: CDR # of averages to take in determining lock.
+        self.rel_lock_tol = REL_LOCK_TOL #: CDR relative tolerance to use in determining lock.
+        self.lock_sustain = LOCK_SUSTAIN  #: CDR hysteresis to use in determining lock.
 
-        self.tx_h_tune = Property(Array, depends_on=["tx_tap_tuners.value", "nspui"])
-        self.ctle_h_tune = Property(
-            Array,
-            depends_on=[
-                "peak_freq_tune",
-                "peak_mag_tune",
-                "rx_bw_tune",
-                "w",
-                "len_h",
-                "ctle_mode_tune",
-                "ctle_offset_tune",
-                "use_dfe_tune",
-                "n_taps_tune",
-            ],
-        )
-        self.ctle_out_h_tune = Property(Array, depends_on=["tx_h_tune", "ctle_h_tune", "chnl_h"])
+        self.tx_h_tune = []
+        self.ctle_h_tune = []
+        self.ctle_out_h_tune = []
+        self._ffe = []
 
     def reset_equalization(self):
         """Reset the equalization to the last set values."""
@@ -450,8 +399,9 @@ class Equalization(HasTraits):
             popup_alert("CTLE peak magnitude out of range!", RuntimeError())
         self.peak_mag_tune = val
 
-    @cached_property
-    def _get_ffe(self):
+    @property
+    @lru_cache(maxsize=None)
+    def ffe(self):
         """
         Generate the Tx pre-emphasis FIR numerator.
         """

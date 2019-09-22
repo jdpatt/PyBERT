@@ -1,5 +1,6 @@
 """Common features between the transmitter and receiver."""
 from logging import getLogger
+from pathlib import Path
 
 from pybert.defaults import (
     AC_CAPACITANCE,
@@ -15,29 +16,29 @@ from pybert.defaults import (
 from pybert.view import popup_alert
 from pyibisami.ami_model import AMIModel, AMIModelInitializer
 from pyibisami.ami_parse import AMIParamConfigurator
-from traits.api import Bool, File, Float, HasTraits, Range
 
 
-class Buffer(HasTraits):
+class Buffer():
     """Object to hold items common between the Tx and Rx buffers."""
 
     def __init__(self):
         super(Buffer, self).__init__()
         self.log = getLogger("pybert.buffer")
-        self.log.debug("Creating Buffer Object")
-        self.use_ami: bool = Bool(False)
-        self.use_getwave: bool = Bool(False)
-        self.has_getwave: bool = Bool(False)
-        self.ami_file = File("", entries=5, filter=["*.ami"])  #: (File)
-        self.ami_valid: bool = Bool(False)
-        self.dll_file = File("", entries=5, filter=["*.dll", "*.so"])  #: (File)
-        self.dll_valid: bool = Bool(False)
+        self.use_ami: bool = False
+        self.use_getwave: bool = False
+        self.has_getwave: bool = False
+        self.ami_file = None
+        self.ami_valid: bool = False
+        self.dll_file = None
+        self.dll_valid: bool = False
         self.model = None
         self.configurator = None
 
-    def ami_file_changed(self, new_file):
+    def ami_file_changed(self, new_file: Path):
         """Read and configure the new ami model from the user."""
         try:
+            if new_file.suffix not in [".ami"]:
+                raise ValueError("File is not an ami file.")
             self.ami_valid = False
             with open(new_file) as pfile:
                 pcfg = AMIParamConfigurator(pfile.read())
@@ -48,9 +49,11 @@ class Buffer(HasTraits):
         except Exception as err:
             popup_alert("Failed to open and/or parse AMI file!\n", err)
 
-    def dll_file_changed(self, new_file):
+    def dll_file_changed(self, new_file: Path):
         """Read and set the new DLL file from the users."""
         try:
+            if new_file.suffix not in ["dll", "so"]:
+                raise ValueError("File is not a DLL or SO file.")
             self.dll_valid = False
             model = AMIModel(str(new_file))
             self.model = model
@@ -69,18 +72,14 @@ class Transmitter(Buffer):
 
     def __init__(self):
         super(Transmitter, self).__init__()
-        self.log.debug("Creating Tx")
-        self.vod = Float(OUTPUT_DRIVE_STRENGTH)  #: Tx differential output voltage (V)
-        self.output_impedance = Float(OUTPUT_IMPEDANCE)  #: Tx source impedance (Ohms)
-        self.output_capacitance = Range(
-            low=0.001, value=OUTPUT_CAPACITANCE
-        )  #: Tx parasitic output capacitance (pF)
-        self.pn_mag = Float(PN_MAG)  #: Periodic noise magnitude (V).
-        self.pn_freq = Float(PN_FREQ)  #: Periodic noise frequency (MHz).
-        self.random_noise = Float(
-            RANDOM_NOISE
-        )  #: Standard deviation of Gaussian random noise (V).
-        self.rel_power = Float(1.0)  #: Tx power dissipation (W).
+        self.log.debug("Initializing Tx")
+        self.vod = OUTPUT_DRIVE_STRENGTH  #: Tx differential output voltage (V)
+        self.output_impedance = OUTPUT_IMPEDANCE  #: Tx source impedance (Ohms)
+        self.output_capacitance = OUTPUT_CAPACITANCE #: Tx parasitic output capacitance (pF)
+        self.pn_mag = PN_MAG  #: Periodic noise magnitude (V).
+        self.pn_freq = PN_FREQ  #: Periodic noise frequency (MHz).
+        self.random_noise = RANDOM_NOISE #: Standard deviation of Gaussian random noise (V).
+        self.rel_power = 1.0  #: Tx power dissipation (W).
 
     def initialize_model(self, sample_interval, channel_response, bit_time):
         """Within the PyBERT computational environment, we use normalized impulse responses,
@@ -113,12 +112,10 @@ class Receiver(Buffer):
 
     def __init__(self):
         super(Receiver, self).__init__()
-        self.log.debug("Creating Rx")
-        self.input_impedance = Float(INPUT_IMPEDANCE)  #: Rx input impedance (Ohm)
-        self.input_capacitance = Range(
-            low=0.001, value=INPUT_CAPACITANCE
-        )  #: Rx parasitic input capacitance (pF)
-        self.cac = Float(AC_CAPACITANCE)  #: Rx a.c. coupling capacitance (uF)
+        self.log.debug("Initializing Rx")
+        self.input_impedance = INPUT_IMPEDANCE  #: Rx input impedance (Ohm)
+        self.input_capacitance = INPUT_CAPACITANCE #: Rx parasitic input capacitance (pF)
+        self.cac = AC_CAPACITANCE  #: Rx a.c. coupling capacitance (uF)
 
     def initialize_model(self, sample_interval, channel_response, bit_time):
         """Get the model invoked and initialized, except for 'channel_response', which

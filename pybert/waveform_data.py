@@ -17,10 +17,6 @@ Copyright (c) 2017 by David Banas; All rights reserved World wide.
 
 import pickle
 
-from chaco.api import ArrayPlotData
-from pyface.api import OK, FileDialog
-from traits.api import File
-
 
 class WaveformData:
     """

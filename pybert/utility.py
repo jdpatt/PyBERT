@@ -6,6 +6,7 @@ Original date:   September 27, 2014 (Copied from pybert_cntrl.py.)
 
 Copyright (c) 2014 David Banas; all rights reserved World wide.
 """
+from enum import Enum, auto
 import re
 from functools import reduce
 from logging import getLogger
@@ -14,6 +15,12 @@ from pathlib import Path
 import numpy as np
 import skrf as rf
 from scipy.signal import freqs, get_window, invres
+
+
+class MODULATION(Enum):
+    NRZ = auto()
+    DUO = auto()
+    PAM4 = auto()
 
 
 def moving_average(a, n=3):
@@ -124,7 +131,7 @@ def find_crossings(
     min_delay: float = 0.0,
     rising_first: bool = True,
     min_init_dev=0.1,
-    mod_type=0,
+    mod_type=MODULATION.NRZ,
 ):
     """
     Finds the crossing times in a signal, according to the modulation type.
@@ -156,13 +163,13 @@ def find_crossings(
     """
 
     xings = []
-    if mod_type == 0:  # NRZ
+    if mod_type == MODULATION.NRZ:  # NRZ
         xings.append(
             find_crossing_times(
                 t, x, min_delay=min_delay, rising_first=rising_first, min_init_dev=min_init_dev
             )
         )
-    elif mod_type == 1:  # Duo-binary
+    elif mod_type == MODULATION.DUO:  # Duo-binary
         xings.append(
             find_crossing_times(
                 t,
@@ -184,7 +191,7 @@ def find_crossings(
             )
         )
     elif (
-        mod_type == 2
+        mod_type == MODULATION.PAM4
     ):  # PAM-4 (Enabling the +/-0.67 cases yields multiple ideal crossings at the same edge.)
         xings.append(
             find_crossing_times(

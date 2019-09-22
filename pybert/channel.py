@@ -1,4 +1,5 @@
 """A serDes channel consists of a driver, a channel and a receiver."""
+from functools import lru_cache
 from logging import getLogger
 
 import numpy as np
@@ -15,46 +16,37 @@ from pybert.defaults import (
 )
 from pybert.equalization import get_tap_fir_numerator
 from pybert.utility import calc_G, calc_gamma, import_channel, make_ctle, trim_impulse
-from traits.api import Array, Bool, File, Float, HasTraits, Int, cached_property
 
 
-class Channel(HasTraits):
+class Channel:
     """docstring for Channel"""
 
     def __init__(self):
         super(Channel, self).__init__()
         self.log = getLogger("pybert.buffer")
-        self.log.debug("Creating Channel")
-        self.use_ch_file = Bool(False)  #: Import channel description from file? (Default = False)
-        self.padded = Bool(False)  #: Zero pad imported Touchstone data? (Default = False)
-        self.windowed = Bool(False)  #: Apply windowing to the Touchstone data? (Default = False)
-        self.f_step = Float(
-            10
-        )  #: Frequency step to use when constructing H(f). (Default = 10 MHz)
-        self.ch_file = File(
-            "", entries=5, filter=["*.s4p", "*.S4P", "*.csv", "*.CSV", "*.txt", "*.TXT", "*.*"]
-        )  #: Channel file name.
-        self.impulse_length = Float(
-            0.0
-        )  #: Impulse response length. (Determined automatically, when 0.)
-        self.Rdc = Float(DC_RESISTANCE_PER_METER)  #: Channel d.c. resistance (Ohms/m).
-        self.w0 = Float(W_TRANSITION_FREQ)  #: Channel transition frequency (rads./s).
-        self.R0 = Float(SKIN_EFFECT_RESISTANCE)  #: Channel skin effect resistance (Ohms/m).
-        self.Theta0 = Float(LOSS_TANGENT)  #: Channel loss tangent (unitless).
-        self.Z0 = Float(
-            CHARACTERISTIC_IMPEDANCE
-        )  #: Channel characteristic impedance, in LC region (Ohms).
-        self.v0 = Float(REL_VELOCITY)  #: Channel relative propagation velocity (c).
-        self.l_ch = Float(CHANNEL_LENGTH)  #: Channel length (m).
+        self.log.debug("Initializing Channel")
+        self.use_ch_file: bool = False  #: Import channel description from file? (Default = False)
+        self.padded: bool = False  #: Zero pad imported Touchstone data? (Default = False)
+        self.windowed: bool = False  #: Apply windowing to the Touchstone data? (Default = False)
+        self.f_step = 10.0  #: Frequency step to use when constructing H(f). (Default = 10 MHz)
+        self.ch_file = None  #: Channel file name. "*.s4p", "*.S4P", "*.csv", "*.CSV", "*.txt", "*.TXT", "*.*"
+        self.impulse_length = 0.0  #: Impulse response length. (Determined automatically, when 0.)
+        self.Rdc = DC_RESISTANCE_PER_METER  #: Channel d.c. resistance (Ohms/m).
+        self.w0 = W_TRANSITION_FREQ  #: Channel transition frequency (rads./s).
+        self.R0 = SKIN_EFFECT_RESISTANCE  #: Channel skin effect resistance (Ohms/m).
+        self.Theta0 = LOSS_TANGENT  #: Channel loss tangent (unitless).
+        self.Z0 = CHARACTERISTIC_IMPEDANCE #: Channel characteristic impedance, in LC region (Ohms).
+        self.v0 = REL_VELOCITY  #: Channel relative propagation velocity (c).
+        self.l_ch = CHANNEL_LENGTH  #: Channel length (m).
 
-        self.len_h = Int(0)
-        self.chnl_dly = Float(0.0)  #: Estimated channel delay (s).
-        self.chnl_h = Array()
-        self.chnl_H = Array()
-        self.chnl_trimmed_H = Array()
-        self.start_ix = Int(0)
+        self.len_h = 0
+        self.chnl_dly = 0.0  #: Estimated channel delay (s).
+        self.chnl_h = []
+        self.chnl_H = []
+        self.chnl_trimmed_H = []
+        self.start_ix = 0
 
-    @cached_property
+    @lru_cache(maxsize=None)
     def _get_tx_h_tune(self):
         nspui = self.nspui
 
@@ -64,10 +56,10 @@ class Channel(HasTraits):
 
         return h
 
-    # This function has been pulled outside of the standard Traits/UI "depends_on / @cached_property" mechanism,
+    # This function has been pulled outside of the standard Traits/UI "depends_on / @lru_cache(maxsize=None)" mechanism,
     # in order to more tightly control when it executes. I wasn't able to get truly lazy evaluation, and
     # this was causing noticeable GUI slowdown.
-    def calc_chnl_h(self):
+    def calc_chnl_h(self, t, nspui, w):
         """
         Calculates the channel impulse response.
 
@@ -87,9 +79,7 @@ class Channel(HasTraits):
 
         """
 
-        t = self.t
         ts = t[1]
-        nspui = self.nspui
         impulse_length = self.impulse_length * 1.0e-9
 
         if self.use_ch_file:
@@ -108,7 +98,6 @@ class Channel(HasTraits):
             Rdc = self.Rdc
             Z0 = self.Z0
             Theta0 = self.Theta0
-            w = self.w
             Rs = self.tx.output_impedance
             Cs = self.tx.output_capacitance * 1.0e-12
             RL = self.rx.input_impedance
@@ -148,7 +137,7 @@ class Channel(HasTraits):
 
         return chnl_h
 
-    @cached_property
+    @lru_cache(maxsize=None)
     def _get_ctle_h_tune(self):
         w = self.w
         len_h = self.len_h
@@ -164,7 +153,7 @@ class Channel(HasTraits):
 
         return h
 
-    @cached_property
+    @lru_cache(maxsize=None)
     def _get_ctle_out_h_tune(self):
         chnl_h = self.chnl_h
         tx_h = self.eq.tx_h_tune

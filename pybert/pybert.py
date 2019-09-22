@@ -14,6 +14,7 @@ can be used to explore the concepts of serial communication link design.
 
 Copyright (c) 2014 by David Banas; All rights reserved World wide.
 """
+from functools import lru_cache
 import logging
 import logging.handlers
 import platform
@@ -34,13 +35,12 @@ from pybert.static import (
     status_string,
     sweep_results_menu,
 )
-from pybert.view import TRAITS_VIEW, popup_alert
+# from pybert.view import TRAITS_VIEW, popup_alert
 
 # from pybert.waveform_data import WaveformData
-from traits.api import Button, HasTraits, String, cached_property
 
 
-class PyBERT(HasTraits):
+class PyBERT:
     """
     A serial communication link bit error rate tester (BERT) simulator with a GUI interface.
 
@@ -83,7 +83,7 @@ class PyBERT(HasTraits):
         self.status = self.sim.status  #: PyBERT status (String).
 
         # About
-        self.ident = String(
+        self.ident = (
             f"PyBERT v{VERSION} - a serial communication link design tool, written in Python.\n\n \
             {AUTHORS}\n \
             {DATE}   \n \
@@ -94,23 +94,23 @@ class PyBERT(HasTraits):
         # Help
         self.help_tab = help_menu()
 
-        # Tab Buttons
-        self.btn_rst_eq = Button(label="Reset Eq")
-        self.btn_save_eq = Button(label="Save Eq")
-        self.btn_opt_tx = Button(label="Opt Tx")
-        self.btn_opt_rx = Button(label="Opt Rx")
-        self.btn_coopt = Button(label="Co-Opt")
-        self.btn_abort = Button(label="Abort")
-        self.btn_cfg_tx = Button(label="Configure")
-        self.btn_cfg_rx = Button(label="Configure")
+        # # Tab Buttons
+        # self.btn_rst_eq = Button(label="Reset Eq")
+        # self.btn_save_eq = Button(label="Save Eq")
+        # self.btn_opt_tx = Button(label="Opt Tx")
+        # self.btn_opt_rx = Button(label="Opt Rx")
+        # self.btn_coopt = Button(label="Co-Opt")
+        # self.btn_abort = Button(label="Abort")
+        # self.btn_cfg_tx = Button(label="Configure")
+        # self.btn_cfg_rx = Button(label="Configure")
 
-        # Global Buttons
-        self.run_sim = Button(label="Run")
-        self.stop_sim = Button(label="Stop")
-        self.save_data = Button(label="Save Results")
-        self.load_data = Button(label="Load Results")
-        self.save_cfg = Button(label="Save Config.")
-        self.load_cfg = Button(label="Load Config.")
+        # # Global Buttons
+        # self.run_sim = Button(label="Run")
+        # self.stop_sim = Button(label="Stop")
+        # self.save_data = Button(label="Save Results")
+        # self.load_data = Button(label="Load Results")
+        # self.save_cfg = Button(label="Save Config.")
+        # self.load_cfg = Button(label="Load Config.")
 
         if run_simulation:
             # Running the simulation will fill in the required data structure.
@@ -121,115 +121,112 @@ class PyBERT(HasTraits):
         else:
             self.channel.calc_chnl_h()  # Prevents missing attribute error in _get_ctle_out_h_tune().
 
-    # Button handlers
-    def _btn_rst_eq_fired(self):
-        """Reset the equalization."""
-        self.channel.eq.reset_equalization()
+    # # Button handlers
+    # def _btn_rst_eq_fired(self):
+    #     """Reset the equalization."""
+    #     self.sim.eq.reset_equalization()
 
-    def _btn_save_eq_fired(self):
-        """Save the equalization."""
-        self.channel.eq.save_equalization()
+    # def _btn_save_eq_fired(self):
+    #     """Save the equalization."""
+    #     self.sim.eq.save_equalization()
 
-    def _btn_opt_tx_fired(self):
-        """Run the tx optimization."""
-        self.channel.eq.run_tx_optimization()
+    # def _btn_opt_tx_fired(self):
+    #     """Run the tx optimization."""
+    #     self.sim.eq.run_tx_optimization()
 
-    def _btn_opt_rx_fired(self):
-        """Run the rx optimization."""
-        self.channel.eq.run_rx_optimization()
+    # def _btn_opt_rx_fired(self):
+    #     """Run the rx optimization."""
+    #     self.sim.eq.run_rx_optimization()
 
-    def _btn_coopt_fired(self):
-        """Run the co-optimization between Tx and Rx."""
-        self.channel.eq.run_co_optimization()
+    # def _btn_coopt_fired(self):
+    #     """Run the co-optimization between Tx and Rx."""
+    #     self.sim.eq.run_co_optimization()
 
-    def _btn_abort_fired(self):
-        """Kill all the threads that are currently running optimization."""
-        self.channel.eq.abort_optimization()
+    # def _btn_abort_fired(self):
+    #     """Kill all the threads that are currently running optimization."""
+    #     self.sim.eq.abort_optimization()
 
-    def _btn_cfg_tx_fired(self):
-        """Open the Tx AMI configurator."""
-        self.channel.tx.open_config_gui()
+    # def _btn_cfg_tx_fired(self):
+    #     """Open the Tx AMI configurator."""
+    #     self.sim.tx.open_config_gui()
 
-    def _btn_cfg_rx_fired(self):
-        """Open the Rx AMI configurator."""
-        self.channel.rx.open_config_gui()
+    # def _btn_cfg_rx_fired(self):
+    #     """Open the Rx AMI configurator."""
+    #     self.sim.rx.open_config_gui()
 
-    def _btn_run_sim_fired(self):
-        """Start a new simulation."""
-        self.sim.run()
+    # def _btn_run_sim_fired(self):
+    #     """Start a new simulation."""
+    #     self.sim.run()
 
-    def _btn_stop_sim_fired(self):
-        """Stop the current simulation."""
-        self.sim.abort()
+    # def _btn_stop_sim_fired(self):
+    #     """Stop the current simulation."""
+    #     self.sim.abort()
 
-    def _btn_save_data_fired(self):
-        """Save all the waveform data."""
-        try:
-            self.data.save()
-        except Exception as err:
-            popup_alert("An error occured.  The waveform data was not saved", err)
+    # def _btn_save_data_fired(self):
+    #     """Save all the waveform data."""
+    #     try:
+    #         self.data.save()
+    #     except Exception as err:
+    #         popup_alert("An error occured.  The waveform data was not saved", err)
 
-    def _btn_load_data_fired(self):
-        """Load previous waveform data."""
-        try:
-            self.data.load()
-        except Exception as err:
-            popup_alert("An error occured.  The waveform data could not be loaded.", err)
+    # def _btn_load_data_fired(self):
+    #     """Load previous waveform data."""
+    #     try:
+    #         self.data.load()
+    #     except Exception as err:
+    #         popup_alert("An error occured.  The waveform data could not be loaded.", err)
 
-    def _btn_save_cfg_fired(self):
-        """Save all the configuration data."""
-        try:
-            self.config.save()
-        except Exception as err:
-            popup_alert("An error occured.  The configuration data was not saved", err)
+    # def _btn_save_cfg_fired(self):
+    #     """Save all the configuration data."""
+    #     try:
+    #         self.config.save()
+    #     except Exception as err:
+    #         popup_alert("An error occured.  The configuration data was not saved", err)
 
-    def _btn_load_cfg_fired(self):
-        """Load previous configuration data."""
-        try:
-            self.config.load()
-        except Exception as err:
-            popup_alert("An error occured.  The configuration data could not be loaded.", err)
+    # def _btn_load_cfg_fired(self):
+    #     """Load previous configuration data."""
+    #     try:
+    #         self.config.load()
+    #     except Exception as err:
+    #         popup_alert("An error occured.  The configuration data could not be loaded.", err)
 
     # -----------------------------------------------------------------
     # Changed property handlers.
-    def _status_str_changed(self):
-        self.log.debug(self.status_str)
-
     def _use_dfe_changed(self, new_value):
         """The user turned on/off DFE."""
-        self.channel.eq.toggle_dfe(new_value)
+        self.sim.eq.toggle_dfe(new_value)
 
     def _use_dfe_tune_changed(self, new_value):
         """The user turned on/off the tuned DFE."""
-        self.channel.eq.toggle_tunded_dfe(new_value)
+        self.sim.eq.toggle_tunded_dfe(new_value)
 
-    @cached_property
+    @lru_cache(maxsize=None)
     def _get_sweep_info(self):
         return sweep_results_menu(self.sim.sweep_results)
 
-    @cached_property
+    @lru_cache(maxsize=None)
     def _get_perf_info(self):
         return performance_menu(
-            {key: value * 60.0e-6 for (key, value) in self.performance.items()}
+            {key: value * 60.0e-6 for (key, value) in self.sim.performance.items()}
         )
 
-    @cached_property
+    @lru_cache(maxsize=None)
     def _get_jitter_info(self):
         try:
             jitter_info = jitter_rejection_menu(self.sim.jitter)
         except Exception as error:
             jitter_info = "<H1>Jitter Rejection by Equalization Component</H1>\n"
-            popup_alert("Jitter Calculation Failed", error)
+            # popup_alert("Jitter Calculation Failed", error)
         return jitter_info
 
-    @cached_property
+    @lru_cache(maxsize=None)
     def _get_status_str(self):
         return status_string(
             self.status,
             self.sim.performance["total"],
             self.channel.chnl_dly,
             self.sim.bit_errors,
-            self.tx.relative_power,
+            self.sim.tx.relative_power,
             self.sim.jitter["dfe"],
         )
 
@@ -269,7 +266,7 @@ def main():
     We use the if __name__ == "__main__" so that PyBERT can be used stand-alone,
     or imported, fashion.
     """
-    PyBERT().configure_traits(view=TRAITS_VIEW)
+    PyBERT()
 
 
 if __name__ == "__main__":

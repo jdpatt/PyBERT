@@ -17,9 +17,6 @@ Copyright (c) 2017 by David Banas; All rights reserved World wide.
 
 import pickle
 
-from pyface.api import OK, FileDialog
-from traits.api import File
-
 
 class ConfigurationData:
     """
