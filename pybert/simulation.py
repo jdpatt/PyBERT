@@ -6,31 +6,6 @@ from time import clock
 import numpy as np
 from chaco.api import Plot
 from chaco.tools.api import PanTool, ZoomTool
-from numpy import (
-    arange,
-    array,
-    concatenate,
-    convolve,
-    correlate,
-    cos,
-    cumsum,
-    diff,
-    histogram,
-    linspace,
-    log10,
-    mean,
-    ones,
-    pad,
-    pi,
-    real,
-    repeat,
-    resize,
-    sinc,
-    std,
-    transpose,
-    where,
-    zeros,
-)
 from numpy.fft import fft, ifft
 from numpy.random import normal, randint
 from pybert.buffer import Receiver, Transmitter
@@ -47,8 +22,8 @@ from pybert.defaults import (
 )
 from pybert.dfe import DFE
 from pybert.equalization import Equalization
-from pybert.jitter import Jitter
 from pybert.plot import Plots
+from pybert.jitter import Jitter
 from pybert.utility import (
     calc_eye,
     find_crossings,
@@ -57,7 +32,6 @@ from pybert.utility import (
     make_ctle,
     pulse_center,
 )
-from pybert.view import popup_alert
 from scipy.signal import iirfilter, lfilter
 from scipy.signal.windows import hann
 from traits.api import (
@@ -114,7 +88,7 @@ class Simulation(HasTraits):
         self.thresh = THRESHOLD
 
         self.channel = Channel()
-        self.tx = Transmitter()
+        self.tx = Transmitter(self.channel.material.random_noise)
         self.rx = Receiver()
         self.eq = Equalization()
 
@@ -223,7 +197,7 @@ class Simulation(HasTraits):
         Calculate the frequency vector appropriate for indexing non-shifted FFT output, in rads./sec.
         """
 
-        return 2 * pi * self.f
+        return 2 * np.pi * self.f
 
     @cached_property
     def _get_bits(self):
@@ -252,8 +226,8 @@ class Simulation(HasTraits):
         # correlation based approach to this alignment chore. It's
         # probably more robust.
         if mod_type == 1:  # Duo-binary precodes, using XOR.
-            return resize(array([0, 0, 1, 0] + bits), nbits)
-        return resize(array([0, 0, 1, 1] + bits), nbits)
+            return np.resize(array([0, 0, 1, 0] + bits), nbits)
+        return np.resize(array([0, 0, 1, 1] + bits), nbits)
 
     @cached_property
     def _get_ui(self):
@@ -330,21 +304,21 @@ class Simulation(HasTraits):
         t = array(t) - t[-1] / 2.0
 
         if ideal_type == 0:  # delta
-            ideal_h = zeros(len(t))
+            ideal_h = np.zeros(len(t))
             ideal_h[len(t) / 2] = 1.0
-        elif ideal_type == 1:  # sinc
-            ideal_h = sinc(t / (ui / 2.0))
+        elif ideal_type == 1:  # np.sinc
+            ideal_h = np.sinc(t / (ui / 2.0))
         elif ideal_type == 2:  # raised cosine
-            ideal_h = (cos(pi * t / (ui / 2.0)) + 1.0) / 2.0
-            ideal_h = where(t < -ui / 2.0, zeros(len(t)), ideal_h)
-            ideal_h = where(t > ui / 2.0, zeros(len(t)), ideal_h)
+            ideal_h = (np.cos(np.pi * t / (ui / 2.0)) + 1.0) / 2.0
+            ideal_h = np.where(t < -ui / 2.0, np.zeros(len(t)), ideal_h)
+            ideal_h = np.where(t > ui / 2.0, np.zeros(len(t)), ideal_h)
         else:
-            popup_alert("Unrecognized ideal impulse response type.", ValueError())
+            raise ValueError("Unrecognized ideal impulse response type.")
         if (
             mod_type == 1
         ):  # Duo-binary relies upon the total link impulse response to perform the required addition.
             ideal_h = 0.5 * (
-                ideal_h + pad(ideal_h[:-nspui], (nspui, 0), "constant", constant_values=(0, 0))
+                ideal_h + np.pad(ideal_h[:-nspui], (nspui, 0), "constant", constant_values=(0, 0))
             )
 
         return ideal_h
@@ -378,7 +352,7 @@ class Simulation(HasTraits):
                 else:
                     symbols.append(1.0)
         else:
-            popup_alert("Unknown modulation type requested!", ValueError())
+            raise ValueError("Unknown modulation type requested!")
         return array(symbols) * vod
 
     @cached_property
@@ -388,12 +362,12 @@ class Simulation(HasTraits):
         mod_type = self.mod_type[0]
 
         s = h.cumsum()
-        p = s - pad(s[:-nspui], (nspui, 0), "constant", constant_values=(0, 0))
+        p = s - np.pad(s[:-nspui], (nspui, 0), "constant", constant_values=(0, 0))
 
         (clock_pos, thresh) = pulse_center(p, nspui)
         if clock_pos == -1:
             return 1.0  # Returning a large cost lets it know it took a wrong turn.
-        clocks = thresh * ones(len(p))
+        clocks = thresh * np.ones(len(p))
         if mod_type == 1:  # Handle duo-binary.
             clock_pos -= nspui // 2
         clocks[clock_pos] = 0.0
@@ -471,7 +445,7 @@ class Simulation(HasTraits):
                     if tap.steps:
                         sweep_vals.append(
                             list(
-                                arange(
+                                np.arange(
                                     tap.min_val,
                                     tap.max_val,
                                     (tap.max_val - tap.min_val) / tap.steps,
@@ -503,7 +477,7 @@ class Simulation(HasTraits):
                     self.my_run_simulation(update_plots=False)
                     bit_errs.append(self.bit_errs)
                     sweep_num += 1
-                sweep_results.append((sweep, mean(bit_errs), std(bit_errs)))
+                sweep_results.append((sweep, np.mean(bit_errs), np.std(bit_errs)))
             self.sweep_results = sweep_results
         else:
             self.my_run_simulation()
@@ -578,11 +552,11 @@ class Simulation(HasTraits):
             #
             # Duo-binary is problematic, in that it requires convolution with the ideal duobinary
             # impulse response, in order to produce the proper ideal signal.
-            x = repeat(symbols, nspui)
+            x = np.repeat(symbols, nspui)
             self.x = x
             if mod_type == 1:  # Handle duo-binary case.
                 duob_h = array(([0.5] + [0.0] * (nspui - 1)) * 2)
-                x = convolve(x, duob_h)[: len(t)]
+                x = np.convolve(x, duob_h)[: len(t)]
             self.ideal_signal = x
 
             # Find the ideal crossing times, for subsequent jitter analysis of transmitted signal.
@@ -598,7 +572,7 @@ class Simulation(HasTraits):
             #       so that we'll have an ideal reference for comparison.
             chnl_h = self.channel.calc_chnl_h()
             self.log.debug("Channel impulse response is %d samples long.", len(chnl_h))
-            chnl_out = convolve(self.x, chnl_h)[: len(t)]
+            chnl_out = np.convolve(self.x, chnl_h)[: len(t)]
 
             self.performance["channel"] = nbits * nspb / (clock() - start_time)
             split_time = clock()
@@ -620,19 +594,11 @@ class Simulation(HasTraits):
                     )
                     tx_h = array(tx_model.initOut) * ts
                 except ValueError as error:
-                    popup_alert(
-                        "Both 'Init_Returns_Impulse' and 'GetWave_Exists' are False!", error
-                    )
                     self.status = "Simulation Error."
-                    return
+                    raise
                 except TypeError as error:
-                    popup_alert(
-                        "You have elected not to use GetWave for a model, which does not \
-                        return an impulse response! Aborting... Please, select 'Use GetWave'",
-                        error,
-                    )
                     self.status = "Simulation Error."
-                    return
+                    raise
                 if self.tx.use_getwave:
                     # For GetWave, use a step to extract the model's native properties.
                     # Position the input edge at the center of the vector, in
@@ -641,29 +607,29 @@ class Simulation(HasTraits):
                     half_len = len(chnl_h) // 2
                     tx_s = tx_model.getWave(array([0.0] * half_len + [1.0] * half_len))
                     # Shift the result back to the correct location, extending the last sample.
-                    tx_s = pad(tx_s[half_len:], (0, half_len), "edge")
-                    tx_h = diff(
-                        concatenate((array([0.0]), tx_s))
+                    tx_s = np.pad(tx_s[half_len:], (0, half_len), "edge")
+                    tx_h = np.diff(
+                        np.concatenate((array([0.0]), tx_s))
                     )  # Without the leading 0, we miss the pre-tap.
                     tx_out = tx_model.getWave(self.x)
                 else:  # Init()-only.
                     tx_s = tx_h.cumsum()
-                    tx_out = convolve(tx_h, self.x)
+                    tx_out = np.convolve(tx_h, self.x)
             else:
                 # - Generate the ideal, post-preemphasis signal.
                 # To consider: use 'scipy.interp()'. This is what Mark does, in order to induce jitter in the Tx output.
-                ffe_out = convolve(symbols, ffe)[: len(symbols)]
-                self.rel_power = mean(
+                ffe_out = np.convolve(symbols, ffe)[: len(symbols)]
+                self.rel_power = np.mean(
                     ffe_out ** 2
                 )  # Store the relative average power dissipated in the Tx.
-                tx_out = repeat(ffe_out, nspui)  # oversampled output
+                tx_out = np.repeat(ffe_out, nspui)  # oversampled output
 
                 # - Calculate the responses.
                 # - (The Tx is unique in that the calculated responses aren't used to form the output.
                 #    This is partly due to the out of order nature in which we combine the Tx and channel,
                 #    and partly due to the fact that we're adding noise to the Tx output.)
                 tx_h = array(
-                    sum([[x] + list(zeros(nspui - 1)) for x in ffe], [])
+                    sum([[x] + list(np.zeros(nspui - 1)) for x in ffe], [])
                 )  # Using sum to concatenate.
                 tx_h.resize(len(chnl_h))
                 tx_s = tx_h.cumsum()
@@ -677,9 +643,9 @@ class Simulation(HasTraits):
             #   - Generate the ideal rectangular aggressor waveform.
             pn_period = 1.0 / pn_freq
             pn_samps = int(pn_period / Ts + 0.5)
-            pn = zeros(pn_samps)
+            pn = np.zeros(pn_samps)
             pn[pn_samps // 2 :] = pn_mag
-            pn = resize(pn, len(tx_out))
+            pn = np.resize(pn, len(tx_out))
             #   - High pass filter it. (Simulating capacitive coupling.)
             (b, a) = iirfilter(2, HPF_CORNER_COUPLING / (fs / 2), btype="highpass")
             pn = lfilter(b, a, pn)[: len(pn)]
@@ -689,11 +655,11 @@ class Simulation(HasTraits):
             tx_out += normal(scale=rn, size=(len(tx_out),))
 
             # - Convolve w/ channel.
-            tx_out_h = convolve(tx_h, chnl_h)[: len(chnl_h)]
+            tx_out_h = np.convolve(tx_h, chnl_h)[: len(chnl_h)]
             temp = tx_out_h.copy()
             temp.resize(len(w))
             tx_out_H = fft(temp)
-            rx_in = convolve(tx_out, chnl_h)[: len(tx_out)]
+            rx_in = np.convolve(tx_out, chnl_h)[: len(tx_out)]
 
             self.tx_s = tx_s
             self.tx_out = tx_out
@@ -719,48 +685,42 @@ class Simulation(HasTraits):
                     rx_model = self.rx.initialize_model(ts, tx_out_h / ts, ui)
                     ctle_out_h = np.array(rx_model.initOut) * ts
                 except ValueError as error:
-                    popup_alert(
-                        "Both 'Init_Returns_Impulse' and 'GetWave_Exists' are False!", error
-                    )
                     self.status = "Simulation Error."
-                    return
+                    raise
                 except TypeError as error:
-                    popup_alert(
-                        "You have elected not to use GetWave for a model, which does not \
-                        return an impulse response! Aborting... Please, select 'Use GetWave'",
-                        error,
-                    )
                     self.status = "Simulation Error."
-                    return
+                    raise
                 if self.rx.use_getwave:
                     ctle_out, clock_times = rx_model.getWave(rx_in, len(rx_in))
                     self.log.info(rx_model.ami_params_out)
 
                     ctle_H = fft(ctle_out * hann(len(ctle_out))) / fft(rx_in * hann(len(rx_in)))
-                    ctle_h = real(ifft(ctle_H)[: len(chnl_h)])
-                    ctle_out_h = convolve(ctle_h, tx_out_h)[: len(chnl_h)]
+                    ctle_h = np.real(ifft(ctle_H)[: len(chnl_h)])
+                    ctle_out_h = np.convolve(ctle_h, tx_out_h)[: len(chnl_h)]
                 else:  # Init() only.
-                    ctle_out_h_padded = pad(
+                    ctle_out_h_padded = np.pad(
                         ctle_out_h,
                         (nspb, len(rx_in) - nspb - len(ctle_out_h)),
                         "linear_ramp",
                         end_values=(0.0, 0.0),
                     )
-                    tx_out_h_padded = pad(
+                    tx_out_h_padded = np.pad(
                         tx_out_h,
                         (nspb, len(rx_in) - nspb - len(tx_out_h)),
                         "linear_ramp",
                         end_values=(0.0, 0.0),
                     )
                     ctle_H = fft(ctle_out_h_padded) / fft(tx_out_h_padded)
-                    ctle_h = real(ifft(ctle_H)[: len(chnl_h)])
-                    ctle_out = convolve(rx_in, ctle_h)
+                    ctle_h = np.real(ifft(ctle_H)[: len(chnl_h)])
+                    ctle_out = np.convolve(rx_in, ctle_h)
                 ctle_s = ctle_h.cumsum()
             else:
                 if self.eq.use_ctle_file:
                     ctle_h = import_channel(self.eq.ctle_file, ts)
                     if max(abs(ctle_h)) < 100.0:  # step response?
-                        ctle_h = diff(ctle_h)  # impulse response is derivative of step response.
+                        ctle_h = np.diff(
+                            ctle_h
+                        )  # impulse response is derivative of step response.
                     else:
                         ctle_h *= ts  # Normalize to (V/sample)
                     ctle_h.resize(len(t))
@@ -768,17 +728,17 @@ class Simulation(HasTraits):
                     ctle_H *= sum(ctle_h) / ctle_H[0]
                 else:
                     _, ctle_H = make_ctle(rx_bw, peak_freq, peak_mag, w, ctle_mode, ctle_offset)
-                    ctle_h = real(ifft(ctle_H))[: len(chnl_h)]
+                    ctle_h = np.real(ifft(ctle_H))[: len(chnl_h)]
                     ctle_h *= abs(ctle_H[0]) / sum(ctle_h)
-                ctle_out = convolve(rx_in, ctle_h)
-                ctle_out -= mean(ctle_out)  # Force zero mean.
+                ctle_out = np.convolve(rx_in, ctle_h)
+                ctle_out -= np.mean(ctle_out)  # Force zero mean.
                 if self.eq.ctle_mode == "AGC":  # Automatic gain control engaged?
                     ctle_out *= 2.0 * decision_scaler / ctle_out.ptp()
                 ctle_s = ctle_h.cumsum()
-                ctle_out_h = convolve(tx_out_h, ctle_h)[: len(tx_out_h)]
+                ctle_out_h = np.convolve(tx_out_h, ctle_h)[: len(tx_out_h)]
             ctle_out.resize(len(t))
             self.ctle_s = ctle_s
-            ctle_out_h_main_lobe = where(ctle_out_h >= max(ctle_out_h) / 2.0)[0]
+            ctle_out_h_main_lobe = np.where(ctle_out_h >= max(ctle_out_h) / 2.0)[0]
             if ctle_out_h_main_lobe.size:
                 conv_dly_ix = ctle_out_h_main_lobe[0]
             else:
@@ -851,27 +811,27 @@ class Simulation(HasTraits):
             bits_out = array(bits_out)
             auto_corr = (
                 1.0
-                * correlate(
+                * np.correlate(
                     bits_out[(nbits - eye_bits) :], bits[(nbits - eye_bits) :], mode="same"
                 )
                 / sum(bits[(nbits - eye_bits) :])
             )
             auto_corr = auto_corr[len(auto_corr) // 2 :]
             self.auto_corr = auto_corr
-            bit_dly = where(auto_corr == max(auto_corr))[0][0]
+            bit_dly = np.where(auto_corr == max(auto_corr))[0][0]
             bits_ref = bits[(nbits - eye_bits) :]
             bits_tst = bits_out[(nbits + bit_dly - eye_bits) :]
             if len(bits_ref) > len(bits_tst):
                 bits_ref = bits_ref[: len(bits_tst)]
             elif len(bits_tst) > len(bits_ref):
                 bits_tst = bits_tst[: len(bits_ref)]
-            bit_errs = where(bits_tst ^ bits_ref)[0]
+            bit_errs = np.where(bits_tst ^ bits_ref)[0]
             self.bit_errors = len(bit_errs)
 
             dfe_h = array(
                 [1.0]
-                + list(zeros(nspb - 1))
-                + sum([[-x] + list(zeros(nspb - 1)) for x in tap_weights[-1]], [])
+                + list(np.zeros(nspb - 1))
+                + sum([[-x] + list(np.zeros(nspb - 1)) for x in tap_weights[-1]], [])
             )
             dfe_h.resize(len(ctle_out_h))
             temp = dfe_h.copy()
@@ -879,9 +839,9 @@ class Simulation(HasTraits):
             dfe_H = fft(temp)
             self.dfe_s = dfe_h.cumsum()
             dfe_out_H = ctle_out_H * dfe_H
-            dfe_out_h = convolve(ctle_out_h, dfe_h)[: len(ctle_out_h)]
+            dfe_out_h = np.convolve(ctle_out_h, dfe_h)[: len(ctle_out_h)]
             dfe_out_s = dfe_out_h.cumsum()
-            self.dfe_out_p = dfe_out_s - pad(
+            self.dfe_out_p = dfe_out_s - np.pad(
                 dfe_out_s[:-nspui], (nspui, 0), "constant", constant_values=(0, 0)
             )
             self.dfe_H = dfe_H
@@ -952,7 +912,7 @@ class Simulation(HasTraits):
                 ui, eye_uis, pattern_len, ideal_xings, actual_xings, rel_thresh
             )
             self.jitter["f_MHz_dfe"] = array(self.jitter["dfe"].spectrum_freqs) * 1.0e-6
-            self.jitter["rejection_ratio"] = zeros(len(self.jitter["dfe"].jitter_spectrum))
+            self.jitter["rejection_ratio"] = np.zeros(len(self.jitter["dfe"].jitter_spectrum))
 
             self.performance["jitter"] = nbits * nspb / (clock() - split_time)
             self.performance["total"] = nbits * nspb / (clock() - start_time)
@@ -1008,7 +968,7 @@ class Simulation(HasTraits):
         self.plots.update_data("t_ns_chnl", t_ns_chnl)
 
         # DFE.
-        tap_weights = transpose(array(self.adaptation))
+        tap_weights = np.transpose(array(self.adaptation))
         i = 1
         for tap_weight in tap_weights:
             self.plots.update_data("tap%d_weights" % i, tap_weight)
@@ -1040,20 +1000,20 @@ class Simulation(HasTraits):
             self.plots._dfe_plot = new_plot
             self.eq._old_n_taps = n_taps
 
-        clock_pers = diff(clock_times)
-        start_t = t[where(self.lockeds)[0][0]]
-        start_ix = where(clock_times > start_t)[0][0]
-        (bin_counts, bin_edges) = histogram(clock_pers[start_ix:], bins=100)
+        clock_pers = np.diff(clock_times)
+        start_t = t[np.where(self.lockeds)[0][0]]
+        start_ix = np.where(clock_times > start_t)[0][0]
+        (bin_counts, bin_edges) = np.histogram(clock_pers[start_ix:], bins=100)
         bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2.0
         clock_spec = fft(clock_pers[start_ix:])
         clock_spec = abs(clock_spec[: len(clock_spec) // 2])
-        spec_freqs = arange(len(clock_spec)) / (
+        spec_freqs = np.arange(len(clock_spec)) / (
             2.0 * len(clock_spec)
         )  # In this case, fNyquist = half the bit rate.
         clock_spec /= clock_spec[1:].mean()  # Normalize the mean non-d.c. value to 0 dB.
         self.plots.update_data("clk_per_hist_bins", bin_centers * 1.0e12)  # (ps)
         self.plots.update_data("clk_per_hist_vals", bin_counts)
-        self.plots.update_data("clk_spec", 10.0 * log10(clock_spec[1:]))  # Omit the d.c. value.
+        self.plots.update_data("clk_spec", 10.0 * np.log10(clock_spec[1:]))  # Omit the d.c. value.
         self.plots.update_data("clk_freqs", spec_freqs[1:])
         self.plots.update_data("dfe_out", self.dfe_out)
         self.plots.update_data("ui_ests", self.ui_ests)
@@ -1095,16 +1055,16 @@ class Simulation(HasTraits):
         self.plots.update_data("auto_corr", self.auto_corr)
 
         # Frequency responses
-        self.plots.update_data("chnl_H", 20.0 * log10(abs(self.channel.chnl_H[1:len_f_GHz])))
+        self.plots.update_data("chnl_H", 20.0 * np.log10(abs(self.channel.chnl_H[1:len_f_GHz])))
         self.plots.update_data(
-            "chnl_trimmed_H", 20.0 * log10(abs(self.channel.chnl_trimmed_H[1:len_f_GHz]))
+            "chnl_trimmed_H", 20.0 * np.log10(abs(self.channel.chnl_trimmed_H[1:len_f_GHz]))
         )
-        self.plots.update_data("tx_H", 20.0 * log10(abs(self.tx_H[1:len_f_GHz])))
-        self.plots.update_data("tx_out_H", 20.0 * log10(abs(self.tx_out_H[1:len_f_GHz])))
-        self.plots.update_data("ctle_H", 20.0 * log10(abs(self.ctle_H[1:len_f_GHz])))
-        self.plots.update_data("ctle_out_H", 20.0 * log10(abs(self.ctle_out_H[1:len_f_GHz])))
-        self.plots.update_data("dfe_H", 20.0 * log10(abs(self.dfe_H[1:len_f_GHz])))
-        self.plots.update_data("dfe_out_H", 20.0 * log10(abs(self.dfe_out_H[1:len_f_GHz])))
+        self.plots.update_data("tx_H", 20.0 * np.log10(abs(self.tx_H[1:len_f_GHz])))
+        self.plots.update_data("tx_out_H", 20.0 * np.log10(abs(self.tx_out_H[1:len_f_GHz])))
+        self.plots.update_data("ctle_H", 20.0 * np.log10(abs(self.ctle_H[1:len_f_GHz])))
+        self.plots.update_data("ctle_out_H", 20.0 * np.log10(abs(self.ctle_out_H[1:len_f_GHz])))
+        self.plots.update_data("dfe_H", 20.0 * np.log10(abs(self.dfe_H[1:len_f_GHz])))
+        self.plots.update_data("dfe_out_H", 20.0 * np.log10(abs(self.dfe_out_H[1:len_f_GHz])))
 
         self.plots.update_data("jitter_bins", array(self.jitter["channel"].jitter_bins) * 1.0e12)
         self.plots.update_data("jitter_chnl", self.jitter["channel"].hist)
@@ -1117,104 +1077,109 @@ class Simulation(HasTraits):
         self.plots.update_data("jitter_ext_dfe", self.jitter["dfe"].hist_synth)
 
         # Jitter spectrums
-        log10_ui = log10(ui)
+        log10_ui = np.log10(ui)
         self.plots.update_data("f_MHz", self.jitter["f_MHz"][1:])
         self.plots.update_data("f_MHz_dfe", self.jitter["f_MHz_dfe"][1:])
         self.plots.update_data(
             "jitter_spectrum_chnl",
-            10.0 * (log10(self.jitter["channel"].jitter_spectrum[1:]) - log10_ui),
+            10.0 * (np.log10(self.jitter["channel"].jitter_spectrum[1:]) - log10_ui),
         )
         self.plots.update_data(
             "jitter_ind_spectrum_chnl",
-            10.0 * (log10(self.jitter["channel"].tie_ind_spectrum[1:]) - log10_ui),
+            10.0 * (np.log10(self.jitter["channel"].tie_ind_spectrum[1:]) - log10_ui),
         )
         self.plots.update_data(
-            "thresh_chnl", 10.0 * (log10(self.jitter["channel"].thresh[1:]) - log10_ui)
+            "thresh_chnl", 10.0 * (np.log10(self.jitter["channel"].thresh[1:]) - log10_ui)
         )
         self.plots.update_data(
-            "jitter_spectrum_tx", 10.0 * (log10(self.jitter["tx"].jitter_spectrum[1:]) - log10_ui)
+            "jitter_spectrum_tx",
+            10.0 * (np.log10(self.jitter["tx"].jitter_spectrum[1:]) - log10_ui),
         )
         self.plots.update_data(
             "jitter_ind_spectrum_tx",
-            10.0 * (log10(self.jitter["tx"].tie_ind_spectrum[1:]) - log10_ui),
+            10.0 * (np.log10(self.jitter["tx"].tie_ind_spectrum[1:]) - log10_ui),
         )
         self.plots.update_data(
-            "thresh_tx", 10.0 * (log10(self.jitter["tx"].thresh[1:]) - log10_ui)
+            "thresh_tx", 10.0 * (np.log10(self.jitter["tx"].thresh[1:]) - log10_ui)
         )
         self.plots.update_data(
             "jitter_spectrum_ctle",
-            10.0 * (log10(self.jitter["ctle"].jitter_spectrum[1:]) - log10_ui),
+            10.0 * (np.log10(self.jitter["ctle"].jitter_spectrum[1:]) - log10_ui),
         )
         self.plots.update_data(
             "jitter_ind_spectrum_ctle",
-            10.0 * (log10(self.jitter["ctle"].tie_ind_spectrum[1:]) - log10_ui),
+            10.0 * (np.log10(self.jitter["ctle"].tie_ind_spectrum[1:]) - log10_ui),
         )
         self.plots.update_data(
-            "thresh_ctle", 10.0 * (log10(self.jitter["ctle"].thresh[1:]) - log10_ui)
+            "thresh_ctle", 10.0 * (np.log10(self.jitter["ctle"].thresh[1:]) - log10_ui)
         )
         self.plots.update_data(
             "jitter_spectrum_dfe",
-            10.0 * (log10(self.jitter["dfe"].jitter_spectrum[1:]) - log10_ui),
+            10.0 * (np.log10(self.jitter["dfe"].jitter_spectrum[1:]) - log10_ui),
         )
         self.plots.update_data(
             "jitter_ind_spectrum_dfe",
-            10.0 * (log10(self.jitter["dfe"].tie_ind_spectrum[1:]) - log10_ui),
+            10.0 * (np.log10(self.jitter["dfe"].tie_ind_spectrum[1:]) - log10_ui),
         )
         self.plots.update_data(
-            "thresh_dfe", 10.0 * (log10(self.jitter["dfe"].thresh[1:]) - log10_ui)
+            "thresh_dfe", 10.0 * (np.log10(self.jitter["dfe"].thresh[1:]) - log10_ui)
         )
         self.plots.update_data("jitter_rejection_ratio", self.jitter["rejection_ratio"][1:])
 
         # Bathtubs
         half_len = len(self.jitter["channel"].hist_synth) // 2
         #  - Channel
-        bathtub_chnl = list(cumsum(self.jitter["channel"].hist_synth[-1 : -(half_len + 1) : -1]))
+        bathtub_chnl = list(
+            np.cumsum(self.jitter["channel"].hist_synth[-1 : -(half_len + 1) : -1])
+        )
         bathtub_chnl.reverse()
         bathtub_chnl = array(
-            bathtub_chnl + list(cumsum(self.jitter["channel"].hist_synth[: half_len + 1]))
+            bathtub_chnl + list(np.cumsum(self.jitter["channel"].hist_synth[: half_len + 1]))
         )
-        bathtub_chnl = where(
+        bathtub_chnl = np.where(
             bathtub_chnl < MIN_BATHTUB_VAL,
-            0.1 * MIN_BATHTUB_VAL * ones(len(bathtub_chnl)),
+            0.1 * MIN_BATHTUB_VAL * np.ones(len(bathtub_chnl)),
             bathtub_chnl,
         )  # To avoid Chaco log scale plot wierdness.
-        self.plots.update_data("bathtub_chnl", log10(bathtub_chnl))
+        self.plots.update_data("bathtub_chnl", np.log10(bathtub_chnl))
         #  - Tx
-        bathtub_tx = list(cumsum(self.jitter["tx"].hist_synth[-1 : -(half_len + 1) : -1]))
+        bathtub_tx = list(np.cumsum(self.jitter["tx"].hist_synth[-1 : -(half_len + 1) : -1]))
         bathtub_tx.reverse()
-        bathtub_tx = array(bathtub_tx + list(cumsum(self.jitter["tx"].hist_synth[: half_len + 1])))
-        bathtub_tx = where(
-            bathtub_tx < MIN_BATHTUB_VAL, 0.1 * MIN_BATHTUB_VAL * ones(len(bathtub_tx)), bathtub_tx
+        bathtub_tx = array(
+            bathtub_tx + list(np.cumsum(self.jitter["tx"].hist_synth[: half_len + 1]))
+        )
+        bathtub_tx = np.where(
+            bathtub_tx < MIN_BATHTUB_VAL, 0.1 * MIN_BATHTUB_VAL * np.ones(len(bathtub_tx)), bathtub_tx
         )  # To avoid Chaco log scale plot wierdness.
-        self.plots.update_data("bathtub_tx", log10(bathtub_tx))
+        self.plots.update_data("bathtub_tx", np.log10(bathtub_tx))
         #  - CTLE
-        bathtub_ctle = list(cumsum(self.jitter["ctle"].hist_synth[-1 : -(half_len + 1) : -1]))
+        bathtub_ctle = list(np.cumsum(self.jitter["ctle"].hist_synth[-1 : -(half_len + 1) : -1]))
         bathtub_ctle.reverse()
         bathtub_ctle = array(
-            bathtub_ctle + list(cumsum(self.jitter["ctle"].hist_synth[: half_len + 1]))
+            bathtub_ctle + list(np.cumsum(self.jitter["ctle"].hist_synth[: half_len + 1]))
         )
-        bathtub_ctle = where(
+        bathtub_ctle = np.where(
             bathtub_ctle < MIN_BATHTUB_VAL,
-            0.1 * MIN_BATHTUB_VAL * ones(len(bathtub_ctle)),
+            0.1 * MIN_BATHTUB_VAL * np.ones(len(bathtub_ctle)),
             bathtub_ctle,
         )  # To avoid Chaco log scale plot weirdness.
-        self.plots.update_data("bathtub_ctle", log10(bathtub_ctle))
+        self.plots.update_data("bathtub_ctle", np.log10(bathtub_ctle))
         #  - DFE
-        bathtub_dfe = list(cumsum(self.jitter["dfe"].hist_synth[-1 : -(half_len + 1) : -1]))
+        bathtub_dfe = list(np.cumsum(self.jitter["dfe"].hist_synth[-1 : -(half_len + 1) : -1]))
         bathtub_dfe.reverse()
         bathtub_dfe = array(
-            bathtub_dfe + list(cumsum(self.jitter["dfe"].hist_synth[: half_len + 1]))
+            bathtub_dfe + list(np.cumsum(self.jitter["dfe"].hist_synth[: half_len + 1]))
         )
-        bathtub_dfe = where(
+        bathtub_dfe = np.where(
             bathtub_dfe < MIN_BATHTUB_VAL,
-            0.1 * MIN_BATHTUB_VAL * ones(len(bathtub_dfe)),
+            0.1 * MIN_BATHTUB_VAL * np.ones(len(bathtub_dfe)),
             bathtub_dfe,
         )  # To avoid Chaco log scale plot weirdness.
-        self.plots.update_data("bathtub_dfe", log10(bathtub_dfe))
+        self.plots.update_data("bathtub_dfe", np.log10(bathtub_dfe))
 
         # Eyes
         width = 2 * samps_per_ui
-        xs = linspace(-ui * 1.0e12, ui * 1.0e12, width)
+        xs = np.linspace(-ui * 1.0e12, ui * 1.0e12, width)
         height = 100
         y_max = 1.1 * max(abs(array(self.chnl_out)))
         eye_chnl = calc_eye(ui, samps_per_ui, height, self.chnl_out[ignore_samps:], y_max)
@@ -1248,10 +1213,10 @@ class Simulation(HasTraits):
 
         width = 2 * samps_per_ui
         height = 100
-        xs = linspace(-ui * 1.0e12, ui * 1.0e12, width)
+        xs = np.linspace(-ui * 1.0e12, ui * 1.0e12, width)
 
         y_max = 1.1 * max(abs(array(self.chnl_out)))
-        ys = linspace(-y_max, y_max, height)
+        ys = np.linspace(-y_max, y_max, height)
         self.plots.eyes.components[0].components[0].index.set_data(xs, ys)
         self.plots.eyes.components[0].x_axis.mapper.range.low = xs[0]
         self.plots.eyes.components[0].x_axis.mapper.range.high = xs[-1]
@@ -1260,7 +1225,7 @@ class Simulation(HasTraits):
         self.plots.eyes.components[0].invalidate_draw()
 
         y_max = 1.1 * max(abs(array(self.rx_in)))
-        ys = linspace(-y_max, y_max, height)
+        ys = np.linspace(-y_max, y_max, height)
         self.plots.eyes.components[1].components[0].index.set_data(xs, ys)
         self.plots.eyes.components[1].x_axis.mapper.range.low = xs[0]
         self.plots.eyes.components[1].x_axis.mapper.range.high = xs[-1]
@@ -1269,7 +1234,7 @@ class Simulation(HasTraits):
         self.plots.eyes.components[1].invalidate_draw()
 
         y_max = 1.1 * max(abs(array(self.dfe_out)))
-        ys = linspace(-y_max, y_max, height)
+        ys = np.linspace(-y_max, y_max, height)
         self.plots.eyes.components[3].components[0].index.set_data(xs, ys)
         self.plots.eyes.components[3].x_axis.mapper.range.low = xs[0]
         self.plots.eyes.components[3].x_axis.mapper.range.high = xs[-1]

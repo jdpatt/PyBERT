@@ -28,7 +28,7 @@ from pybert import __version__ as VERSION
 from pybert.defaults import DEBUG, NUM_TAPS
 from pybert.simulation import Simulation
 from pybert.static import (
-	about_menu,
+    about_menu,
     help_menu,
     jitter_rejection_menu,
     performance_menu,
@@ -105,14 +105,17 @@ class PyBERT(HasTraits):
         self.save_cfg = Button(label="Save Config.")
         self.load_cfg = Button(label="Load Config.")
 
-        if run_simulation:
-            # Running the simulation will fill in the required data structure.
-            self.sim.my_run_simulation(initial_run=True)
-            # Once the required data structure is filled in, we can create the plots.
-            self.sim.plots.init_plots(self, NUM_TAPS)
-            self.sim.update_eyes()
-        else:
-            self.channel.calc_chnl_h()  # Prevents missing attribute error in _get_ctle_out_h_tune().
+        try:
+            if run_simulation:
+                # Running the simulation will fill in the required data structure.
+                self.sim.my_run_simulation(initial_run=True)
+                # Once the required data structure is filled in, we can create the plots.
+                self.sim.plots.init_plots(self, NUM_TAPS)
+                self.sim.update_eyes()
+            else:
+                self.channel.calc_chnl_h()  # Prevents missing attribute error in _get_ctle_out_h_tune().
+        except Exception as error:
+            popup_alert(error)
 
     # Button handlers
     def _btn_rst_eq_fired(self):
@@ -149,7 +152,10 @@ class PyBERT(HasTraits):
 
     def _btn_run_sim_fired(self):
         """Start a new simulation."""
-        self.sim.run()
+        try:
+            self.sim.run()
+        except Exception as error:
+            popup_alert(error)
 
     def _btn_stop_sim_fired(self):
         """Stop the current simulation."""
@@ -160,28 +166,28 @@ class PyBERT(HasTraits):
         try:
             self.data.save()
         except Exception as err:
-            popup_alert("An error occured.  The waveform data was not saved", err)
+            popup_alert("An error occured.  The waveform data was not saved")
 
     def _btn_load_data_fired(self):
         """Load previous waveform data."""
         try:
             self.data.load()
         except Exception as err:
-            popup_alert("An error occured.  The waveform data could not be loaded.", err)
+            popup_alert("An error occured.  The waveform data could not be loaded.")
 
     def _btn_save_cfg_fired(self):
         """Save all the configuration data."""
         try:
             self.config.save()
         except Exception as err:
-            popup_alert("An error occured.  The configuration data was not saved", err)
+            popup_alert("An error occured.  The configuration data was not saved")
 
     def _btn_load_cfg_fired(self):
         """Load previous configuration data."""
         try:
             self.config.load()
         except Exception as err:
-            popup_alert("An error occured.  The configuration data could not be loaded.", err)
+            popup_alert("An error occured.  The configuration data could not be loaded.")
 
     # -----------------------------------------------------------------
     # Changed property handlers.
@@ -212,7 +218,7 @@ class PyBERT(HasTraits):
             jitter_info = jitter_rejection_menu(self.sim.jitter)
         except Exception as error:
             jitter_info = "<H1>Jitter Rejection by Equalization Component</H1>\n"
-            popup_alert("Jitter Calculation Failed", error)
+            popup_alert("Jitter Calculation Failed")
         return jitter_info
 
     @cached_property

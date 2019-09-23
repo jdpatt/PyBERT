@@ -9,10 +9,8 @@ from pybert.defaults import (
     OUTPUT_DRIVE_STRENGTH,
     OUTPUT_IMPEDANCE,
     PN_FREQ,
-    PN_MAG,
-    RANDOM_NOISE,
+    PN_MAG
 )
-from pybert.view import popup_alert
 from pyibisami.ami_model import AMIModel, AMIModelInitializer
 from pyibisami.ami_parse import AMIParamConfigurator
 from traits.api import Bool, File, Float, HasTraits, Range
@@ -24,7 +22,6 @@ class Buffer(HasTraits):
     def __init__(self):
         super(Buffer, self).__init__()
         self.log = getLogger("pybert.buffer")
-        self.log.debug("Creating Buffer Object")
         self.use_ami: bool = Bool(False)
         self.use_getwave: bool = Bool(False)
         self.has_getwave: bool = Bool(False)
@@ -46,7 +43,8 @@ class Buffer(HasTraits):
             self.configurator = pcfg.open_gui
             self.ami_valid = True
         except Exception as err:
-            popup_alert("Failed to open and/or parse AMI file!\n", err)
+            self.log.error(err)
+            FailedAMILoad("Failed to open and/or parse AMI file!\n")
 
     def dll_file_changed(self, new_file):
         """Read and set the new DLL file from the users."""
@@ -56,7 +54,8 @@ class Buffer(HasTraits):
             self.model = model
             self.dll_valid = True
         except Exception as err:
-            popup_alert("Failed to open DLL/SO file!\n{}", err)
+            self.log.error(err)
+            raise FailledDLLLoad("Failed to open DLL/SO file!\n")
 
     def open_config_gui(self):
         """Open the AMI configuration GUI."""
@@ -64,10 +63,18 @@ class Buffer(HasTraits):
             self.configurator()
 
 
+class FailedAMILoad(Exception):
+    pass
+
+
+class FailledDLLLoad(Exception):
+    pass
+
+
 class Transmitter(Buffer):
     """docstring for Transmitter"""
 
-    def __init__(self):
+    def __init__(self, random_noise):
         super(Transmitter, self).__init__()
         self.log.debug("Creating Tx")
         self.vod = Float(OUTPUT_DRIVE_STRENGTH)  #: Tx differential output voltage (V)
@@ -78,7 +85,7 @@ class Transmitter(Buffer):
         self.pn_mag = Float(PN_MAG)  #: Periodic noise magnitude (V).
         self.pn_freq = Float(PN_FREQ)  #: Periodic noise frequency (MHz).
         self.random_noise = Float(
-            RANDOM_NOISE
+            random_noise
         )  #: Standard deviation of Gaussian random noise (V).
         self.rel_power = Float(1.0)  #: Tx power dissipation (W).
 
@@ -102,9 +109,12 @@ class Transmitter(Buffer):
         self.log.info("Output parameters: %s", tx_model.ami_params_out)
         self.log.info("Message: %s", tx_model.msg)
         if not self.configurator.fetch_param_val(["Reserved_Parameters", "GetWave_Exists"]):
-            raise TypeError()
+            raise TypeError("Both 'Init_Returns_Impulse' and 'GetWave_Exists' are False!")
         if not self.use_getwave:
-            raise ValueError()
+            raise ValueError(
+                "You have elected not to use GetWave for a model, which does not \
+                        return an impulse response! Aborting... Please, select 'Use GetWave'"
+            )
         return tx_model
 
 
@@ -135,7 +145,10 @@ class Receiver(Buffer):
         self.log.info("Output parameters: %s", rx_model.ami_params_out)
         self.log.info("Message: %s", rx_model.msg)
         if not self.configurator.fetch_param_val(["Reserved_Parameters", "GetWave_Exists"]):
-            raise TypeError()
+            raise TypeError("Both 'Init_Returns_Impulse' and 'GetWave_Exists' are False!")
         if not self.use_getwave:
-            raise ValueError()
+            raise ValueError(
+                "You have elected not to use GetWave for a model, which does not \
+                        return an impulse response! Aborting... Please, select 'Use GetWave'"
+            )
         return rx_model

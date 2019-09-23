@@ -44,12 +44,12 @@ def help_menu():
 def about_menu(authors, copy, date, version):
     """Return the author and version of pybert."""
     return (
-            f"PyBERT v{version} - a serial communication link design tool, written in Python.\n\n"
-            f"{authors}\n"
-            f"{date}   \n"
-            f"{copy};  \n"
-            "All rights reserved World wide."
-        )
+        f"PyBERT v{version} - a serial communication link design tool, written in Python.\n\n"
+        f"{authors}\n"
+        f"{date}   \n"
+        f"{copy};  \n"
+        "All rights reserved World wide."
+    )
 
 
 def jitter_rejection_menu(jitter):

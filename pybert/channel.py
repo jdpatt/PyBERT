@@ -29,16 +29,18 @@ class Channel(HasTraits):
         self.impulse_length = Float(
             0.0
         )  #: Impulse response length. (Determined automatically, when 0.)
-        material = TwistedCopperPair24Gauge()  # TODO: Make this a menu option to swap materials.
-        self.Rdc = Float(material.dc_resistance_per_meter)  #: Channel d.c. resistance (Ohms/m).
-        self.w0 = Float(material.w_transition_freq)  #: Channel transition frequency (rads./s).
-        self.R0 = Float(material.skin_effect_resistance)  #: Channel skin effect resistance (Ohms/m).
-        self.Theta0 = Float(material.loss_tangent)  #: Channel loss tangent (unitless).
+        self.material = TwistedCopperPair24Gauge()  # TODO: Make this a menu option to swap materials.
+        self.Rdc = Float(self.material.dc_resistance_per_meter)  #: Channel d.c. resistance (Ohms/m).
+        self.w0 = Float(self.material.w_transition_freq)  #: Channel transition frequency (rads./s).
+        self.R0 = Float(
+            self.material.skin_effect_resistance
+        )  #: Channel skin effect resistance (Ohms/m).
+        self.Theta0 = Float(self.material.loss_tangent)  #: Channel loss tangent (unitless).
         self.Z0 = Float(
-            material.characteristic_impedance
+            self.material.characteristic_impedance
         )  #: Channel characteristic impedance, in LC region (Ohms).
-        self.v0 = Float(material.rel_velocity)  #: Channel relative propagation velocity (c).
-        self.l_ch = Float(material.channel_length)  #: Channel length (m).
+        self.v0 = Float(self.material.rel_velocity)  #: Channel relative propagation velocity (c).
+        self.l_ch = Float(self.material.channel_length)  #: Channel length (m).
 
         self.len_h = Int(0)
         self.chnl_dly = Float(0.0)  #: Estimated channel delay (s).

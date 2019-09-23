@@ -702,11 +702,10 @@ TRAITS_VIEW = View(
 )
 
 
-def popup_alert(prompt, error):
+def popup_alert(error):
     """Popup an alert with the given prompt, log the exception and if debug raise the exception."""
     log = logging.getLogger()
     log.error(traceback.format_exc())
     if DEBUG:
-        message(error, "PyBERT Debug Alert")
         raise error
-    message(prompt, "PyBERT Alert")
+    message(error, "PyBERT Alert")
