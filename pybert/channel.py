@@ -4,15 +4,7 @@ from logging import getLogger
 import numpy as np
 from numpy import array, diff, exp, pad, real, where, zeros
 from numpy.fft import fft, ifft
-from pybert.defaults import (
-    CHANNEL_LENGTH,
-    CHARACTERISTIC_IMPEDANCE,
-    DC_RESISTANCE_PER_METER,
-    LOSS_TANGENT,
-    REL_VELOCITY,
-    SKIN_EFFECT_RESISTANCE,
-    W_TRANSITION_FREQ,
-)
+from pybert.materials import TwistedCopperPair24Gauge
 from pybert.equalization import get_tap_fir_numerator
 from pybert.utility import calc_G, calc_gamma, import_channel, make_ctle, trim_impulse
 from traits.api import Array, Bool, File, Float, HasTraits, Int, cached_property
@@ -37,15 +29,16 @@ class Channel(HasTraits):
         self.impulse_length = Float(
             0.0
         )  #: Impulse response length. (Determined automatically, when 0.)
-        self.Rdc = Float(DC_RESISTANCE_PER_METER)  #: Channel d.c. resistance (Ohms/m).
-        self.w0 = Float(W_TRANSITION_FREQ)  #: Channel transition frequency (rads./s).
-        self.R0 = Float(SKIN_EFFECT_RESISTANCE)  #: Channel skin effect resistance (Ohms/m).
-        self.Theta0 = Float(LOSS_TANGENT)  #: Channel loss tangent (unitless).
+        material = TwistedCopperPair24Gauge()  # TODO: Make this a menu option to swap materials.
+        self.Rdc = Float(material.dc_resistance_per_meter)  #: Channel d.c. resistance (Ohms/m).
+        self.w0 = Float(material.w_transition_freq)  #: Channel transition frequency (rads./s).
+        self.R0 = Float(material.skin_effect_resistance)  #: Channel skin effect resistance (Ohms/m).
+        self.Theta0 = Float(material.loss_tangent)  #: Channel loss tangent (unitless).
         self.Z0 = Float(
-            CHARACTERISTIC_IMPEDANCE
+            material.characteristic_impedance
         )  #: Channel characteristic impedance, in LC region (Ohms).
-        self.v0 = Float(REL_VELOCITY)  #: Channel relative propagation velocity (c).
-        self.l_ch = Float(CHANNEL_LENGTH)  #: Channel length (m).
+        self.v0 = Float(material.rel_velocity)  #: Channel relative propagation velocity (c).
+        self.l_ch = Float(material.channel_length)  #: Channel length (m).
 
         self.len_h = Int(0)
         self.chnl_dly = Float(0.0)  #: Estimated channel delay (s).

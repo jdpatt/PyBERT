@@ -12,22 +12,6 @@ PATTERN_LEN = 127  # repeating bit pattern length
 SAMPLES_PER_BIT = 32  # samples per bit
 NUM_AVG = 1  # Number of bit error samples to average, when sweeping.
 
-# - Channel Control ----------------------------------------------------------
-#     - parameters for Howard Johnson's "Metallic Transmission Model"
-#     - (See "High Speed Signal Propagation", Sec. 3.1.)
-#     - TODO: These are the values for 24 guage twisted copper pair; need to add other options.
-DC_RESISTANCE_PER_METER = 0.1876  # Ohms/m
-W_TRANSITION_FREQ = (
-    10.0e6
-)  # 10 MHz is recommended in Ch. 8 of his second book, in which UTP is described in detail.
-SKIN_EFFECT_RESISTANCE = 1.452  # skin-effect resistance (Ohms/m)
-LOSS_TANGENT = 0.02  # loss tangent
-CHARACTERISTIC_IMPEDANCE = 100.0  # characteristic impedance in LC region (Ohms)
-REL_VELOCITY = 0.67  # relative propagation velocity (c)
-CHANNEL_LENGTH = 1.0  # cable length (m)
-RANDOM_NOISE = 0.001  # standard deviation of Gaussian random noise (V)
-# The random noise is pplied at end of channel, so as to appear white to Rx.
-
 MIN_BATHTUB_VAL = 1.0e-18
 HPF_CORNER_COUPLING = (
     1.0e6

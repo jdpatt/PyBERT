@@ -28,6 +28,7 @@ from pybert import __version__ as VERSION
 from pybert.defaults import DEBUG, NUM_TAPS
 from pybert.simulation import Simulation
 from pybert.static import (
+	about_menu,
     help_menu,
     jitter_rejection_menu,
     performance_menu,
@@ -83,15 +84,7 @@ class PyBERT(HasTraits):
         self.status = self.sim.status  #: PyBERT status (String).
 
         # About
-        self.ident = String(
-            f"PyBERT v{VERSION} - a serial communication link design tool, written in Python.\n\n \
-            {AUTHORS}\n \
-            {DATE}   \n \
-            {COPY};  \n \
-            All rights reserved World wide."
-        )
-
-        # Help
+        self.about_tab = about_menu(AUTHORS, COPY, DATE, VERSION)
         self.help_tab = help_menu()
 
         # Tab Buttons
