@@ -56,7 +56,7 @@ class Simulation:
         self.bit_rate = BIT_RATE  #: (Gbps)
         self.nbits = NUM_BITS  #: Number of bits to simulate.
         self.pattern_len = PATTERN_LEN  #: PRBS pattern length.
-        self.nspb = SAMPLES_PER_BIT #: Signal vector samples per bit.
+        self.nspb = SAMPLES_PER_BIT  #: Signal vector samples per bit.
         self.eye_bits = NUM_BITS // 5  #: # of bits used to form eye. (Default = last 20%)
         self.mod_type = MODULATION.NRZ  #: 0 = NRZ; 1 = Duo-binary; 2 = PAM-4
         self.num_sweeps = 1  #: Number of sweeps to run.
@@ -148,7 +148,7 @@ class Simulation:
         t0 = ui / nspui
         npts = nui * nspui
 
-        return array([i * t0 for i in range(npts)])
+        return np.array([i * t0 for i in range(npts)])
 
     @property
     @lru_cache(maxsize=None)
@@ -173,7 +173,7 @@ class Simulation:
         f0 = 1.0 / (t[1] * npts)
         half_npts = npts // 2
 
-        return array(
+        return np.array(
             [i * f0 for i in range(half_npts + 1)]
             + [(half_npts - i) * -f0 for i in range(1, half_npts)]
         )
@@ -186,7 +186,6 @@ class Simulation:
         """
 
         return 2 * np.pi * self.f
-
 
     @property
     @lru_cache(maxsize=None)
@@ -217,7 +216,6 @@ class Simulation:
         if self.mod_type == MODULATION.DUO:  # Use XOR.
             return np.resize(np.array([0, 0, 1, 0] + bits), nbits)
         return np.resize(np.array([0, 0, 1, 1] + bits), nbits)
-
 
     @property
     @lru_cache(maxsize=None)
@@ -281,41 +279,6 @@ class Simulation:
 
     @property
     @lru_cache(maxsize=None)
-    def ideal_h(self):
-        """
-        Returns the ideal link impulse response.
-        """
-
-        ui = self.ui
-        nspui = self.nspui
-        t = self.t
-        ideal_type = self.ideal_type[0]
-
-        t = array(t) - t[-1] / 2.0
-
-        if ideal_type == 0:  # delta
-            ideal_h = np.zeros(len(t))
-            ideal_h[len(t) / 2] = 1.0
-        elif ideal_type == 1:  # np.sinc
-            ideal_h = np.sinc(t / (ui / 2.0))
-        elif ideal_type == 2:  # raised cosine
-            ideal_h = (np.cos(np.pi * t / (ui / 2.0)) + 1.0) / 2.0
-            ideal_h = np.where(t < -ui / 2.0, np.zeros(len(t)), ideal_h)
-            ideal_h = np.where(t > ui / 2.0, np.zeros(len(t)), ideal_h)
-        else:
-            raise ValueError("Unrecognized ideal impulse response type.")
-        if (
-            mod_type == MODULATION.DUO
-        ):  
-        # Duo-binary relies upon the total link impulse response to perform the required addition.
-            ideal_h = 0.5 * (
-                ideal_h + np.pad(ideal_h[:-nspui], (nspui, 0), "constant", constant_values=(0, 0))
-            )
-
-        return ideal_h
-
-    @property
-    @lru_cache(maxsize=None)
     def symbols(self):
         """
         Generate the symbol stream.
@@ -344,7 +307,7 @@ class Simulation:
                     symbols.append(1.0)
         else:
             raise ValueError("Unknown modulation type requested!")
-        return array(symbols) * vod
+        return np.array(symbols) * vod
 
     @property
     @lru_cache(maxsize=None)
@@ -545,7 +508,7 @@ class Simulation:
             x = np.repeat(symbols, nspui)
             self.x = x
             if self.mod_type == 1:  # Handle duo-binary case.
-                duob_h = array(([0.5] + [0.0] * (nspui - 1)) * 2)
+                duob_h = np.array(([0.5] + [0.0] * (nspui - 1)) * 2)
                 x = np.convolve(x, duob_h)[: len(t)]
             self.ideal_signal = x
 
@@ -1139,7 +1102,9 @@ class Simulation:
             bathtub_tx + list(np.cumsum(self.jitter["tx"].hist_synth[: half_len + 1]))
         )
         bathtub_tx = np.where(
-            bathtub_tx < MIN_BATHTUB_VAL, 0.1 * MIN_BATHTUB_VAL * np.ones(len(bathtub_tx)), bathtub_tx
+            bathtub_tx < MIN_BATHTUB_VAL,
+            0.1 * MIN_BATHTUB_VAL * np.ones(len(bathtub_tx)),
+            bathtub_tx,
         )  # To avoid Chaco log scale plot wierdness.
         self.plots.update_data("bathtub_tx", np.log10(bathtub_tx))
         #  - CTLE

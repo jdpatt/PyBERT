@@ -6,6 +6,7 @@ Original date:   September 27, 2014 (Copied from pybert_cntrl.py.)
 
 Copyright (c) 2014 David Banas; all rights reserved World wide.
 """
+# pylint: disable=C0103
 from enum import Enum, auto
 import re
 from functools import reduce
@@ -18,6 +19,7 @@ from scipy.signal import freqs, get_window, invres
 
 
 class MODULATION(Enum):
+    """The different modulation types supported by PyBERT."""
     NRZ = auto()
     DUO = auto()
     PAM4 = auto()
@@ -691,3 +693,16 @@ def pulse_center(p, nspui):
 
     clock_pos = int(np.mean([main_lobe_ixs[0], main_lobe_ixs[-1]]))
     return (clock_pos, thresh)
+
+
+def get_tap_fir_numerator(tap_tuners):
+    """docstring"""
+    taps = []
+    for tuner in tap_tuners:
+        if tuner.enabled:
+            taps.append(tuner.value)
+        else:
+            taps.append(0.0)
+    taps.insert(1, 1.0 - sum(map(abs, taps)))  # Assume one pre-tap.
+
+    return taps

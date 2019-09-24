@@ -36,6 +36,7 @@ from pybert.static import (
     status_string,
     sweep_results_menu,
 )
+
 # from pybert.view import TRAITS_VIEW, popup_alert
 
 # from pybert.waveform_data import WaveformData
@@ -48,7 +49,6 @@ class PyBERT:
     Useful for exploring the concepts of serial communication link design.
     """
 
-    # pylint: disable=R0903
     def __init__(self, run_simulation: bool = True):
         """
         Initial plot setup occurs here.
@@ -80,7 +80,6 @@ class PyBERT:
         # self.data = WaveformData(self)
         self.sim = Simulation()
         self.channel = self.sim.channel
-        self.tx = self.sim.tx
         self.status = self.sim.status  #: PyBERT status (String).
 
         # About
@@ -115,44 +114,45 @@ class PyBERT:
             else:
                 self.channel.calc_chnl_h()  # Prevents missing attribute error in _get_ctle_out_h_tune().
         except Exception as error:
-            popup_alert(error)
+            raise
+            # popup_alert(error)
 
-    # # Button handlers
-    # def _btn_rst_eq_fired(self):
-    #     """Reset the equalization."""
-    #     self.sim.eq.reset_equalization()
+    # Button handlers
+    def _btn_rst_eq_fired(self):
+        """Reset the equalization."""
+        self.sim.eq.reset_equalization()
 
-    # def _btn_save_eq_fired(self):
-    #     """Save the equalization."""
-    #     self.sim.eq.save_equalization()
+    def _btn_save_eq_fired(self):
+        """Save the equalization."""
+        self.sim.eq.save_equalization()
 
-    # def _btn_opt_tx_fired(self):
-    #     """Run the tx optimization."""
-    #     self.sim.eq.run_tx_optimization()
+    def _btn_opt_tx_fired(self):
+        """Run the tx optimization."""
+        self.sim.eq.run_tx_optimization()
 
-    # def _btn_opt_rx_fired(self):
-    #     """Run the rx optimization."""
-    #     self.sim.eq.run_rx_optimization()
+    def _btn_opt_rx_fired(self):
+        """Run the rx optimization."""
+        self.sim.eq.run_rx_optimization()
 
-    # def _btn_coopt_fired(self):
-    #     """Run the co-optimization between Tx and Rx."""
-    #     self.sim.eq.run_co_optimization()
+    def _btn_coopt_fired(self):
+        """Run the co-optimization between Tx and Rx."""
+        self.sim.eq.run_co_optimization()
 
-    # def _btn_abort_fired(self):
-    #     """Kill all the threads that are currently running optimization."""
-    #     self.sim.eq.abort_optimization()
+    def _btn_abort_fired(self):
+        """Kill all the threads that are currently running optimization."""
+        self.sim.eq.abort_optimization()
 
-    # def _btn_cfg_tx_fired(self):
-    #     """Open the Tx AMI configurator."""
-    #     self.sim.tx.open_config_gui()
+    def _btn_cfg_tx_fired(self):
+        """Open the Tx AMI configurator."""
+        self.sim.tx.open_config_gui()
 
-    # def _btn_cfg_rx_fired(self):
-    #     """Open the Rx AMI configurator."""
-    #     self.sim.rx.open_config_gui()
+    def _btn_cfg_rx_fired(self):
+        """Open the Rx AMI configurator."""
+        self.sim.rx.open_config_gui()
 
-    # def _btn_run_sim_fired(self):
-    #     """Start a new simulation."""
-    #     self.sim.run()
+    def _btn_run_sim_fired(self):
+        """Start a new simulation."""
+        self.sim.run()
 
     # def _btn_stop_sim_fired(self):
     #     """Stop the current simulation."""

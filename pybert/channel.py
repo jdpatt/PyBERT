@@ -3,11 +3,9 @@ from functools import lru_cache
 from logging import getLogger
 
 import numpy as np
-from numpy import array, diff, exp, pad, real, where, zeros
 from numpy.fft import fft, ifft
-from pybert.materials import TwistedCopperPair24Gauge
-from pybert.equalization import get_tap_fir_numerator
-from pybert.utility import calc_G, calc_gamma, import_channel, make_ctle, trim_impulse
+from pybert.materials import MATERIALS
+from pybert.utility import calc_G, calc_gamma, import_channel, trim_impulse
 
 
 class Channel:
@@ -21,37 +19,14 @@ class Channel:
         self.padded: bool = False  #: Zero pad imported Touchstone data? (Default = False)
         self.windowed: bool = False  #: Apply windowing to the Touchstone data? (Default = False)
         self.f_step = 10.0  #: Frequency step to use when constructing H(f). (Default = 10 MHz)
-        self.ch_file = None  #: Channel file name. "*.s4p", "*.S4P", "*.csv", "*.CSV", "*.txt", "*.TXT", "*.*"
+        self.ch_file = (
+            None
+        )  #: Channel file name. "*.s4p", "*.S4P", "*.csv", "*.CSV", "*.txt", "*.TXT", "*.*"
         self.impulse_length = 0.0  #: Impulse response length. (Determined automatically, when 0.)
-        self.Rdc = DC_RESISTANCE_PER_METER  #: Channel d.c. resistance (Ohms/m).
-        self.w0 = W_TRANSITION_FREQ  #: Channel transition frequency (rads./s).
-        self.R0 = SKIN_EFFECT_RESISTANCE  #: Channel skin effect resistance (Ohms/m).
-        self.Theta0 = LOSS_TANGENT  #: Channel loss tangent (unitless).
-        self.Z0 = CHARACTERISTIC_IMPEDANCE #: Channel characteristic impedance, in LC region (Ohms).
-        self.v0 = REL_VELOCITY  #: Channel relative propagation velocity (c).
-        self.l_ch = CHANNEL_LENGTH  #: Channel length (m).
-
-        self.len_h = 0
-        self.chnl_dly = 0.0  #: Estimated channel delay (s).
-        self.chnl_h = []
-        self.chnl_H = []
-        self.chnl_trimmed_H = []
-        self.start_ix = 0
+        self.material = MATERIALS["UTP_24Gauge"]
 
     @lru_cache(maxsize=None)
-    def _get_tx_h_tune(self):
-        nspui = self.nspui
-
-        taps = get_tap_fir_numerator(self.eq.tx_tap_tuners)
-
-        h = sum([[x] + list(zeros(nspui - 1)) for x in taps], [])
-
-        return h
-
-    # This function has been pulled outside of the standard Traits/UI "depends_on / @lru_cache(maxsize=None)" mechanism,
-    # in order to more tightly control when it executes. I wasn't able to get truly lazy evaluation, and
-    # this was causing noticeable GUI slowdown.
-    def calc_chnl_h(self, t, nspui, w):
+    def calc_chnl_h(self, t, nspui, w, tx, rx):
         """
         Calculates the channel impulse response.
 
@@ -77,32 +52,47 @@ class Channel:
         if self.use_ch_file:
             chnl_h = import_channel(self.ch_file, ts, self.padded, self.windowed)
             if chnl_h[-1] > (max(chnl_h) / 2.0):  # step response?
-                chnl_h = diff(chnl_h)  # impulse response is derivative of step response.
+                chnl_h = np.diff(chnl_h)  # impulse response is derivative of step response.
             chnl_h /= sum(chnl_h)  # Normalize d.c. to one.
-            chnl_dly = t[where(chnl_h == max(chnl_h))[0][0]]
+            chnl_dly = t[np.where(chnl_h == max(chnl_h))[0][0]]
             chnl_h.resize(len(t))
             chnl_H = fft(chnl_h)
         else:
-            l_ch = self.l_ch
-            v0 = self.v0 * 3.0e8
-            R0 = self.R0
-            w0 = self.w0
-            Rdc = self.Rdc
-            Z0 = self.Z0
-            Theta0 = self.Theta0
-            Rs = self.tx.output_impedance
-            Cs = self.tx.output_capacitance * 1.0e-12
-            RL = self.rx.input_impedance
-            Cp = self.rx.input_capacitance * 1.0e-12
-            CL = self.rx.cac * 1.0e-6
+            l_ch = self.material.channel_length
+            rel_velocity = self.material.rel_velocity * 3.0e8
+            skin_effect_resistance = self.material.skin_effect_resistance
+            w_transition_freq = self.material.w_transition_freq
+            dc_resistance_per_meter = self.material.dc_resistance_per_meter
+            characteristic_impedance = self.material.characteristic_impedance
+            loss_tangent = self.material.loss_tangent
+            output_impedance = tx.output_impedance
+            output_capacitance = tx.output_capacitance * 1.0e-12
+            input_impedance = rx.input_impedance
+            input_capacitance = rx.input_capacitance * 1.0e-12
+            CL = rx.cac * 1.0e-6
 
-            chnl_dly = l_ch / v0
-            gamma, Zc = calc_gamma(R0, w0, Rdc, Z0, v0, Theta0, w)
-            H = exp(-l_ch * gamma)
+            chnl_dly = l_ch / rel_velocity
+            gamma, Zc = calc_gamma(
+                skin_effect_resistance,
+                w_transition_freq,
+                dc_resistance_per_meter,
+                characteristic_impedance,
+                rel_velocity,
+                loss_tangent,
+                w,
+            )
+            H = np.exp(-l_ch * gamma)
             chnl_H = 2.0 * calc_G(
-                H, Rs, Cs, Zc, RL, Cp, CL, w
+                H,
+                output_impedance,
+                output_capacitance,
+                Zc,
+                input_impedance,
+                input_capacitance,
+                CL,
+                w,
             )  # Compensating for nominal /2 divider action.
-            chnl_h = real(ifft(chnl_H))
+            chnl_h = np.real(ifft(chnl_H))
 
         min_len = 10 * nspui
         max_len = 100 * nspui
@@ -115,43 +105,11 @@ class Channel:
         chnl_trimmed_H = fft(temp)
 
         chnl_s = chnl_h.cumsum()
-        chnl_p = chnl_s - pad(chnl_s[:-nspui], (nspui, 0), "constant", constant_values=(0, 0))
+        chnl_p = chnl_s - np.pad(chnl_s[:-nspui], (nspui, 0), "constant", constant_values=(0, 0))
 
-        self.chnl_h = chnl_h
-        self.len_h = len(chnl_h)
-        self.chnl_dly = chnl_dly
-        self.chnl_H = chnl_H
-        self.chnl_trimmed_H = chnl_trimmed_H
-        self.start_ix = start_ix
-        self.t_ns_chnl = array(t[start_ix : start_ix + len(chnl_h)]) * 1.0e9
-        self.chnl_s = chnl_s
-        self.chnl_p = chnl_p
+        chnl_h = chnl_h
+        len_h = len(chnl_h)
+        chnl_trimmed_H = chnl_trimmed_H
+        t_ns_chnl = np.array(t[start_ix : start_ix + len(chnl_h)]) * 1.0e9
 
-        return chnl_h
-
-    @lru_cache(maxsize=None)
-    def _get_ctle_h_tune(self):
-        w = self.w
-        len_h = self.len_h
-        rx_bw = self.eq.rx_bw_tune * 1.0e9
-        peak_freq = self.eq.peak_freq_tune * 1.0e9
-        peak_mag = self.eq.peak_mag_tune
-        offset = self.eq.ctle_offset_tune
-        mode = self.eq.ctle_mode_tune
-
-        _, H = make_ctle(rx_bw, peak_freq, peak_mag, w, mode, offset)
-        h = real(ifft(H))[:len_h]
-        h *= abs(H[0]) / sum(h)
-
-        return h
-
-    @lru_cache(maxsize=None)
-    def _get_ctle_out_h_tune(self):
-        chnl_h = self.chnl_h
-        tx_h = self.eq.tx_h_tune
-        ctle_h = self.eq.ctle_h_tune
-
-        tx_out_h = np.convolve(tx_h, chnl_h)
-        h = np.convolve(ctle_h, tx_out_h)
-
-        return h
+        return chnl_dly, start_ix, t_ns_chnl, chnl_H, chnl_s, chnl_p

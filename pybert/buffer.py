@@ -10,13 +10,13 @@ from pybert.defaults import (
     OUTPUT_DRIVE_STRENGTH,
     OUTPUT_IMPEDANCE,
     PN_FREQ,
-    PN_MAG
+    PN_MAG,
 )
 from pyibisami.ami_model import AMIModel, AMIModelInitializer
 from pyibisami.ami_parse import AMIParamConfigurator
 
 
-class Buffer():
+class Buffer:
     """Object to hold items common between the Tx and Rx buffers."""
 
     def __init__(self):
@@ -83,10 +83,10 @@ class Transmitter(Buffer):
         self.log.debug("Initializing Tx")
         self.vod = OUTPUT_DRIVE_STRENGTH  #: Tx differential output voltage (V)
         self.output_impedance = OUTPUT_IMPEDANCE  #: Tx source impedance (Ohms)
-        self.output_capacitance = OUTPUT_CAPACITANCE #: Tx parasitic output capacitance (pF)
+        self.output_capacitance = OUTPUT_CAPACITANCE  #: Tx parasitic output capacitance (pF)
         self.pn_mag = PN_MAG  #: Periodic noise magnitude (V).
         self.pn_freq = PN_FREQ  #: Periodic noise frequency (MHz).
-        self.random_noise = RANDOM_NOISE #: Standard deviation of Gaussian random noise (V).
+        self.random_noise = random_noise  #: Standard deviation of Gaussian random noise (V).
         self.rel_power = 1.0  #: Tx power dissipation (W).
 
     def initialize_model(self, sample_interval, channel_response, bit_time):
@@ -125,7 +125,7 @@ class Receiver(Buffer):
         super(Receiver, self).__init__()
         self.log.debug("Initializing Rx")
         self.input_impedance = INPUT_IMPEDANCE  #: Rx input impedance (Ohm)
-        self.input_capacitance = INPUT_CAPACITANCE #: Rx parasitic input capacitance (pF)
+        self.input_capacitance = INPUT_CAPACITANCE  #: Rx parasitic input capacitance (pF)
         self.cac = AC_CAPACITANCE  #: Rx a.c. coupling capacitance (uF)
 
     def initialize_model(self, sample_interval, channel_response, bit_time):
