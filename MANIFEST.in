@@ -1,6 +1,5 @@
 include README.md
 include LICENSE
-include requirements.txt
 include pybert/images/icon.png
 recursive-include docs/
 recursive-include tests/

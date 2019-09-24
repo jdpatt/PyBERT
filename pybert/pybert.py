@@ -29,6 +29,7 @@ from pybert import __version__ as VERSION
 from pybert.defaults import DEBUG, NUM_TAPS
 from pybert.simulation import Simulation
 from pybert.static import (
+    about_menu,
     help_menu,
     jitter_rejection_menu,
     performance_menu,
@@ -83,15 +84,7 @@ class PyBERT:
         self.status = self.sim.status  #: PyBERT status (String).
 
         # About
-        self.ident = (
-            f"PyBERT v{VERSION} - a serial communication link design tool, written in Python.\n\n \
-            {AUTHORS}\n \
-            {DATE}   \n \
-            {COPY};  \n \
-            All rights reserved World wide."
-        )
-
-        # Help
+        self.about_tab = about_menu(AUTHORS, COPY, DATE, VERSION)
         self.help_tab = help_menu()
 
         # # Tab Buttons
@@ -112,14 +105,17 @@ class PyBERT:
         # self.save_cfg = Button(label="Save Config.")
         # self.load_cfg = Button(label="Load Config.")
 
-        if run_simulation:
-            # Running the simulation will fill in the required data structure.
-            self.sim.my_run_simulation(initial_run=True)
-            # Once the required data structure is filled in, we can create the plots.
-            self.sim.plots.init_plots(self, NUM_TAPS)
-            self.sim.update_eyes()
-        else:
-            self.channel.calc_chnl_h()  # Prevents missing attribute error in _get_ctle_out_h_tune().
+        try:
+            if run_simulation:
+                # Running the simulation will fill in the required data structure.
+                self.sim.my_run_simulation(initial_run=True)
+                # Once the required data structure is filled in, we can create the plots.
+                self.sim.plots.init_plots(self, NUM_TAPS)
+                self.sim.update_eyes()
+            else:
+                self.channel.calc_chnl_h()  # Prevents missing attribute error in _get_ctle_out_h_tune().
+        except Exception as error:
+            popup_alert(error)
 
     # # Button handlers
     # def _btn_rst_eq_fired(self):

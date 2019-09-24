@@ -6,16 +6,12 @@ Original Author: David Banas <capn.freako@gmail.com>
 Original Date:   5 May 2017
 
 This Python script provides a data structure for encapsulating the
-simulation configuration data of a PyBERT instance. It was first
-created, as a way to facilitate easier pickling, so that a particular
-configuration could be saved and later restored.
+simulation configuration data of a PyBERT instance. 
 
 Copyright (c) 2017 by David Banas; All rights reserved World wide.
 """
-# pylint: skip-file
-# TODO: This file needs to be completely rewritten
 
-import pickle
+import yaml
 
 
 class ConfigurationData:
@@ -30,7 +26,7 @@ class ConfigurationData:
     def __init__(self, the_PyBERT):
         """
         Copy just that subset of the supplied PyBERT instance's
-        __dict__, which should be saved during pickling.
+        __dict__, which should be saved.
         """
         self.cfg_file = File("", entries=5, filter=["*.pybert_cfg"])
 
@@ -121,17 +117,17 @@ class ConfigurationData:
         dlg = FileDialog(action="save as", wildcard="*.pybert_cfg", default_path=self.cfg_file)
         if dlg.open() == OK:
             pybert_configuration = PyBertCfg(self)
-            with open(dlg.path, "wb") as the_file:
-                pickle.dump(pybert_configuration, the_file)
+            with open(dlg.path, "w") as the_file:
+                yaml.dump(pybert_configuration, the_file)
             self.cfg_file = dlg.path
 
     def load(self):
-        """Read in the pickled configuration."""
+        """Read in the YAML configuration."""
         the_pybert = info.object
         dlg = FileDialog(action="open", wildcard="*.pybert_cfg", default_path=the_pybert.cfg_file)
         if dlg.open() == OK:
-            with open(dlg.path, "rb") as the_file:
-                pybert_configuration = pickle.load(the_file)
+            with open(dlg.path, "r") as the_file:
+                pybert_configuration = yaml.full_load(the_file)
             if not isinstance(pybert_configuration, PyBertCfg):
                 raise Exception("The data structure read in is NOT of type: PyBertCfg!")
             for prop, value in vars(pybert_configuration).items():

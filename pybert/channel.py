@@ -5,15 +5,7 @@ from logging import getLogger
 import numpy as np
 from numpy import array, diff, exp, pad, real, where, zeros
 from numpy.fft import fft, ifft
-from pybert.defaults import (
-    CHANNEL_LENGTH,
-    CHARACTERISTIC_IMPEDANCE,
-    DC_RESISTANCE_PER_METER,
-    LOSS_TANGENT,
-    REL_VELOCITY,
-    SKIN_EFFECT_RESISTANCE,
-    W_TRANSITION_FREQ,
-)
+from pybert.materials import TwistedCopperPair24Gauge
 from pybert.equalization import get_tap_fir_numerator
 from pybert.utility import calc_G, calc_gamma, import_channel, make_ctle, trim_impulse
 
@@ -23,7 +15,7 @@ class Channel:
 
     def __init__(self):
         super(Channel, self).__init__()
-        self.log = getLogger("pybert.buffer")
+        self.log = getLogger("pybert.channel")
         self.log.debug("Initializing Channel")
         self.use_ch_file: bool = False  #: Import channel description from file? (Default = False)
         self.padded: bool = False  #: Zero pad imported Touchstone data? (Default = False)
