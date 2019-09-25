@@ -10,6 +10,8 @@ Copyright (c) 2014 David Banas; all rights reserved World wide.
 import logging
 import traceback
 
+from enable.component_editor import ComponentEditor
+from pybert.defaults import DEBUG
 from pyface.image_resource import ImageResource
 from traitsui.api import (
     CheckListEditor,
@@ -23,9 +25,6 @@ from traitsui.api import (
     View,
 )
 from traitsui.message import message
-
-from enable.component_editor import ComponentEditor
-from pybert.defaults import DEBUG
 
 # Main window layout definition.
 TRAITS_VIEW = View(

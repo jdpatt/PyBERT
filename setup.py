@@ -20,15 +20,11 @@ setup(
     author="David Banas",
     author_email="capn.freako@gmail.com",
     install_requires=[
-        "chaco",
-        "enable",
         "kiwisolver",
         "numpy",
         "scikit-rf",
         "scipy",
-        "traits",
-        "traitsui",
-        "PyIBIS-AMI>=3.0.0",
+        # "PyIBIS-AMI>=3.0.0",
     ],
     entry_points={
         "console_scripts": [

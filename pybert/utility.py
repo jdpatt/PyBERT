@@ -7,6 +7,7 @@ Original date:   September 27, 2014 (Copied from pybert_cntrl.py.)
 Copyright (c) 2014 David Banas; all rights reserved World wide.
 """
 import re
+from typing import List, Sequence
 
 # pylint: disable=C0103
 from enum import Enum, auto
@@ -42,7 +43,7 @@ def moving_average(a, n=3):
 
     ret = np.cumsum(a, dtype=np.float)
     ret[n:] = ret[n:] - ret[:-n]
-    return np.insert(ret[n - 1 :], 0, ret[n - 1] * np.ones(n - 1)) / n
+    return ret[n - 1 :] / n
 
 
 def find_crossing_times(
@@ -624,7 +625,7 @@ def import_freq(filename, sample_per, padded=False, windowed=False, f_step=10e6)
     return interp_time(t, s, sample_per)
 
 
-def lfsr_bits(taps, seed):
+def lfsr_bits(taps: Sequence[int], seed: int):
     """
     Given a set of tap indices and a seed, generate a PRBS.
 
@@ -637,21 +638,21 @@ def lfsr_bits(taps, seed):
         A PRBS generator object with a next() method, for retrieving
         the next bit in the sequence.
     """
-
-    val = int(seed)
-    num_taps = max(taps)
-    mask = (1 << num_taps) - 1
+    mask = (1 << max(taps)) - 1
 
     while True:
-        xor_res = reduce(lambda x, b: x ^ b, [bool(val & (1 << (tap - 1))) for tap in taps])
-        val = (val << 1) & mask  # Just to keep 'val' from growing without bound.
+        xor_res = reduce(lambda x, b: x ^ b, [bool(seed & (1 << (tap - 1))) for tap in taps])
+        seed = (seed << 1) & mask  # Just to keep 'seed' from growing without bound.
         if xor_res:
-            val += 1
-        yield val & 1
+            seed += 1
+        yield seed & 1
 
 
 def safe_log10(value):
-    """Guards against pesky 'Divide by 0' error messages."""
+    """Guards against pesky 'Divide by 0' error messages.
+
+    If an array is passed to 'safe_log10' it will log10 each element in the array.
+    """
 
     if hasattr(value, "__len__"):
         value = np.where(value == 0, 1.0e-20 * np.ones(len(value)), value)
@@ -697,8 +698,9 @@ def pulse_center(p, nspui):
     return (clock_pos, thresh)
 
 
-def get_tap_fir_numerator(tap_tuners):
-    """docstring"""
+def fir_numerator(tap_tuners: Sequence) -> List:
+    """Loop thru all of the TxTapTuners in the Sequence. Insert an element after
+    the first value since we assume we always have one pre-tap."""
     taps = []
     for tuner in tap_tuners:
         if tuner.enabled:

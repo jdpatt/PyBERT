@@ -36,7 +36,6 @@ from pybert.static import (
     status_string,
     sweep_results_menu,
 )
-
 from pybert.view import popup_alert
 
 # from pybert.waveform_data import WaveformData
@@ -103,7 +102,6 @@ class PyBERT:
         # self.load_data = Button(label="Load Results")
         # self.save_cfg = Button(label="Save Config.")
         # self.load_cfg = Button(label="Load Config.")
-        run_simulation = False
         try:
             if run_simulation:
                 # Running the simulation will fill in the required data structure.

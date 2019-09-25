@@ -7,9 +7,6 @@ from time import clock
 import numpy as np
 from numpy.fft import fft, ifft
 from numpy.random import normal, randint
-from scipy.signal import iirfilter, lfilter
-from scipy.signal.windows import hann
-
 from pybert.buffer import Receiver, Transmitter
 from pybert.channel import Channel
 from pybert.defaults import (
@@ -33,6 +30,8 @@ from pybert.utility import (
     make_ctle,
     pulse_center,
 )
+from scipy.signal import iirfilter, lfilter
+from scipy.signal.windows import hann
 
 
 class RunSimThread(Thread):
@@ -77,41 +76,47 @@ class Simulation:
         self.jitter = {}
         self.plots = Plots()
 
-        self.results = {}
+        self.results = {
+            "tx": {
+                "s": np.array([]),
+                "out": np.array([]),
+                "out_s": np.array([]),
+                "out_p": np.array([]),
+                "H": np.array([]),
+                "h": np.array([]),
+                "out_H": np.array([]),
+                "out_h": np.array([]),
+            },
+            "ctle": {
+                "s": np.array([]),
+                "out": np.array([]),
+                "out_s": np.array([]),
+                "out_p": np.array([]),
+                "H": np.array([]),
+                "h": np.array([]),
+                "out_H": np.array([]),
+                "out_h": np.array([]),
+            },
+            "dfe": {
+                "s": np.array([]),
+                "out": np.array([]),
+                "out_s": np.array([]),
+                "out_p": np.array([]),
+                "H": np.array([]),
+                "h": np.array([]),
+                "out_H": np.array([]),
+                "out_h": np.array([]),
+            },
+            "channel": {"out": np.array([]), "out_H": np.array([])},
+        }
         # Variables that got defined randomly throughout the simulation.  TODO: Clean up data structure.
         self.x = np.array([])
-        self.tx_s = np.array([])
-        self.tx_out = np.array([])
         self.rx_in = np.array([])
-        self.tx_out_s = np.array([])
-        self.tx_out_p = np.array([])
-        self.tx_H = np.array([])
-        self.tx_h = np.array([])
-        self.tx_out_H = np.array([])
-        self.tx_out_h = np.array([])
         self.auto_corr = np.array([])
         self.ideal_xings = np.array([])
         self.ideal_signal = np.array([])
-        self.chnl_out = np.array([])
-        self.chnl_out_H = np.array([])
-        self.ctle_s = np.array([])
-        self.ctle_out_s = np.array([])
-        self.ctle_out_p = np.array([])
-        self.ctle_H = np.array([])
-        self.ctle_h = np.array([])
-        self.ctle_out_H = np.array([])
-        self.ctle_out_h = np.array([])
-        self.ctle_out = np.array([])
         self.conv_dly = np.array([])
         self.conv_dly_ix = np.array([])
-        self.dfe_s = np.array([])
-        self.dfe_out_s = np.array([])
-        self.dfe_out_p = np.array([])
-        self.dfe_H = np.array([])
-        self.dfe_h = np.array([])
-        self.dfe_out_H = np.array([])
-        self.dfe_out_h = np.array([])
-        self.dfe_out = np.array([])
         self.adaptation = np.array([])
         self.ui_ests = np.array([])
         self.clocks = np.array([])
@@ -574,8 +579,8 @@ class Simulation:
             self.status = "Exception: channel"
             raise
 
-        self.chnl_out = chnl_out
-        self.chnl_out_H = fft(chnl_out)
+        self.results["channel"]["out"] = chnl_out
+        self.results["channel"]["out_H"] = fft(chnl_out)
 
         # Generate the output from, and the incremental/cumulative impulse/step/frequency responses of, the Tx.
         try:
@@ -654,15 +659,15 @@ class Simulation:
             tx_out_H = fft(temp)
             rx_in = np.convolve(tx_out, chnl_h)[: len(tx_out)]
 
-            self.tx_s = tx_s
-            self.tx_out = tx_out
+            self.results["tx"]["s"] = tx_s
+            self.results["tx"]["out"] = tx_out
             self.rx_in = rx_in
-            self.tx_out_s = tx_out_h.cumsum()
-            self.tx_out_p = self.tx_out_s[nspui:] - self.tx_out_s[:-nspui]
-            self.tx_H = tx_H
-            self.tx_h = tx_h
-            self.tx_out_H = tx_out_H
-            self.tx_out_h = tx_out_h
+            self.results["tx"]["out_s"] = tx_out_h.cumsum()
+            self.results["tx"]["out_p"] = self.tx_out_s[nspui:] - self.tx_out_s[:-nspui]
+            self.results["tx"]["H"] = tx_H
+            self.results["tx"]["h"] = tx_h
+            self.results["tx"]["out_H"] = tx_out_H
+            self.results["tx"]["out_h"] = tx_out_h
 
             self.performance["tx"] = nbits * nspb / (clock() - split_time)
             split_time = clock()
@@ -730,7 +735,7 @@ class Simulation:
                 ctle_s = ctle_h.cumsum()
                 ctle_out_h = np.convolve(tx_out_h, ctle_h)[: len(tx_out_h)]
             ctle_out.resize(len(t))
-            self.ctle_s = ctle_s
+            self.results["ctle"]["s"] = ctle_s
             ctle_out_h_main_lobe = np.where(ctle_out_h >= max(ctle_out_h) / 2.0)[0]
             if ctle_out_h_main_lobe.size:
                 conv_dly_ix = ctle_out_h_main_lobe[0]
@@ -742,14 +747,14 @@ class Simulation:
             temp.resize(len(w))
             ctle_out_H = fft(temp)
             # - Store local variables to class instance.
-            self.ctle_out_s = ctle_out_s
+            self.results["ctle"]["out_s"] = ctle_out_s
             # Consider changing this; it could be sensitive to insufficient "front porch" in the CTLE output step response.
-            self.ctle_out_p = self.ctle_out_s[nspui:] - self.ctle_out_s[:-nspui]
-            self.ctle_H = ctle_H
-            self.ctle_h = ctle_h
-            self.ctle_out_H = ctle_out_H
-            self.ctle_out_h = ctle_out_h
-            self.ctle_out = ctle_out
+            self.results["ctle"]["out_p"] = self.ctle_out_s[nspui:] - self.ctle_out_s[:-nspui]
+            self.results["ctle"]["H"] = ctle_H
+            self.results["ctle"]["h"] = ctle_h
+            self.results["ctle"]["out_H"] = ctle_out_H
+            self.results["ctle"]["out_h"] = ctle_out_h
+            self.results["ctle"]["out"] = ctle_out
             self.conv_dly = conv_dly
             self.conv_dly_ix = conv_dly_ix
 
@@ -830,19 +835,19 @@ class Simulation:
             temp = dfe_h.copy()
             temp.resize(len(w))
             dfe_H = fft(temp)
-            self.dfe_s = dfe_h.cumsum()
+            self.results["dfe"]["s"] = dfe_h.cumsum()
             dfe_out_H = ctle_out_H * dfe_H
             dfe_out_h = np.convolve(ctle_out_h, dfe_h)[: len(ctle_out_h)]
             dfe_out_s = dfe_out_h.cumsum()
-            self.dfe_out_p = dfe_out_s - np.pad(
+            self.results["dfe"]["out_p"] = dfe_out_s - np.pad(
                 dfe_out_s[:-nspui], (nspui, 0), "constant", constant_values=(0, 0)
             )
-            self.dfe_H = dfe_H
-            self.dfe_h = dfe_h
-            self.dfe_out_H = dfe_out_H
-            self.dfe_out_h = dfe_out_h
-            self.dfe_out_s = dfe_out_s
-            self.dfe_out = dfe_out
+            self.results["dfe"]["H"] = dfe_H
+            self.results["dfe"]["h"] = dfe_h
+            self.results["dfe"]["out_H"] = dfe_out_H
+            self.results["dfe"]["out_h"] = dfe_out_h
+            self.results["dfe"]["out_s"] = dfe_out_s
+            self.results["dfe"]["out"] = dfe_out
 
             self.performance["dfe"] = nbits * nspb / (clock() - split_time)
             split_time = clock()

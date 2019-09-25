@@ -4,7 +4,6 @@ from logging import getLogger
 
 import numpy as np
 from numpy.fft import fft, ifft
-
 from pybert.materials import MATERIALS
 from pybert.utility import calc_G, calc_gamma, import_channel, trim_impulse
 

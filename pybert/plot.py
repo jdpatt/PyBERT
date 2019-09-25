@@ -10,7 +10,6 @@ Copyright (c) 2015 David Banas; all rights reserved World wide.
 from logging import getLogger
 
 import numpy as np
-
 from pybert.defaults import MIN_BATHTUB_VAL
 from pybert.utility import calc_eye
 
@@ -816,9 +815,7 @@ class Plots:
         self.update_data("dfe_H", 20.0 * np.log10(abs(self.dfe_H[1:len_f_GHz])))
         self.update_data("dfe_out_H", 20.0 * np.log10(abs(self.dfe_out_H[1:len_f_GHz])))
 
-        self.update_data(
-            "jitter_bins", np.array(self.jitter["channel"].jitter_bins) * 1.0e12
-        )
+        self.update_data("jitter_bins", np.array(self.jitter["channel"].jitter_bins) * 1.0e12)
         self.update_data("jitter_chnl", self.jitter["channel"].hist)
         self.update_data("jitter_ext_chnl", self.jitter["channel"].hist_synth)
         self.update_data("jitter_tx", self.jitter["tx"].hist)
@@ -851,9 +848,7 @@ class Plots:
             "jitter_ind_spectrum_tx",
             10.0 * (np.log10(self.jitter["tx"].tie_ind_spectrum[1:]) - log10_ui),
         )
-        self.update_data(
-            "thresh_tx", 10.0 * (np.log10(self.jitter["tx"].thresh[1:]) - log10_ui)
-        )
+        self.update_data("thresh_tx", 10.0 * (np.log10(self.jitter["tx"].thresh[1:]) - log10_ui))
         self.update_data(
             "jitter_spectrum_ctle",
             10.0 * (np.log10(self.jitter["ctle"].jitter_spectrum[1:]) - log10_ui),
@@ -873,9 +868,7 @@ class Plots:
             "jitter_ind_spectrum_dfe",
             10.0 * (np.log10(self.jitter["dfe"].tie_ind_spectrum[1:]) - log10_ui),
         )
-        self.update_data(
-            "thresh_dfe", 10.0 * (np.log10(self.jitter["dfe"].thresh[1:]) - log10_ui)
-        )
+        self.update_data("thresh_dfe", 10.0 * (np.log10(self.jitter["dfe"].thresh[1:]) - log10_ui))
         self.update_data("jitter_rejection_ratio", self.jitter["rejection_ratio"][1:])
 
         # Bathtubs

@@ -2,9 +2,6 @@
 from logging import getLogger
 from pathlib import Path
 
-from pyibisami.ami_model import AMIModel, AMIModelInitializer
-from pyibisami.ami_parse import AMIParamConfigurator
-
 from pybert.defaults import (
     AC_CAPACITANCE,
     INPUT_CAPACITANCE,
@@ -15,6 +12,8 @@ from pybert.defaults import (
     PN_FREQ,
     PN_MAG,
 )
+from pyibisami.ami_model import AMIModel, AMIModelInitializer
+from pyibisami.ami_parse import AMIParamConfigurator
 
 
 class Buffer:

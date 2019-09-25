@@ -7,8 +7,6 @@ from time import sleep
 
 import numpy as np
 from numpy.fft import ifft
-from scipy.optimize import minimize, minimize_scalar
-
 from pybert.defaults import (
     ALPHA,
     BANDWIDTH,
@@ -29,7 +27,8 @@ from pybert.defaults import (
     REL_LOCK_TOL,
     USE_DFE,
 )
-from pybert.utility import get_tap_fir_numerator
+from pybert.utility import fir_numerator
+from scipy.optimize import minimize, minimize_scalar
 
 
 class StoppableThread(Thread):
@@ -411,11 +410,11 @@ class Equalization:
         """
         Generate the Tx pre-emphasis FIR numerator.
         """
-        return get_tap_fir_numerator(self.tx_taps)
+        return fir_numerator(self.tx_taps)
 
     @lru_cache(maxsize=None)
     def get_tx_h_tune(self, nspui):
-        taps = get_tap_fir_numerator(self.tx_tap_tuners)
+        taps = fir_numerator(self.tx_tap_tuners)
         h = sum([[x] + list(np.zeros(nspui - 1)) for x in taps], [])
         return h
 
