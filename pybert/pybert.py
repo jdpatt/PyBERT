@@ -14,10 +14,10 @@ can be used to explore the concepts of serial communication link design.
 
 Copyright (c) 2014 by David Banas; All rights reserved World wide.
 """
-from functools import lru_cache
 import logging
 import logging.handlers
 import platform
+from functools import lru_cache
 from pathlib import Path
 
 from pybert import __authors__ as AUTHORS
@@ -37,7 +37,7 @@ from pybert.static import (
     sweep_results_menu,
 )
 
-# from pybert.view import TRAITS_VIEW, popup_alert
+from pybert.view import popup_alert
 
 # from pybert.waveform_data import WaveformData
 
@@ -103,14 +103,14 @@ class PyBERT:
         # self.load_data = Button(label="Load Results")
         # self.save_cfg = Button(label="Save Config.")
         # self.load_cfg = Button(label="Load Config.")
-
+        run_simulation = False
         try:
             if run_simulation:
                 # Running the simulation will fill in the required data structure.
                 self.sim.my_run_simulation(initial_run=True)
                 # Once the required data structure is filled in, we can create the plots.
                 self.sim.plots.init_plots(self, NUM_TAPS)
-                self.sim.update_eyes()
+                self.sim.plots.update_eyes()
             else:
                 self.channel.calc_chnl_h()  # Prevents missing attribute error in _get_ctle_out_h_tune().
         except Exception as error:
@@ -154,37 +154,37 @@ class PyBERT:
         """Start a new simulation."""
         self.sim.run()
 
-    # def _btn_stop_sim_fired(self):
-    #     """Stop the current simulation."""
-    #     self.sim.abort()
+    def _btn_stop_sim_fired(self):
+        """Stop the current simulation."""
+        self.sim.abort()
 
-    # def _btn_save_data_fired(self):
-    #     """Save all the waveform data."""
-    #     try:
-    #         self.data.save()
-    #     except Exception as err:
-    #         popup_alert("An error occured.  The waveform data was not saved", err)
+    def _btn_save_data_fired(self):
+        """Save all the waveform data."""
+        try:
+            self.data.save()
+        except Exception as err:
+            popup_alert("An error occured.  The waveform data was not saved", err)
 
-    # def _btn_load_data_fired(self):
-    #     """Load previous waveform data."""
-    #     try:
-    #         self.data.load()
-    #     except Exception as err:
-    #         popup_alert("An error occured.  The waveform data could not be loaded.", err)
+    def _btn_load_data_fired(self):
+        """Load previous waveform data."""
+        try:
+            self.data.load()
+        except Exception as err:
+            popup_alert("An error occured.  The waveform data could not be loaded.", err)
 
-    # def _btn_save_cfg_fired(self):
-    #     """Save all the configuration data."""
-    #     try:
-    #         self.config.save()
-    #     except Exception as err:
-    #         popup_alert("An error occured.  The configuration data was not saved", err)
+    def _btn_save_cfg_fired(self):
+        """Save all the configuration data."""
+        try:
+            self.config.save()
+        except Exception as err:
+            popup_alert("An error occured.  The configuration data was not saved", err)
 
-    # def _btn_load_cfg_fired(self):
-    #     """Load previous configuration data."""
-    #     try:
-    #         self.config.load()
-    #     except Exception as err:
-    #         popup_alert("An error occured.  The configuration data could not be loaded.", err)
+    def _btn_load_cfg_fired(self):
+        """Load previous configuration data."""
+        try:
+            self.config.load()
+        except Exception as err:
+            popup_alert("An error occured.  The configuration data could not be loaded.", err)
 
     # -----------------------------------------------------------------
     # Changed property handlers.
@@ -194,7 +194,7 @@ class PyBERT:
 
     def _use_dfe_tune_changed(self, new_value):
         """The user turned on/off the tuned DFE."""
-        self.sim.eq.toggle_tunded_dfe(new_value)
+        self.sim.eq.toggle_tuned_dfe(new_value)
 
     @lru_cache(maxsize=None)
     def _get_sweep_info(self):
@@ -222,7 +222,7 @@ class PyBERT:
             self.sim.performance["total"],
             self.channel.chnl_dly,
             self.sim.bit_errors,
-            self.sim.tx.relative_power,
+            self.sim.tx.rel_power,
             self.sim.jitter["dfe"],
         )
 

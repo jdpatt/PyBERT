@@ -9,6 +9,11 @@ Copyright (c) 2015 David Banas; all rights reserved World wide.
 """
 from logging import getLogger
 
+import numpy as np
+
+from pybert.defaults import MIN_BATHTUB_VAL
+from pybert.utility import calc_eye
+
 # from chaco.api import ArrayPlotData, ColorMapper, GridPlotContainer, Plot
 # from chaco.tools.api import PanTool, ZoomTool
 # from traits.api import Instance
@@ -23,16 +28,16 @@ class Plots:
         self.log.debug("Initializing Plot Object")
 
         # Plots (plot containers, actually)
-        self.data = ArrayPlotData()
-        self.plots_h = Instance(GridPlotContainer)
-        self.plots_s = Instance(GridPlotContainer)
-        self.plots_p = Instance(GridPlotContainer)
-        self.plots_H = Instance(GridPlotContainer)
-        self.plots_dfe = Instance(GridPlotContainer)
-        self.eyes = Instance(GridPlotContainer)
-        self.plots_jitter_dist = Instance(GridPlotContainer)
-        self.plots_jitter_spec = Instance(GridPlotContainer)
-        self.plots_bathtub = Instance(GridPlotContainer)
+        # self.data = ArrayPlotData()
+        # self.plots_h = Instance(GridPlotContainer)
+        # self.plots_s = Instance(GridPlotContainer)
+        # self.plots_p = Instance(GridPlotContainer)
+        # self.plots_H = Instance(GridPlotContainer)
+        # self.plots_dfe = Instance(GridPlotContainer)
+        # self.eyes = Instance(GridPlotContainer)
+        # self.plots_jitter_dist = Instance(GridPlotContainer)
+        # self.plots_jitter_spec = Instance(GridPlotContainer)
+        # self.plots_bathtub = Instance(GridPlotContainer)
 
         self._dfe_plot = None
         self.plot_h_tune = None
@@ -679,3 +684,323 @@ class Plots:
         container_bathtub.add(plot_bathtub_ctle)
         container_bathtub.add(plot_bathtub_dfe)
         self.plots_bathtub = container_bathtub
+
+    def update_results(self):
+        """
+        Updates all plot data used by GUI.
+
+        Args:
+            self(PyBERT): Reference to an instance of the *PyBERT* class.
+
+        """
+
+        # Copy globals into local namespace.
+        ui = self.ui
+        samps_per_ui = self.nspui
+        eye_uis = self.eye_uis
+        num_ui = self.nui
+        clock_times = self.clock_times
+        f = self.f
+        t = self.t
+        t_ns = self.t_ns
+        t_ns_chnl = self.channel.t_ns_chnl
+        n_taps = self.eq.n_taps
+
+        Ts = t[1]
+        ignore_until = (num_ui - eye_uis) * ui
+        ignore_samps = (num_ui - eye_uis) * samps_per_ui
+
+        # Misc.
+        f_GHz = f[: len(f) // 2] / 1.0e9
+        len_f_GHz = len(f_GHz)
+        self.update_data("f_GHz", f_GHz[1:])
+        self.update_data("t_ns", t_ns)
+        self.update_data("t_ns_chnl", t_ns_chnl)
+
+        # DFE.
+        tap_weights = np.transpose(np.array(self.adaptation))
+        i = 1
+        for tap_weight in tap_weights:
+            self.update_data("tap%d_weights" % i, tap_weight)
+            i += 1
+        self.update_data("tap_weight_index", list(range(len(tap_weight))))
+        if self.eq._old_n_taps != n_taps:
+            new_plot = Plot(
+                self.data,
+                auto_colors=["red", "orange", "yellow", "green", "blue", "purple"],
+                padding_left=75,
+            )
+            for i in range(self.eq.n_taps):
+                new_plot.plot(
+                    ("tap_weight_index", "tap%d_weights" % (i + 1)),
+                    type="line",
+                    color="auto",
+                    name="tap%d" % (i + 1),
+                )
+            new_plot.title = "DFE Adaptation"
+            new_plot.tools.append(
+                PanTool(new_plot, constrain=True, constrain_key=None, constrain_direction="x")
+            )
+            zoom9 = ZoomTool(new_plot, tool_mode="range", axis="index", always_on=False)
+            new_plot.overlays.append(zoom9)
+            new_plot.legend.visible = True
+            new_plot.legend.align = "ul"
+            self.plots_dfe.remove(self._dfe_plot)
+            self.plots_dfe.insert(1, new_plot)
+            self._dfe_plot = new_plot
+            self.eq._old_n_taps = n_taps
+
+        clock_pers = np.diff(clock_times)
+        start_t = t[np.where(self.lockeds)[0][0]]
+        start_ix = np.where(clock_times > start_t)[0][0]
+        (bin_counts, bin_edges) = np.histogram(clock_pers[start_ix:], bins=100)
+        bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2.0
+        clock_spec = fft(clock_pers[start_ix:])
+        clock_spec = abs(clock_spec[: len(clock_spec) // 2])
+        spec_freqs = np.arange(len(clock_spec)) / (
+            2.0 * len(clock_spec)
+        )  # In this case, fNyquist = half the bit rate.
+        clock_spec /= clock_spec[1:].mean()  # Normalize the mean non-d.c. value to 0 dB.
+        self.update_data("clk_per_hist_bins", bin_centers * 1.0e12)  # (ps)
+        self.update_data("clk_per_hist_vals", bin_counts)
+        self.update_data("clk_spec", 10.0 * np.log10(clock_spec[1:]))  # Omit the d.c. value.
+        self.update_data("clk_freqs", spec_freqs[1:])
+        self.update_data("dfe_out", self.dfe_out)
+        self.update_data("ui_ests", self.ui_ests)
+        self.update_data("clocks", self.clocks)
+        self.update_data("lockeds", self.lockeds)
+
+        # Impulse responses
+        self.update_data(
+            "chnl_h", self.channel.chnl_h * 1.0e-9 / Ts
+        )  # Re-normalize to (V/ns), for plotting.
+        self.update_data("tx_h", self.tx_h * 1.0e-9 / Ts)
+        self.update_data("tx_out_h", self.tx_out_h * 1.0e-9 / Ts)
+        self.update_data("ctle_h", self.ctle_h * 1.0e-9 / Ts)
+        self.update_data("ctle_out_h", self.ctle_out_h * 1.0e-9 / Ts)
+        self.update_data("dfe_h", self.dfe_h * 1.0e-9 / Ts)
+        self.update_data("dfe_out_h", self.dfe_out_h * 1.0e-9 / Ts)
+
+        # Step responses
+        self.update_data("chnl_s", self.channel.chnl_s)
+        self.update_data("tx_s", self.tx_s)
+        self.update_data("tx_out_s", self.tx_out_s)
+        self.update_data("ctle_s", self.ctle_s)
+        self.update_data("ctle_out_s", self.ctle_out_s)
+        self.update_data("dfe_s", self.dfe_s)
+        self.update_data("dfe_out_s", self.dfe_out_s)
+
+        # Pulse responses
+        self.update_data("chnl_p", self.channel.chnl_p)
+        self.update_data("tx_out_p", self.tx_out_p)
+        self.update_data("ctle_out_p", self.ctle_out_p)
+        self.update_data("dfe_out_p", self.dfe_out_p)
+
+        # Outputs
+        self.update_data("ideal_signal", self.ideal_signal)
+        self.update_data("chnl_out", self.chnl_out)
+        self.update_data("tx_out", self.rx_in)
+        self.update_data("ctle_out", self.ctle_out)
+        self.update_data("dfe_out", self.dfe_out)
+        self.update_data("auto_corr", self.auto_corr)
+
+        # Frequency responses
+        self.update_data("chnl_H", 20.0 * np.log10(abs(self.channel.chnl_H[1:len_f_GHz])))
+        self.update_data(
+            "chnl_trimmed_H", 20.0 * np.log10(abs(self.channel.chnl_trimmed_H[1:len_f_GHz]))
+        )
+        self.update_data("tx_H", 20.0 * np.log10(abs(self.tx_H[1:len_f_GHz])))
+        self.update_data("tx_out_H", 20.0 * np.log10(abs(self.tx_out_H[1:len_f_GHz])))
+        self.update_data("ctle_H", 20.0 * np.log10(abs(self.ctle_H[1:len_f_GHz])))
+        self.update_data("ctle_out_H", 20.0 * np.log10(abs(self.ctle_out_H[1:len_f_GHz])))
+        self.update_data("dfe_H", 20.0 * np.log10(abs(self.dfe_H[1:len_f_GHz])))
+        self.update_data("dfe_out_H", 20.0 * np.log10(abs(self.dfe_out_H[1:len_f_GHz])))
+
+        self.update_data(
+            "jitter_bins", np.array(self.jitter["channel"].jitter_bins) * 1.0e12
+        )
+        self.update_data("jitter_chnl", self.jitter["channel"].hist)
+        self.update_data("jitter_ext_chnl", self.jitter["channel"].hist_synth)
+        self.update_data("jitter_tx", self.jitter["tx"].hist)
+        self.update_data("jitter_ext_tx", self.jitter["tx"].hist_synth)
+        self.update_data("jitter_ctle", self.jitter["ctle"].hist)
+        self.update_data("jitter_ext_ctle", self.jitter["ctle"].hist_synth)
+        self.update_data("jitter_dfe", self.jitter["dfe"].hist)
+        self.update_data("jitter_ext_dfe", self.jitter["dfe"].hist_synth)
+
+        # Jitter spectrums
+        log10_ui = np.log10(ui)
+        self.update_data("f_MHz", self.jitter["f_MHz"][1:])
+        self.update_data("f_MHz_dfe", self.jitter["f_MHz_dfe"][1:])
+        self.update_data(
+            "jitter_spectrum_chnl",
+            10.0 * (np.log10(self.jitter["channel"].jitter_spectrum[1:]) - log10_ui),
+        )
+        self.update_data(
+            "jitter_ind_spectrum_chnl",
+            10.0 * (np.log10(self.jitter["channel"].tie_ind_spectrum[1:]) - log10_ui),
+        )
+        self.update_data(
+            "thresh_chnl", 10.0 * (np.log10(self.jitter["channel"].thresh[1:]) - log10_ui)
+        )
+        self.update_data(
+            "jitter_spectrum_tx",
+            10.0 * (np.log10(self.jitter["tx"].jitter_spectrum[1:]) - log10_ui),
+        )
+        self.update_data(
+            "jitter_ind_spectrum_tx",
+            10.0 * (np.log10(self.jitter["tx"].tie_ind_spectrum[1:]) - log10_ui),
+        )
+        self.update_data(
+            "thresh_tx", 10.0 * (np.log10(self.jitter["tx"].thresh[1:]) - log10_ui)
+        )
+        self.update_data(
+            "jitter_spectrum_ctle",
+            10.0 * (np.log10(self.jitter["ctle"].jitter_spectrum[1:]) - log10_ui),
+        )
+        self.update_data(
+            "jitter_ind_spectrum_ctle",
+            10.0 * (np.log10(self.jitter["ctle"].tie_ind_spectrum[1:]) - log10_ui),
+        )
+        self.update_data(
+            "thresh_ctle", 10.0 * (np.log10(self.jitter["ctle"].thresh[1:]) - log10_ui)
+        )
+        self.update_data(
+            "jitter_spectrum_dfe",
+            10.0 * (np.log10(self.jitter["dfe"].jitter_spectrum[1:]) - log10_ui),
+        )
+        self.update_data(
+            "jitter_ind_spectrum_dfe",
+            10.0 * (np.log10(self.jitter["dfe"].tie_ind_spectrum[1:]) - log10_ui),
+        )
+        self.update_data(
+            "thresh_dfe", 10.0 * (np.log10(self.jitter["dfe"].thresh[1:]) - log10_ui)
+        )
+        self.update_data("jitter_rejection_ratio", self.jitter["rejection_ratio"][1:])
+
+        # Bathtubs
+        half_len = len(self.jitter["channel"].hist_synth) // 2
+        #  - Channel
+        bathtub_chnl = list(
+            np.cumsum(self.jitter["channel"].hist_synth[-1 : -(half_len + 1) : -1])
+        )
+        bathtub_chnl.reverse()
+        bathtub_chnl = np.array(
+            bathtub_chnl + list(np.cumsum(self.jitter["channel"].hist_synth[: half_len + 1]))
+        )
+        bathtub_chnl = np.where(
+            bathtub_chnl < MIN_BATHTUB_VAL,
+            0.1 * MIN_BATHTUB_VAL * np.ones(len(bathtub_chnl)),
+            bathtub_chnl,
+        )  # To avoid Chaco log scale plot wierdness.
+        self.update_data("bathtub_chnl", np.log10(bathtub_chnl))
+        #  - Tx
+        bathtub_tx = list(np.cumsum(self.jitter["tx"].hist_synth[-1 : -(half_len + 1) : -1]))
+        bathtub_tx.reverse()
+        bathtub_tx = np.array(
+            bathtub_tx + list(np.cumsum(self.jitter["tx"].hist_synth[: half_len + 1]))
+        )
+        bathtub_tx = np.where(
+            bathtub_tx < MIN_BATHTUB_VAL,
+            0.1 * MIN_BATHTUB_VAL * np.ones(len(bathtub_tx)),
+            bathtub_tx,
+        )  # To avoid Chaco log scale plot wierdness.
+        self.update_data("bathtub_tx", np.log10(bathtub_tx))
+        #  - CTLE
+        bathtub_ctle = list(np.cumsum(self.jitter["ctle"].hist_synth[-1 : -(half_len + 1) : -1]))
+        bathtub_ctle.reverse()
+        bathtub_ctle = np.array(
+            bathtub_ctle + list(np.cumsum(self.jitter["ctle"].hist_synth[: half_len + 1]))
+        )
+        bathtub_ctle = np.where(
+            bathtub_ctle < MIN_BATHTUB_VAL,
+            0.1 * MIN_BATHTUB_VAL * np.ones(len(bathtub_ctle)),
+            bathtub_ctle,
+        )  # To avoid Chaco log scale plot weirdness.
+        self.update_data("bathtub_ctle", np.log10(bathtub_ctle))
+        #  - DFE
+        bathtub_dfe = list(np.cumsum(self.jitter["dfe"].hist_synth[-1 : -(half_len + 1) : -1]))
+        bathtub_dfe.reverse()
+        bathtub_dfe = np.array(
+            bathtub_dfe + list(np.cumsum(self.jitter["dfe"].hist_synth[: half_len + 1]))
+        )
+        bathtub_dfe = np.where(
+            bathtub_dfe < MIN_BATHTUB_VAL,
+            0.1 * MIN_BATHTUB_VAL * np.ones(len(bathtub_dfe)),
+            bathtub_dfe,
+        )  # To avoid Chaco log scale plot weirdness.
+        self.update_data("bathtub_dfe", np.log10(bathtub_dfe))
+
+        # Eyes
+        width = 2 * samps_per_ui
+        xs = np.linspace(-ui * 1.0e12, ui * 1.0e12, width)
+        height = 100
+        y_max = 1.1 * max(abs(np.array(self.chnl_out)))
+        eye_chnl = calc_eye(ui, samps_per_ui, height, self.chnl_out[ignore_samps:], y_max)
+        y_max = 1.1 * max(abs(np.array(self.rx_in)))
+        eye_tx = calc_eye(ui, samps_per_ui, height, self.rx_in[ignore_samps:], y_max)
+        y_max = 1.1 * max(abs(np.array(self.ctle_out)))
+        eye_ctle = calc_eye(ui, samps_per_ui, height, self.ctle_out[ignore_samps:], y_max)
+        i = 0
+        while clock_times[i] <= ignore_until:
+            i += 1
+            assert i < len(clock_times), "ERROR: Insufficient coverage in 'clock_times' vector."
+        y_max = 1.1 * max(abs(np.array(self.dfe_out)))
+        eye_dfe = calc_eye(ui, samps_per_ui, height, self.dfe_out, y_max, clock_times[i:])
+        self.update_data("eye_index", xs)
+        self.update_data("eye_chnl", eye_chnl)
+        self.update_data("eye_tx", eye_tx)
+        self.update_data("eye_ctle", eye_ctle)
+        self.update_data("eye_dfe", eye_dfe)
+
+    def update_eyes(self):
+        """
+        Update the heat plots representing the eye diagrams.
+
+        Args:
+            self(PyBERT): Reference to an instance of the *PyBERT* class.
+
+        """
+
+        ui = self.ui
+        samps_per_ui = self.nspui
+
+        width = 2 * samps_per_ui
+        height = 100
+        xs = np.linspace(-ui * 1.0e12, ui * 1.0e12, width)
+
+        y_max = 1.1 * max(abs(np.array(self.chnl_out)))
+        ys = np.linspace(-y_max, y_max, height)
+        self.eyes.components[0].components[0].index.set_data(xs, ys)
+        self.eyes.components[0].x_axis.mapper.range.low = xs[0]
+        self.eyes.components[0].x_axis.mapper.range.high = xs[-1]
+        self.eyes.components[0].y_axis.mapper.range.low = ys[0]
+        self.eyes.components[0].y_axis.mapper.range.high = ys[-1]
+        self.eyes.components[0].invalidate_draw()
+
+        y_max = 1.1 * max(abs(np.array(self.rx_in)))
+        ys = np.linspace(-y_max, y_max, height)
+        self.eyes.components[1].components[0].index.set_data(xs, ys)
+        self.eyes.components[1].x_axis.mapper.range.low = xs[0]
+        self.eyes.components[1].x_axis.mapper.range.high = xs[-1]
+        self.eyes.components[1].y_axis.mapper.range.low = ys[0]
+        self.eyes.components[1].y_axis.mapper.range.high = ys[-1]
+        self.eyes.components[1].invalidate_draw()
+
+        y_max = 1.1 * max(abs(np.array(self.dfe_out)))
+        ys = np.linspace(-y_max, y_max, height)
+        self.eyes.components[3].components[0].index.set_data(xs, ys)
+        self.eyes.components[3].x_axis.mapper.range.low = xs[0]
+        self.eyes.components[3].x_axis.mapper.range.high = xs[-1]
+        self.eyes.components[3].y_axis.mapper.range.low = ys[0]
+        self.eyes.components[3].y_axis.mapper.range.high = ys[-1]
+        self.eyes.components[3].invalidate_draw()
+
+        self.eyes.components[2].components[0].index.set_data(xs, ys)
+        self.eyes.components[2].x_axis.mapper.range.low = xs[0]
+        self.eyes.components[2].x_axis.mapper.range.high = xs[-1]
+        self.eyes.components[2].y_axis.mapper.range.low = ys[0]
+        self.eyes.components[2].y_axis.mapper.range.high = ys[-1]
+        self.eyes.components[2].invalidate_draw()
+
+        self.eyes.request_redraw()

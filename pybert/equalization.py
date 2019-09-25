@@ -5,6 +5,10 @@ from functools import lru_cache
 from threading import Event, Thread
 from time import sleep
 
+import numpy as np
+from numpy.fft import ifft
+from scipy.optimize import minimize, minimize_scalar
+
 from pybert.defaults import (
     ALPHA,
     BANDWIDTH,
@@ -26,7 +30,6 @@ from pybert.defaults import (
     USE_DFE,
 )
 from pybert.utility import get_tap_fir_numerator
-from scipy.optimize import minimize, minimize_scalar
 
 
 class StoppableThread(Thread):
@@ -239,6 +242,9 @@ class TxTapTuner:
 
 
 class CTLE_MODE(Enum):
+    """The different CTLE (Continuous Time Linear Equalizer) modes supported by PyBERT."""
+
+    # pylint: disable=C0103
     OFF = auto()
     PASSIVE = auto()
     AGC = auto()
@@ -303,10 +309,10 @@ class Equalization:
         self.rel_lock_tol = REL_LOCK_TOL  #: CDR relative tolerance to use in determining lock.
         self.lock_sustain = LOCK_SUSTAIN  #: CDR hysteresis to use in determining lock.
 
-        self.tx_h_tune = []
-        self.ctle_h_tune = []
-        self.ctle_out_h_tune = []
-        self._ffe = []
+        self.tx_h_tune = np.array([])
+        self.ctle_h_tune = np.array([])
+        self.ctle_out_h_tune = np.array([])
+        self._ffe = np.array([])
 
     def reset_equalization(self):
         """Reset the equalization to the last set values."""
@@ -390,7 +396,7 @@ class Equalization:
             for i in range(1, 4):
                 self.tx_taps[i].enabled = False
 
-    def toggle_tunded_dfe(self, new_value):
+    def toggle_tuned_dfe(self, new_value):
         """ Turn on/off the tuned DFE."""
         if not new_value:
             for i in range(1, 4):
@@ -405,16 +411,12 @@ class Equalization:
         """
         Generate the Tx pre-emphasis FIR numerator.
         """
-
         return get_tap_fir_numerator(self.tx_taps)
 
     @lru_cache(maxsize=None)
     def get_tx_h_tune(self, nspui):
-
         taps = get_tap_fir_numerator(self.tx_tap_tuners)
-
         h = sum([[x] + list(np.zeros(nspui - 1)) for x in taps], [])
-
         return h
 
     @lru_cache(maxsize=None)
@@ -428,15 +430,12 @@ class Equalization:
         _, H = make_ctle(rx_bw, peak_freq, peak_mag, w, mode, offset)
         h = np.real(ifft(H))[:len_h]
         h *= abs(H[0]) / sum(h)
-
         return h
 
     @lru_cache(maxsize=None)
     def get_ctle_out_h_tune(self, chnl_h):
         tx_h = self.tx_h_tune
         ctle_h = self.ctle_h_tune
-
         tx_out_h = np.convolve(tx_h, chnl_h)
         h = np.convolve(ctle_h, tx_out_h)
-
         return h

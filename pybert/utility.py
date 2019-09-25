@@ -6,9 +6,10 @@ Original date:   September 27, 2014 (Copied from pybert_cntrl.py.)
 
 Copyright (c) 2014 David Banas; all rights reserved World wide.
 """
+import re
+
 # pylint: disable=C0103
 from enum import Enum, auto
-import re
 from functools import reduce
 from logging import getLogger
 from pathlib import Path
@@ -20,6 +21,7 @@ from scipy.signal import freqs, get_window, invres
 
 class MODULATION(Enum):
     """The different modulation types supported by PyBERT."""
+
     NRZ = auto()
     DUO = auto()
     PAM4 = auto()

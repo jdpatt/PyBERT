@@ -4,6 +4,7 @@ from logging import getLogger
 
 import numpy as np
 from numpy.fft import fft, ifft
+
 from pybert.materials import MATERIALS
 from pybert.utility import calc_G, calc_gamma, import_channel, trim_impulse
 
@@ -112,4 +113,4 @@ class Channel:
         chnl_trimmed_H = chnl_trimmed_H
         t_ns_chnl = np.array(t[start_ix : start_ix + len(chnl_h)]) * 1.0e9
 
-        return chnl_dly, start_ix, t_ns_chnl, chnl_H, chnl_s, chnl_p
+        return chnl_dly, start_ix, t_ns_chnl, chnl_H, chnl_s, chnl_p, len_h
