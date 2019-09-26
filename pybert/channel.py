@@ -4,6 +4,7 @@ from logging import getLogger
 
 import numpy as np
 from numpy.fft import fft, ifft
+
 from pybert.materials import MATERIALS
 from pybert.utility import calc_G, calc_gamma, import_channel, trim_impulse
 
@@ -24,6 +25,12 @@ class Channel:
         )  #: Channel file name. "*.s4p", "*.S4P", "*.csv", "*.CSV", "*.txt", "*.TXT", "*.*"
         self.impulse_length = 0.0  #: Impulse response length. (Determined automatically, when 0.)
         self.material = MATERIALS["UTP_24Gauge"]
+
+    def change_material(self, new_material):
+        """Update the material properties of the channel."""
+        if new_material not in MATERIALS:
+            raise ValueError("Not a valid material choice.")
+        self.material = MATERIALS[new_material]
 
     @lru_cache(maxsize=None)
     def calc_chnl_h(self, t, nspui, w, tx, rx):

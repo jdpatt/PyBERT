@@ -7,6 +7,8 @@ from time import sleep
 
 import numpy as np
 from numpy.fft import ifft
+from scipy.optimize import minimize, minimize_scalar
+
 from pybert.defaults import (
     ALPHA,
     BANDWIDTH,
@@ -27,8 +29,7 @@ from pybert.defaults import (
     REL_LOCK_TOL,
     USE_DFE,
 )
-from pybert.utility import fir_numerator
-from scipy.optimize import minimize, minimize_scalar
+from pybert.utility import fir_numerator, CTLE_MODE, make_ctle
 
 
 class StoppableThread(Thread):
@@ -238,16 +239,6 @@ class TxTapTuner:
     max_val: float = 0.0
     value: float = 0.0
     steps: int = 0
-
-
-class CTLE_MODE(Enum):
-    """The different CTLE (Continuous Time Linear Equalizer) modes supported by PyBERT."""
-
-    # pylint: disable=C0103
-    OFF = auto()
-    PASSIVE = auto()
-    AGC = auto()
-    MANUAL = auto()
 
 
 class Equalization:

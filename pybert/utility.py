@@ -7,17 +7,27 @@ Original date:   September 27, 2014 (Copied from pybert_cntrl.py.)
 Copyright (c) 2014 David Banas; all rights reserved World wide.
 """
 import re
-from typing import List, Sequence
 
 # pylint: disable=C0103
 from enum import Enum, auto
 from functools import reduce
 from logging import getLogger
 from pathlib import Path
+from typing import List, Sequence
 
 import numpy as np
 import skrf as rf
 from scipy.signal import freqs, get_window, invres
+
+
+class CTLE_MODE(Enum):
+    """The different CTLE (Continuous Time Linear Equalizer) modes supported by PyBERT."""
+
+    # pylint: disable=C0103
+    OFF = auto()
+    PASSIVE = auto()
+    AGC = auto()
+    MANUAL = auto()
 
 
 class MODULATION(Enum):
@@ -363,7 +373,7 @@ def calc_eye(ui, samps_per_ui, height, ys, y_max, clock_times=None):
     return img_array
 
 
-def make_ctle(rx_bw, peak_freq, peak_mag, w, mode="Passive", dc_offset=0):
+def make_ctle(rx_bw, peak_freq, peak_mag, w, mode=CTLE_MODE.PASSIVE, dc_offset=0):
     """
     Generate the frequency response of a continuous time linear
     equalizer (CTLE), given the:
@@ -414,7 +424,7 @@ def make_ctle(rx_bw, peak_freq, peak_mag, w, mode="Passive", dc_offset=0):
 
     """
 
-    if mode == "Off":
+    if mode == CTLE_MODE.OFF:
         return (w, np.ones(len(w)))
 
     p2 = -2.0 * np.pi * rx_bw
@@ -429,9 +439,9 @@ def make_ctle(rx_bw, peak_freq, peak_mag, w, mode="Passive", dc_offset=0):
     b, a = invres([r1, r2], [p1, p2], [])
     w, H = freqs(b, a, w)
 
-    if mode == "Passive":
+    if mode == CTLE_MODE.PASSIVE:
         H /= max(abs(H))
-    elif mode in ("Manual", "AGC"):
+    elif mode in (CTLE_MODE.MANUAL, CTLE_MODE.AGC):
         H *= pow(10.0, dc_offset / 20.0) / abs(H[0])  # Enforce d.c. offset.
     else:
         raise RuntimeError(
@@ -529,14 +539,14 @@ def interp_time(ts, xs, sample_per):
 
 def import_time(filename, sample_per):
     """
-    Read in a time domain waveform file, resampling as
+    Read in a time domain waveform file, re-sampling as
     appropriate, via linear interpolation.
 
     Args:
         filename(str): Name of waveform file to read in.
         sample_per(float): New sample interval
 
-    Returns: Resampled waveform.
+    Returns: Re-sampled waveform.
     """
 
     # Read in original data from file.

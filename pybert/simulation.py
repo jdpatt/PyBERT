@@ -7,6 +7,9 @@ from time import clock
 import numpy as np
 from numpy.fft import fft, ifft
 from numpy.random import normal, randint
+from scipy.signal import iirfilter, lfilter
+from scipy.signal.windows import hann
+
 from pybert.buffer import Receiver, Transmitter
 from pybert.channel import Channel
 from pybert.defaults import (
@@ -30,8 +33,6 @@ from pybert.utility import (
     make_ctle,
     pulse_center,
 )
-from scipy.signal import iirfilter, lfilter
-from scipy.signal.windows import hann
 
 
 class RunSimThread(Thread):

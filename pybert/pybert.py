@@ -238,7 +238,7 @@ def setup_logger(debug: bool = False):
     file_handler.setLevel(logging.DEBUG)
     logger.addHandler(file_handler)
 
-    # Setup the Console Handler.  Only INFO or HIGH gets shown
+    # Setup the Console Handler.  Only INFO or HIGHER gets shown
     console_handler = logging.StreamHandler()
     ch_format = logging.Formatter("%(levelname)s - %(message)s")
     console_handler.setFormatter(ch_format)

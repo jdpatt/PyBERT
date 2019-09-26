@@ -1,8 +1,8 @@
 import numpy as np
 
 import pybert.utility as utility
-from pybert.equalization import TxTapTuner
 import pytest
+from pybert.equalization import TxTapTuner
 
 
 class Test_Utility:
