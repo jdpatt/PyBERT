@@ -1,16 +1,4 @@
 [submodule "PyAMI"]
 	path = PyAMI
-	url = https://github.com/jdpatt/PyAMI.git
-	branch = remove-traits
-[submodule "enable"]
-	path = enable
-	url = https://github.com/enthought/enable.git
-[submodule "chaco"]
-	path = chaco
-	url = https://github.com/enthought/chaco.git
-[submodule "parsec.py"]
-	path = parsec.py
-	url = https://github.com/sighingnow/parsec.py.git
-[submodule "fonttools"]
-	path = fonttools
-	url = https://github.com/fonttools/fonttools.git
+	url = git@github.com:jdpatt/PyAMI.git
+	branch = remote-traits
