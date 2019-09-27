@@ -4,12 +4,13 @@ PyBERT is a serial communication link bit error rate tester simulator with a gra
 
 Notice: Before using this package for any purpose, you MUST read and understand the terms put forward in the accompanying "LICENSE" file.
 
+![Screen shot](screen_shot.png)
+
 ## Installation
 - <https://github.com/capn-freako/PyBERT/wiki/instant_gratification>
 
 ## Testing
-Tox is used for linting and the documentation builder.  By default, it runs the following
-environments: _pylint_, _flake8_ and _docs_.  It will skip any missing python versions.
+Tox is used for testing, linting and building the documentation.
 * `pip install tox` or `conda install tox`
 * `tox`
 

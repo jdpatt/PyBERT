@@ -10,6 +10,8 @@ simulation configuration data of a PyBERT instance.
 
 Copyright (c) 2017 by David Banas; All rights reserved World wide.
 """
+# pylint: skip-file
+
 
 import yaml
 

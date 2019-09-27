@@ -1,26 +1,26 @@
 """A serDes channel consists of a driver, a channel and a receiver."""
-from functools import lru_cache
-from logging import getLogger
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Union
 
-from pybert.materials import MATERIALS
+from pybert.materials import MATERIALS, Materials
 
 
+@dataclass
 class Channel:
     """docstring for Channel"""
 
-    def __init__(self):
-        super(Channel, self).__init__()
-        self.log = getLogger("pybert.channel")
-        self.log.debug("Initializing Channel")
-        self.use_ch_file: bool = False  #: Import channel description from file? (Default = False)
-        self.padded: bool = False  #: Zero pad imported Touchstone data? (Default = False)
-        self.windowed: bool = False  #: Apply windowing to the Touchstone data? (Default = False)
-        self.f_step = 10.0  #: Frequency step to use when constructing H(f). (Default = 10 MHz)
-        self.ch_file = (
-            None
-        )  #: Channel file name. "*.s4p", "*.S4P", "*.csv", "*.CSV", "*.txt", "*.TXT", "*.*"
-        self.impulse_length = 0.0  #: Impulse response length. (Determined automatically, when 0.)
-        self.material = MATERIALS["UTP_24Gauge"]
+    use_ch_file: bool = False  # Import channel description from file?
+    padded: bool = False  # Zero pad imported Touchstone data?
+    windowed: bool = False  # Apply windowing to the Touchstone data?
+    f_step: float = 10.0  # Frequency step to use when constructing H(f). (MHz)
+    filename: Union[
+        Path, None
+    ] = None  # "*.s4p", "*.S4P", "*.csv", "*.CSV", "*.txt", "*.TXT", "*.*"
+    impulse_length: float = 0.0  # Impulse response length. (Determined automatically, when 0.)
+    material: Materials = MATERIALS["UTP_24Gauge"]
+
+    chnl_dly: float = 0.0
 
     def change_material(self, new_material):
         """Update the material properties of the channel."""

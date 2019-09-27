@@ -1,6 +1,5 @@
 """Module to handle all of the equalization features of pybert."""
 from dataclasses import dataclass
-from enum import Enum, auto
 from functools import lru_cache
 from time import sleep
 
@@ -28,8 +27,7 @@ from pybert.defaults import (
     REL_LOCK_TOL,
     USE_DFE,
 )
-
-from pybert.utility import fir_numerator, CTLE_MODE, make_ctle, StoppableThread
+from pybert.utility import CTLE_MODE, StoppableThread, fir_numerator, make_ctle
 
 
 class TxOptThread(StoppableThread):

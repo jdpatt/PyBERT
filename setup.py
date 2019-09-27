@@ -19,18 +19,8 @@ setup(
     url="https://github.com/capn-freako/PyBERT/wiki",
     author="David Banas",
     author_email="capn.freako@gmail.com",
-    install_requires=[
-        "kiwisolver",
-        "numpy",
-        "scikit-rf",
-        "scipy",
-        "PyIBIS-AMI>=3.0.0",
-    ],
-    entry_points={
-        "console_scripts": [
-            "pybert = pybert.pybert:main",
-        ]
-    },
+    install_requires=["kiwisolver", "numpy", "scikit-rf", "scipy", "PyIBIS-AMI>=3.0.0"],
+    entry_points={"console_scripts": ["pybert = pybert.pybert:main"]},
     keywords=["bert", "communication", "simulator"],
     classifiers=[
         "Development Status :: 3 - Alpha",
@@ -50,6 +40,6 @@ setup(
         "Topic :: Scientific/Engineering :: Visualization",
         "Topic :: System :: Emulators",
         "Topic :: System :: Networking",
-        "Topic :: Utilities"
+        "Topic :: Utilities",
     ],
 )

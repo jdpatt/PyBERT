@@ -25,24 +25,23 @@ from pybert.equalization import Equalization
 from pybert.jitter import Jitter
 from pybert.plot import Plots
 from pybert.utility import (
+    MODULATION,
+    StoppableThread,
     calc_G,
     calc_gamma,
-    import_channel,
-    trim_impulse,
-    MODULATION,
     find_crossings,
     import_channel,
     lfsr_bits,
     make_ctle,
     pulse_center,
-    StoppableThread,
+    trim_impulse,
 )
 
 
 class RunSimThread(StoppableThread):
     """Used to run the simulation in its own thread, in order to preserve GUI responsiveness."""
 
-    def run(self, sim):
+    def run(self):
         """Run the simulation(s)."""
         sim.run_simulation_sweeps()
 
@@ -153,6 +152,14 @@ class Simulation:
         self._dfe_out_p = []
         self._przf_err: float = 0.0
 
+        self.chnl_dly = np.array([])
+        self.start_ix = np.array([])
+        self.t_ns_chnl = np.array([])
+        self.chnl_H = np.array([])
+        self.chnl_s = np.array([])
+        self.chnl_p = np.array([])
+        self.len_h = np.array([])
+
         self.run_sim_thread = None
 
     def run(self):
@@ -207,7 +214,7 @@ class Simulation:
         Calculate the system time vector, in ns.
         """
 
-        return self._t * 1.0e9
+        return self.t * 1.0e9
 
     @property
     @lru_cache(maxsize=None)
@@ -416,7 +423,7 @@ class Simulation:
     @property
     @lru_cache(maxsize=None)
     def przf_err(self):
-        p = self.dfe_out_p
+        p = self.results["dfe"]["out_p"]
         nspui = self.nspui
         n_taps = self.eq.n_taps
 
@@ -447,13 +454,15 @@ class Simulation:
              channel pulse response
 
         """
-
+        t = self.t
+        w = self.w
+        nspui = self.nspui
         ts = t[1]
         impulse_length = self.channel.impulse_length * 1.0e-9
 
         if self.channel.use_ch_file:
             chnl_h = import_channel(
-                self.channel.ch_file, ts, self.channel.padded, self.channel.windowed
+                self.channel.filename, ts, self.channel.padded, self.channel.windowed
             )
             if chnl_h[-1] > (max(chnl_h) / 2.0):  # step response?
                 chnl_h = np.diff(chnl_h)  # impulse response is derivative of step response.
@@ -511,9 +520,9 @@ class Simulation:
         chnl_s = chnl_h.cumsum()
         chnl_p = chnl_s - np.pad(chnl_s[:-nspui], (nspui, 0), "constant", constant_values=(0, 0))
 
-        chnl_h = chnl_h
+        self.chnl_h = chnl_h
         len_h = len(chnl_h)
-        chnl_trimmed_H = chnl_trimmed_H
+        self.chnl_trimmed_H = chnl_trimmed_H
         t_ns_chnl = np.array(t[start_ix : start_ix + len(chnl_h)]) * 1.0e9
 
         self.chnl_dly = chnl_dly
@@ -667,9 +676,9 @@ class Simulation:
             # Note: We're not using 'self.ideal_signal', because we rely on the system response to
             #       create the duobinary waveform. We only create it explicitly, above,
             #       so that we'll have an ideal reference for comparison.
-            chnl_h = self.channel.calc_chnl_h(self.t, self.nspui, self.w, self.tx, self.rx)
-            self.log.debug("Channel impulse response is %d samples long.", len(chnl_h))
-            chnl_out = np.convolve(self.x, chnl_h)[: len(t)]
+            self.calc_chnl_h()
+            self.log.debug("Channel impulse response is %d samples long.", len(self.chnl_h))
+            chnl_out = np.convolve(self.x, self.chnl_h)[: len(t)]
 
             self.performance["channel"] = nbits * nspb / (clock() - start_time)
             split_time = clock()
@@ -689,13 +698,13 @@ class Simulation:
 
                     self.log.info("Tx IBIS-AMI Model Initializing...")
                     tx_model = self.tx.initialize_model(
-                        ts, [1.0 / ts] + [0.0] * (len(chnl_h) - 1), ui
+                        ts, [1.0 / ts] + [0.0] * (len(self.chnl_h) - 1), ui
                     )
                     tx_h = np.array(tx_model.initOut) * ts
-                except ValueError as error:
+                except ValueError:
                     self.status = "Simulation Error."
                     raise
-                except TypeError as error:
+                except TypeError:
                     self.status = "Simulation Error."
                     raise
                 if self.tx.use_getwave:
@@ -703,7 +712,7 @@ class Simulation:
                     # Position the input edge at the center of the vector, in
                     # order to minimize high frequency artifactual energy
                     # introduced by frequency domain processing in some models.
-                    half_len = len(chnl_h) // 2
+                    half_len = len(self.chnl_h) // 2
                     tx_s = tx_model.getWave(np.array([0.0] * half_len + [1.0] * half_len))
                     # Shift the result back to the correct location, extending the last sample.
                     tx_s = np.pad(tx_s[half_len:], (0, half_len), "edge")
@@ -730,7 +739,7 @@ class Simulation:
                 tx_h = np.array(
                     sum([[x] + list(np.zeros(nspui - 1)) for x in ffe], [])
                 )  # Using sum to concatenate.
-                tx_h.resize(len(chnl_h))
+                tx_h.resize(len(self.chnl_h))
                 tx_s = tx_h.cumsum()
             tx_out.resize(len(t))
             temp = tx_h.copy()
@@ -754,17 +763,19 @@ class Simulation:
             tx_out += normal(scale=rn, size=(len(tx_out),))
 
             # - Convolve w/ channel.
-            tx_out_h = np.convolve(tx_h, chnl_h)[: len(chnl_h)]
+            tx_out_h = np.convolve(tx_h, self.chnl_h)[: len(self.chnl_h)]
             temp = tx_out_h.copy()
             temp.resize(len(w))
             tx_out_H = fft(temp)
-            rx_in = np.convolve(tx_out, chnl_h)[: len(tx_out)]
+            rx_in = np.convolve(tx_out, self.chnl_h)[: len(tx_out)]
 
             self.results["tx"]["s"] = tx_s
             self.results["tx"]["out"] = tx_out
             self.rx_in = rx_in
             self.results["tx"]["out_s"] = tx_out_h.cumsum()
-            self.results["tx"]["out_p"] = self.tx_out_s[nspui:] - self.tx_out_s[:-nspui]
+            self.results["tx"]["out_p"] = (
+                self.results["tx"]["out_s"][nspui:] - self.results["tx"]["out_s"][:-nspui]
+            )
             self.results["tx"]["H"] = tx_H
             self.results["tx"]["h"] = tx_h
             self.results["tx"]["out_H"] = tx_out_H
@@ -784,10 +795,10 @@ class Simulation:
                     self.log.info("Rx IBIS-AMI Model Initializing...")
                     rx_model = self.rx.initialize_model(ts, tx_out_h / ts, ui)
                     ctle_out_h = np.array(rx_model.initOut) * ts
-                except ValueError as error:
+                except ValueError:
                     self.status = "Simulation Error."
                     raise
-                except TypeError as error:
+                except TypeError:
                     self.status = "Simulation Error."
                     raise
                 if self.rx.use_getwave:
@@ -795,8 +806,8 @@ class Simulation:
                     self.log.info(rx_model.ami_params_out)
 
                     ctle_H = fft(ctle_out * hann(len(ctle_out))) / fft(rx_in * hann(len(rx_in)))
-                    ctle_h = np.real(ifft(ctle_H)[: len(chnl_h)])
-                    ctle_out_h = np.convolve(ctle_h, tx_out_h)[: len(chnl_h)]
+                    ctle_h = np.real(ifft(ctle_H)[: len(self.chnl_h)])
+                    ctle_out_h = np.convolve(ctle_h, tx_out_h)[: len(self.chnl_h)]
                 else:  # Init() only.
                     ctle_out_h_padded = np.pad(
                         ctle_out_h,
@@ -811,7 +822,7 @@ class Simulation:
                         end_values=(0.0, 0.0),
                     )
                     ctle_H = fft(ctle_out_h_padded) / fft(tx_out_h_padded)
-                    ctle_h = np.real(ifft(ctle_H)[: len(chnl_h)])
+                    ctle_h = np.real(ifft(ctle_H)[: len(self.chnl_h)])
                     ctle_out = np.convolve(rx_in, ctle_h)
                 ctle_s = ctle_h.cumsum()
             else:
@@ -828,7 +839,7 @@ class Simulation:
                     ctle_H *= sum(ctle_h) / ctle_H[0]
                 else:
                     _, ctle_H = make_ctle(rx_bw, peak_freq, peak_mag, w, ctle_mode, ctle_offset)
-                    ctle_h = np.real(ifft(ctle_H))[: len(chnl_h)]
+                    ctle_h = np.real(ifft(ctle_H))[: len(self.chnl_h)]
                     ctle_h *= abs(ctle_H[0]) / sum(ctle_h)
                 ctle_out = np.convolve(rx_in, ctle_h)
                 ctle_out -= np.mean(ctle_out)  # Force zero mean.
@@ -842,7 +853,7 @@ class Simulation:
             if ctle_out_h_main_lobe.size:
                 conv_dly_ix = ctle_out_h_main_lobe[0]
             else:
-                conv_dly_ix = self.channel.chnl_dly / Ts
+                conv_dly_ix = self.chnl_dly / Ts
             conv_dly = t[conv_dly_ix]
             ctle_out_s = ctle_out_h.cumsum()
             temp = ctle_out_h.copy()
@@ -851,7 +862,7 @@ class Simulation:
             # - Store local variables to class instance.
             self.results["ctle"]["out_s"] = ctle_out_s
             # Consider changing this; it could be sensitive to insufficient "front porch" in the CTLE output step response.
-            self.results["ctle"]["out_p"] = self.ctle_out_s[nspui:] - self.ctle_out_s[:-nspui]
+            self.results["ctle"]["out_p"] = ctle_out_s[nspui:] - ctle_out_s[:-nspui]
             self.results["ctle"]["H"] = ctle_H
             self.results["ctle"]["h"] = ctle_h
             self.results["ctle"]["out_H"] = ctle_out_H

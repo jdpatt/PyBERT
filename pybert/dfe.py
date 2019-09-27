@@ -16,6 +16,7 @@ from scipy.signal import iirfilter
 
 from pybert.cdr import CDR
 from pybert.defaults import SUM_NUM_TAPS
+from pybert.utility import MODULATION
 
 
 class LfilterSS:
@@ -74,7 +75,7 @@ class DFE:
         unit_interval,
         n_spb,
         decision_scaler,
-        mod_type=0,
+        mod_type=MODULATION.NRZ,
         bandwidth=100.0e9,
         n_ave=10,
         n_lock_ave=500,
@@ -120,7 +121,7 @@ class DFE:
 
           - rel_lock_tol     The relative tolerance for determining lock.
 
-          - lock_sustain     Length of the histerysis vector used for
+          - lock_sustain     Length of the hysteresis vector used for
                              lock flagging.
 
           - ideal            Boolean flag. When true, use an ideal summing node.
@@ -147,12 +148,12 @@ class DFE:
         self.ideal = ideal
 
         thresholds = []
-        if mod_type == 0:  # NRZ
+        if mod_type == MODULATION.NRZ:
             pass
-        elif mod_type == 1:  # Duo-binary
+        elif mod_type == MODULATION.DUO:
             thresholds.append(-decision_scaler / 2.0)
             thresholds.append(decision_scaler / 2.0)
-        elif mod_type == 2:  # PAM-4
+        elif mod_type == MODULATION.PAM4:
             thresholds.append(-decision_scaler * 2.0 / 3.0)
             thresholds.append(0.0)
             thresholds.append(decision_scaler * 2.0 / 3.0)
@@ -233,20 +234,20 @@ class DFE:
 
         mod_type = self.mod_type
 
-        if mod_type == 0:  # NRZ
+        if mod_type == MODULATION.NRZ:
             decision = sign(x)
             if decision > 0:
                 bits = [1]
             else:
                 bits = [0]
-        elif mod_type == 1:  # Duo-binary
+        elif mod_type == MODULATION.DUO:
             if (x > self.thresholds[0]) ^ (x > self.thresholds[1]):
                 decision = 0
                 bits = [1]
             else:
                 decision = sign(x)
                 bits = [0]
-        elif mod_type == 2:  # PAM-4
+        elif mod_type == MODULATION.PAM4:
             if x > self.thresholds[2]:
                 decision = 1
                 bits = [1, 1]
@@ -342,16 +343,16 @@ class DFE:
                 clocks[smpl_cntr] = 1
                 current_clock_sample = sum_out
                 samples = [last_clock_sample, boundary_sample, current_clock_sample]
-                if mod_type == 0:  # NRZ
+                if mod_type == MODULATION.NRZ:
                     pass
-                elif mod_type == 1:  # Duo-binary
+                elif mod_type == MODULATION.DUO:
                     samples = array(samples)
                     if samples.mean() < 0.0:
                         samples -= thresholds[0]
                     else:
                         samples -= thresholds[1]
                     samples = list(samples)
-                elif mod_type == 2:  # PAM-4
+                elif mod_type == MODULATION.PAM4:
                     pass
                 else:
                     raise Exception("ERROR: DFE.run(): Unrecognized modulation type!")

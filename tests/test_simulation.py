@@ -37,13 +37,15 @@ class Test_Simulation:
         sim.bit_rate = 0.000_000_001
         sim.nspb = 1  # One samples per UI
         sim.nbits = 4  # Only generate 4 bits instead of 8000
-        np.testing.assert_array_equal(sim.f, [0.00e9, 1.0e9, 2.0e9, 3.0e9])
+        np.testing.assert_array_equal(sim.f, [0.0, 0.25, 0.5, -0.25])
 
     def test_get_freq_vector_in_rads(self, sim):
         sim.bit_rate = 0.000_000_001
         sim.nspb = 1  # One samples per UI
         sim.nbits = 4  # Only generate 4 bits instead of 8000
-        np.testing.assert_array_equal(sim.w, [0.00e9, 1.0e9, 2.0e9, 3.0e9])
+        np.testing.assert_array_equal(
+            sim.w, [0, 1.5707963267948966, 3.141592653589793, -1.5707963267948966]
+        )
 
     def test_unit_interval(self, sim):
         """For 10Gbps, we should get a 1e-10 UI."""

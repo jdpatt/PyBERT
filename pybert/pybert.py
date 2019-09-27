@@ -36,7 +36,8 @@ from pybert.static import (
     status_string,
     sweep_results_menu,
 )
-from pybert.view import popup_alert
+
+# from pybert.view import popup_alert
 
 # from pybert.waveform_data import WaveformData
 

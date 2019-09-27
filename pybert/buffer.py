@@ -95,11 +95,19 @@ class Buffer:
 
 
 class FailedAMILoad(Exception):
-    pass
+    """Raised when something goes wrong with the AMI file.
+
+    The original exception is logged but not raised so that the TypeError and ValueError
+    can be caught independently by pybert.
+    """
 
 
 class FailledDLLLoad(Exception):
-    pass
+    """Raised when something goes wrong with the DLL file.
+
+    The original exception is logged but not raised so that the TypeError and ValueError
+    can be caught independently by pybert.
+    """
 
 
 class Transmitter(Buffer):

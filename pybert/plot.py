@@ -7,6 +7,8 @@ Original date:   February 21, 2015 (Copied from pybert.py, as part of a major co
 
 Copyright (c) 2015 David Banas; all rights reserved World wide.
 """
+# pylint: skip-file
+
 from logging import getLogger
 
 import numpy as np

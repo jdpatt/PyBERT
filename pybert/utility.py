@@ -17,8 +17,9 @@ from threading import Event, Thread
 from typing import List, Sequence
 
 import numpy as np
-import skrf as rf
 from scipy.signal import freqs, get_window, invres
+
+import skrf as rf
 
 
 class CTLE_MODE(Enum):

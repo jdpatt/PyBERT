@@ -7,24 +7,12 @@ Original date:   August 24, 2014 (Copied from pybert.py, as part of a major code
 
 Copyright (c) 2014 David Banas; all rights reserved World wide.
 """
+# pylint: skip-file
+
 import logging
 import traceback
 
-from enable.component_editor import ComponentEditor
 from pybert.defaults import DEBUG
-from pyface.image_resource import ImageResource
-from traitsui.api import (
-    CheckListEditor,
-    Group,
-    HGroup,
-    Item,
-    ObjectColumn,
-    TableEditor,
-    TextEditor,
-    VGroup,
-    View,
-)
-from traitsui.message import message
 
 # Main window layout definition.
 TRAITS_VIEW = View(
