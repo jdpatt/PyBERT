@@ -24,7 +24,7 @@ setup(
         "numpy",
         "scikit-rf",
         "scipy",
-        # "PyIBIS-AMI>=3.0.0",
+        "PyIBIS-AMI>=3.0.0",
     ],
     entry_points={
         "console_scripts": [

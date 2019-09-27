@@ -2,9 +2,6 @@
 
 PyBERT is a serial communication link bit error rate tester simulator with a graphical user interface (GUI).
 
-It uses the Traits/UI package of the Enthought Python Distribution (EPD) <http://www.enthought.com/products/epd.php>,
-as well as the NumPy and SciPy packages.
-
 Notice: Before using this package for any purpose, you MUST read and understand the terms put forward in the accompanying "LICENSE" file.
 
 ## Installation
@@ -16,10 +13,7 @@ environments: _pylint_, _flake8_ and _docs_.  It will skip any missing python ve
 * `pip install tox` or `conda install tox`
 * `tox`
 
-To run a single environment such as "docs" run: `tox -e docs`
-
-Testing is now run with `make tests` or `py.test -vv --cov=pybert --cov-report=html --cov-report=term-missing tests/`
-so that we don't have to fight tox/conda.
+To run a single environment such as "docs" run: `tox -e docs`.  You can list all the envs with `tox --listenvs-all`
 
 ## Documentation
 PyBERT documentation exists in 2 separate forms:
