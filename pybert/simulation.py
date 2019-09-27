@@ -1,7 +1,6 @@
 """Where all the magic happens."""
 from functools import lru_cache
 from logging import getLogger
-from threading import Thread
 from time import clock
 
 import numpy as np
@@ -26,21 +25,26 @@ from pybert.equalization import Equalization
 from pybert.jitter import Jitter
 from pybert.plot import Plots
 from pybert.utility import (
+    calc_G,
+    calc_gamma,
+    import_channel,
+    trim_impulse,
     MODULATION,
     find_crossings,
     import_channel,
     lfsr_bits,
     make_ctle,
     pulse_center,
+    StoppableThread,
 )
 
 
-class RunSimThread(Thread):
+class RunSimThread(StoppableThread):
     """Used to run the simulation in its own thread, in order to preserve GUI responsiveness."""
 
-    def run(self):
+    def run(self, sim):
         """Run the simulation(s)."""
-        self.my_run_sweeps(self.the_pybert)
+        sim.run_simulation_sweeps()
 
 
 class Simulation:
@@ -149,11 +153,11 @@ class Simulation:
         self._dfe_out_p = []
         self._przf_err: float = 0.0
 
-        self.run_sim_thread = RunSimThread
+        self.run_sim_thread = None
 
     def run(self):
         """Spawn a simulation thread and run with the current settings."""
-        if self.run_sim_thread and self.run_sim_thread.isAlive():
+        if self.run_sim_thread and self.run_sim_thread.is_alive():
             pass
         else:
             self.run_sim_thread = RunSimThread()
@@ -163,7 +167,7 @@ class Simulation:
 
     def abort(self):
         """Kill the simulation thread."""
-        if self.run_sim_thread and self.run_sim_thread.isAlive():
+        if self.run_sim_thread and self.run_sim_thread.is_alive():
             self.run_sim_thread.stop()
             self.log.warning("Simulation Aborted")
 
@@ -269,10 +273,7 @@ class Simulation:
         """
         Returns the "unit interval" (i.e. - the nominal time span of each symbol moving through the channel).
         """
-
-        bit_rate = self.bit_rate * 1.0e9
-
-        ui = 1.0 / bit_rate
+        ui = 1.0 / (self.bit_rate * 1.0e9)
         if self.mod_type == MODULATION.PAM4:
             ui *= 2.0
 
@@ -426,7 +427,104 @@ class Simulation:
 
         return err / p[clock_pos] ** 2
 
-    def my_run_sweeps(self):
+    @lru_cache(maxsize=None)
+    def calc_chnl_h(self):
+        """
+        Calculates the channel impulse response.
+
+        Also sets, in 'self':
+         - chnl_dly:
+             group delay of channel
+         - start_ix:
+             first element of trimmed response
+         - t_ns_chnl:
+             the x-values, in ns, for plotting 'chnl_h'
+         - chnl_H:
+             channel frequency response
+         - chnl_s:
+             channel step response
+         - chnl_p:
+             channel pulse response
+
+        """
+
+        ts = t[1]
+        impulse_length = self.channel.impulse_length * 1.0e-9
+
+        if self.channel.use_ch_file:
+            chnl_h = import_channel(
+                self.channel.ch_file, ts, self.channel.padded, self.channel.windowed
+            )
+            if chnl_h[-1] > (max(chnl_h) / 2.0):  # step response?
+                chnl_h = np.diff(chnl_h)  # impulse response is derivative of step response.
+            chnl_h /= sum(chnl_h)  # Normalize d.c. to one.
+            chnl_dly = t[np.where(chnl_h == max(chnl_h))[0][0]]
+            chnl_h.resize(len(t))
+            chnl_H = fft(chnl_h)
+        else:
+            l_ch = self.channel.material.channel_length
+            rel_velocity = self.channel.material.rel_velocity * 3.0e8
+            skin_effect_resistance = self.channel.material.skin_effect_resistance
+            w_transition_freq = self.channel.material.w_transition_freq
+            dc_resistance_per_meter = self.channel.material.dc_resistance_per_meter
+            characteristic_impedance = self.channel.material.characteristic_impedance
+            loss_tangent = self.channel.material.loss_tangent
+            output_impedance = self.tx.output_impedance
+            output_capacitance = self.tx.output_capacitance * 1.0e-12
+            input_impedance = self.rx.input_impedance
+            input_capacitance = self.rx.input_capacitance * 1.0e-12
+            CL = self.rx.cac * 1.0e-6
+
+            chnl_dly = l_ch / rel_velocity
+            gamma, Zc = calc_gamma(
+                skin_effect_resistance,
+                w_transition_freq,
+                dc_resistance_per_meter,
+                characteristic_impedance,
+                rel_velocity,
+                loss_tangent,
+                w,
+            )
+            H = np.exp(-l_ch * gamma)
+            chnl_H = 2.0 * calc_G(
+                H,
+                output_impedance,
+                output_capacitance,
+                Zc,
+                input_impedance,
+                input_capacitance,
+                CL,
+                w,
+            )  # Compensating for nominal /2 divider action.
+            chnl_h = np.real(ifft(chnl_H))
+
+        min_len = 10 * nspui
+        max_len = 100 * nspui
+        if impulse_length:
+            min_len = max_len = impulse_length / ts
+        chnl_h, start_ix = trim_impulse(chnl_h, min_len=min_len, max_len=max_len)
+        chnl_h /= sum(chnl_h)  # a temporary crutch.
+        temp = chnl_h.copy()
+        temp.resize(len(t))
+        chnl_trimmed_H = fft(temp)
+
+        chnl_s = chnl_h.cumsum()
+        chnl_p = chnl_s - np.pad(chnl_s[:-nspui], (nspui, 0), "constant", constant_values=(0, 0))
+
+        chnl_h = chnl_h
+        len_h = len(chnl_h)
+        chnl_trimmed_H = chnl_trimmed_H
+        t_ns_chnl = np.array(t[start_ix : start_ix + len(chnl_h)]) * 1.0e9
+
+        self.chnl_dly = chnl_dly
+        self.start_ix = start_ix
+        self.t_ns_chnl = t_ns_chnl
+        self.chnl_H = chnl_H
+        self.chnl_s = chnl_s
+        self.chnl_p = chnl_p
+        self.len_h = len_h
+
+    def run_simulation_sweeps(self):
         """
         Runs the simulation sweeps.
 
@@ -476,15 +574,15 @@ class Simulation:
                 bit_errs = []
                 for i in range(sweep_aves):
                     self.sweep_num = sweep_num
-                    self.my_run_simulation(update_plots=False)
+                    self.run_simulation(update_plots=False)
                     bit_errs.append(self.bit_errors)
                     sweep_num += 1
                 sweep_results.append((sweep, np.mean(bit_errs), np.std(bit_errs)))
             self.sweep_results = sweep_results
         else:
-            self.my_run_simulation()
+            self.run_simulation()
 
-    def my_run_simulation(self, initial_run=False, update_plots=True):
+    def run_simulation(self, initial_run=False, update_plots=True):
         """
         Runs the simulation.
 
@@ -588,6 +686,8 @@ class Simulation:
             if self.tx.use_ami:
                 try:
                     # Start with a delta function, to capture the model's impulse response.
+
+                    self.log.info("Tx IBIS-AMI Model Initializing...")
                     tx_model = self.tx.initialize_model(
                         ts, [1.0 / ts] + [0.0] * (len(chnl_h) - 1), ui
                     )
@@ -681,6 +781,7 @@ class Simulation:
         try:
             if self.rx.use_ami:
                 try:
+                    self.log.info("Rx IBIS-AMI Model Initializing...")
                     rx_model = self.rx.initialize_model(ts, tx_out_h / ts, ui)
                     ctle_out_h = np.array(rx_model.initOut) * ts
                 except ValueError as error:
@@ -924,7 +1025,7 @@ class Simulation:
         # -------------------------------------------------------------------------------------------
         try:
             if update_plots:
-                self.plots.update_results(self.results)
+                self.plots.update_results(self.results, self.jitter)
                 if not initial_run:
                     self.plots.update_eyes(self.results)
 

@@ -2,7 +2,6 @@
 from dataclasses import dataclass
 from enum import Enum, auto
 from functools import lru_cache
-from threading import Event, Thread
 from time import sleep
 
 import numpy as np
@@ -29,31 +28,8 @@ from pybert.defaults import (
     REL_LOCK_TOL,
     USE_DFE,
 )
-from pybert.utility import fir_numerator, CTLE_MODE, make_ctle
 
-
-class StoppableThread(Thread):
-    """
-    Thread class with a stop() method.
-
-    The thread itself has to check regularly for the stopped() condition.
-
-    All PyBERT thread classes are subclasses of this class.
-    """
-
-    def __init__(self):
-        super(StoppableThread, self).__init__()
-        self._stop_event = Event()
-
-    def stop(self):
-        """Called by thread invoker, when thread should be stopped prematurely."""
-        self._stop_event.set()
-
-    def stopped(self):
-        """Should be called by thread (i.e. - subclass) periodically and, if this function
-        returns True, thread should clean itself up and quit ASAP.
-        """
-        return self._stop_event.is_set()
+from pybert.utility import fir_numerator, CTLE_MODE, make_ctle, StoppableThread
 
 
 class TxOptThread(StoppableThread):
@@ -221,10 +197,10 @@ class CoOptThread(StoppableThread):
         pybert = self.pybert
         pybert.peak_mag_tune = peak_mag
         if any([pybert.tx_tap_tuners[i].enabled for i in range(len(pybert.tx_tap_tuners))]):
-            while pybert.tx_opt_thread and pybert.tx_opt_thread.isAlive():
+            while pybert.tx_opt_thread and pybert.tx_opt_thread.is_alive():
                 sleep(0.001)
             pybert._do_opt_tx(update_status=False)
-            while pybert.tx_opt_thread and pybert.tx_opt_thread.isAlive():
+            while pybert.tx_opt_thread and pybert.tx_opt_thread.is_alive():
                 sleep(0.001)
         return pybert.cost
 
@@ -334,7 +310,7 @@ class Equalization:
         """Kick off the tx optimization thread if its not already running."""
         if (
             self.tx_opt_thread
-            and self.tx_opt_thread.isAlive()
+            and self.tx_opt_thread.is_alive()
             or not any([self.tx_tap_tuners[i].enabled for i in range(len(self.tx_tap_tuners))])
         ):
             pass
@@ -349,7 +325,7 @@ class Equalization:
 
     def run_rx_optimization(self):
         """Kick off the rx optimization thread if its not already running."""
-        if self.rx_opt_thread and self.rx_opt_thread.isAlive() or self.ctle_mode_tune == "Off":
+        if self.rx_opt_thread and self.rx_opt_thread.is_alive() or self.ctle_mode_tune == "Off":
             pass
         else:
             self.rx_opt_thread = RxOptThread()
@@ -358,7 +334,7 @@ class Equalization:
 
     def run_co_optimization(self):
         """Kick off the co-optimization between Tx and Rx thread if its not already running."""
-        if self.coopt_thread and self.coopt_thread.isAlive():
+        if self.coopt_thread and self.coopt_thread.is_alive():
             pass
         else:
             self.coopt_thread = CoOptThread()
@@ -367,13 +343,13 @@ class Equalization:
 
     def abort_optimization(self):
         """Halt all optimization threads."""
-        if self.coopt_thread and self.coopt_thread.isAlive():
+        if self.coopt_thread and self.coopt_thread.is_alive():
             self.coopt_thread.stop()
             self.coopt_thread.join(10)
-        if self.tx_opt_thread and self.tx_opt_thread.isAlive():
+        if self.tx_opt_thread and self.tx_opt_thread.is_alive():
             self.tx_opt_thread.stop()
             self.tx_opt_thread.join(10)
-        if self.rx_opt_thread and self.rx_opt_thread.isAlive():
+        if self.rx_opt_thread and self.rx_opt_thread.is_alive():
             self.rx_opt_thread.stop()
             self.rx_opt_thread.join(10)
 

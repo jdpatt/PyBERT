@@ -1,5 +1,7 @@
-import numpy as np
+import time
 
+import numpy as np
+from pybert.utility import StoppableThread
 import pybert.utility as utility
 import pytest
 from pybert.equalization import TxTapTuner
@@ -88,3 +90,20 @@ class Test_Utility:
             0,
             1,
         ]
+
+
+class TestStoppableThread:
+    def test_that_we_can_kill_a_thread(self):
+        class OurThread(StoppableThread):
+            def run(self):
+                """Do something for awhile."""
+                for _ in range(1_000_000):
+                    time.sleep(1)
+
+        test_thread = OurThread()
+        test_thread.start()
+        time.sleep(1)
+        assert test_thread.is_alive()
+        test_thread.stop()
+        time.sleep(1)
+        assert test_thread.stopped()

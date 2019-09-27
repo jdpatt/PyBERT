@@ -1,7 +1,7 @@
 .PHONY: tox clean test tests lint etags conda-build conda-skeleton chaco enable pyibis-ami pybert
 
 tox:
-	tox
+	tox --parallel all
 
 lint:
 	tox -e pylint

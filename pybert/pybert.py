@@ -105,7 +105,7 @@ class PyBERT:
         try:
             if run_simulation:
                 # Running the simulation will fill in the required data structure.
-                self.sim.my_run_simulation(initial_run=True)
+                self.sim.run_simulation(initial_run=True)
                 # Once the required data structure is filled in, we can create the plots.
                 self.sim.plots.init_plots(self, NUM_TAPS)
                 self.sim.plots.update_eyes()

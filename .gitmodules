@@ -1,6 +1,7 @@
 [submodule "PyAMI"]
 	path = PyAMI
-	url = https://github.com/capn-freako/PyAMI.git
+	url = https://github.com/jdpatt/PyAMI.git
+	branch = remove-traits
 [submodule "enable"]
 	path = enable
 	url = https://github.com/enthought/enable.git

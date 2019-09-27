@@ -61,6 +61,33 @@ class Buffer:
             self.log.error(err)
             raise FailledDLLLoad("Failed to open DLL/SO file!\n")
 
+    def initialize_model(self, sample_interval, channel_response, bit_time):
+        """Within the PyBERT computational environment, we use normalized impulse responses,
+        which have units of (V/ts), where 'ts' is the sample interval. However, IBIS-AMI models expect
+        units of (V/s). So, we have to scale accordingly, as we transit the boundary between these two worlds.
+
+        Get the model invoked and initialized, except for 'channel_response', which
+        we need to do several different ways, in order to gather all the data we need.
+        """
+        param_dict = self.configurator.input_ami_params
+        model_init = AMIModelInitializer(param_dict)
+        model_init.sample_interval = sample_interval  # Must be set, before 'channel_response'!
+        model_init.channel_response = channel_response
+        model_init.bit_time = bit_time
+        model = AMIModel(self.dll_file)
+        model.initialize(model_init)
+        self.log.info("Input parameters: %s", model.ami_params_in)
+        self.log.info("Output parameters: %s", model.ami_params_out)
+        self.log.info("Message: %s", model.msg)
+        if not self.configurator.fetch_param_val(["Reserved_Parameters", "GetWave_Exists"]):
+            raise TypeError("Both 'Init_Returns_Impulse' and 'GetWave_Exists' are False!")
+        if not self.use_getwave:
+            raise ValueError(
+                "You have elected not to use GetWave for a model, which does not \
+                        return an impulse response! Aborting... Please, select 'Use GetWave'"
+            )
+        return model
+
     def open_config_gui(self):
         """Open the AMI configuration GUI."""
         if self.configurator:
@@ -89,34 +116,6 @@ class Transmitter(Buffer):
         self.random_noise = random_noise  #: Standard deviation of Gaussian random noise (V).
         self.rel_power = 1.0  #: Tx power dissipation (W).
 
-    def initialize_model(self, sample_interval, channel_response, bit_time):
-        """Within the PyBERT computational environment, we use normalized impulse responses,
-        which have units of (V/ts), where 'ts' is the sample interval. However, IBIS-AMI models expect
-        units of (V/s). So, we have to scale accordingly, as we transit the boundary between these two worlds.
-
-        Get the model invoked and initialized, except for 'channel_response', which
-        we need to do several different ways, in order to gather all the data we need.
-        """
-        tx_param_dict = self.configurator.input_ami_params
-        tx_model_init = AMIModelInitializer(tx_param_dict)
-        tx_model_init.sample_interval = sample_interval  # Must be set, before 'channel_response'!
-        tx_model_init.channel_response = channel_response
-        tx_model_init.bit_time = bit_time
-        tx_model = AMIModel(self.dll_file)
-        tx_model.initialize(tx_model_init)
-        self.log.info("Tx IBIS-AMI model initialization results:")
-        self.log.info("Input parameters: %s", tx_model.ami_params_in)
-        self.log.info("Output parameters: %s", tx_model.ami_params_out)
-        self.log.info("Message: %s", tx_model.msg)
-        if not self.configurator.fetch_param_val(["Reserved_Parameters", "GetWave_Exists"]):
-            raise TypeError("Both 'Init_Returns_Impulse' and 'GetWave_Exists' are False!")
-        if not self.use_getwave:
-            raise ValueError(
-                "You have elected not to use GetWave for a model, which does not \
-                        return an impulse response! Aborting... Please, select 'Use GetWave'"
-            )
-        return tx_model
-
 
 class Receiver(Buffer):
     """docstring for Receiver"""
@@ -127,26 +126,3 @@ class Receiver(Buffer):
         self.input_impedance = INPUT_IMPEDANCE  #: Rx input impedance (Ohm)
         self.input_capacitance = INPUT_CAPACITANCE  #: Rx parasitic input capacitance (pF)
         self.cac = AC_CAPACITANCE  #: Rx a.c. coupling capacitance (uF)
-
-    def initialize_model(self, sample_interval, channel_response, bit_time):
-        """Get the model invoked and initialized, except for 'channel_response', which
-        we need to do several different ways, in order to gather all the data we need."""
-        rx_param_dict = self.configurator.input_ami_params
-        rx_model_init = AMIModelInitializer(rx_param_dict)
-        rx_model_init.sample_interval = sample_interval  # Must be set, before 'channel_response'!
-        rx_model_init.channel_response = channel_response
-        rx_model_init.bit_time = bit_time
-        rx_model = AMIModel(self.dll_file)
-        rx_model.initialize(rx_model_init)
-        self.log.info("Rx IBIS-AMI model initialization results:")
-        self.log.info("Input parameters: %s", rx_model.ami_params_in)
-        self.log.info("Output parameters: %s", rx_model.ami_params_out)
-        self.log.info("Message: %s", rx_model.msg)
-        if not self.configurator.fetch_param_val(["Reserved_Parameters", "GetWave_Exists"]):
-            raise TypeError("Both 'Init_Returns_Impulse' and 'GetWave_Exists' are False!")
-        if not self.use_getwave:
-            raise ValueError(
-                "You have elected not to use GetWave for a model, which does not \
-                        return an impulse response! Aborting... Please, select 'Use GetWave'"
-            )
-        return rx_model
