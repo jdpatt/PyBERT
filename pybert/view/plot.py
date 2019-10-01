@@ -12,7 +12,6 @@ Copyright (c) 2015 David Banas; all rights reserved World wide.
 from logging import getLogger
 
 import numpy as np
-
 from pybert.defaults import MIN_BATHTUB_VAL
 from pybert.utility import calc_eye
 

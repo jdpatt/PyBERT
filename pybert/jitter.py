@@ -4,13 +4,14 @@ from logging import getLogger
 
 import numpy as np
 from numpy.fft import fft, ifft
-from scipy.stats import norm
-
 from pybert.utility import moving_average
+from scipy.stats import norm
 
 # TODO: I'm not happy with the new jitter container.  Maybe a dict in a dict instead of a class?
 #  Would update calc_jitter to return a dict instead of a class?
 #  This would allow use of dict comprehensions when calculating the jitter info strings.
+
+log = getLogger("pybert.jitter")
 
 
 @dataclass
@@ -109,7 +110,6 @@ class Jitter:
         actual_xings = np.array(actual_xings) - (actual_xings[0] - ui / 2.0)
         xings_per_pattern = np.where(ideal_xings > (pattern_len * ui))[0][0]
         if xings_per_pattern % 2 or not xings_per_pattern:
-            log = getLogger()
             log.error("xings_per_pattern: %d", xings_per_pattern)
             log.error("len(ideal_xings): %d", len(ideal_xings))
             log.error("min(ideal_xings): %d", min(ideal_xings))
@@ -173,7 +173,6 @@ class Jitter:
             tie_fallings_ave = tie_fallings.mean(axis=0)
             isi = max(tie_risings_ave.ptp(), tie_fallings_ave.ptp())
         except Exception as error:
-            log = getLogger()
             log.error("xings_per_pattern: %d", xings_per_pattern)
             log.error("len(ideal_xings): %d", len(ideal_xings))
             raise error

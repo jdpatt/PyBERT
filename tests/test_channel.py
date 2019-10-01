@@ -1,5 +1,4 @@
 import pytest
-
 from pybert.channel import Channel
 
 

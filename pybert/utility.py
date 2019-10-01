@@ -6,6 +6,9 @@ Original date:   September 27, 2014 (Copied from pybert_cntrl.py.)
 
 Copyright (c) 2014 David Banas; all rights reserved World wide.
 """
+import matplotlib # isort:skip
+matplotlib.use("Qt5Agg") # isort:skip
+
 import re
 
 # pylint: disable=C0103
@@ -17,9 +20,12 @@ from threading import Event, Thread
 from typing import List, Sequence
 
 import numpy as np
+import skrf as rf
 from scipy.signal import freqs, get_window, invres
 
-import skrf as rf
+
+
+log = getLogger("pybert.utility")
 
 
 class CTLE_MODE(Enum):
@@ -123,7 +129,6 @@ def find_crossing_times(
     try:
         max_mag_x = max(abs(x))
     except Exception as error:
-        log = getLogger()
         log.error("len(x): %d", len(x))
         raise error
     min_mag_x = min_init_dev * max_mag_x
@@ -155,7 +160,6 @@ def find_crossing_times(
         if rising_first and diff_sign_x[xing_ix[i]] < 0.0:
             i += 1
     except Exception as error:
-        log = getLogger()
         log.error("len(diff_sign_x): %d", len(diff_sign_x))
         log.error("len(xing_ix): %d", len(xing_ix))
         log.error("i: %d", i)

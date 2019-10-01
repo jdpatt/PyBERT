@@ -5,8 +5,6 @@ from time import sleep
 
 import numpy as np
 from numpy.fft import ifft
-from scipy.optimize import minimize, minimize_scalar
-
 from pybert.defaults import (
     ALPHA,
     BANDWIDTH,
@@ -28,6 +26,7 @@ from pybert.defaults import (
     USE_DFE,
 )
 from pybert.utility import CTLE_MODE, StoppableThread, fir_numerator, make_ctle
+from scipy.optimize import minimize, minimize_scalar
 
 
 class TxOptThread(StoppableThread):

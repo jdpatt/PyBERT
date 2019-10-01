@@ -6,9 +6,6 @@ from time import clock
 import numpy as np
 from numpy.fft import fft, ifft
 from numpy.random import normal, randint
-from scipy.signal import iirfilter, lfilter
-from scipy.signal.windows import hann
-
 from pybert.buffer import Receiver, Transmitter
 from pybert.channel import Channel
 from pybert.defaults import (
@@ -23,7 +20,6 @@ from pybert.defaults import (
 from pybert.dfe import DFE
 from pybert.equalization import Equalization
 from pybert.jitter import Jitter
-from pybert.plot import Plots
 from pybert.utility import (
     MODULATION,
     StoppableThread,
@@ -36,6 +32,9 @@ from pybert.utility import (
     pulse_center,
     trim_impulse,
 )
+from pybert.view.plot import Plots
+from scipy.signal import iirfilter, lfilter
+from scipy.signal.windows import hann
 
 
 class RunSimThread(StoppableThread):
@@ -683,7 +682,8 @@ class Simulation:
             self.performance["channel"] = nbits * nspb / (clock() - start_time)
             split_time = clock()
             self.status = f"Running Tx...(sweep {sweep_num} of {num_sweeps})"
-        except Exception:
+        except Exception as error:
+            self.log.debug(error)
             self.status = "Exception: channel"
             raise
 
@@ -784,7 +784,8 @@ class Simulation:
             self.performance["tx"] = nbits * nspb / (clock() - split_time)
             split_time = clock()
             self.status = f"Running CTLE...(sweep {sweep_num} of {num_sweeps})"
-        except Exception:
+        except Exception as error:
+            self.log.debug(error)
             self.status = "Exception: Tx"
             raise
 
@@ -874,7 +875,8 @@ class Simulation:
             self.performance["ctle"] = nbits * nspb / (clock() - split_time)
             split_time = clock()
             self.status = f"Running DFE/CDR...(sweep {sweep_num} of {num_sweeps})"
-        except Exception:
+        except Exception as error:
+            self.log.debug(error)
             self.status = "Exception: Rx"
             raise
 
@@ -965,7 +967,8 @@ class Simulation:
             self.performance["dfe"] = nbits * nspb / (clock() - split_time)
             split_time = clock()
             self.status = f"Analyzing jitter...(sweep {sweep_num} of {num_sweeps})"
-        except Exception:
+        except Exception as error:
+            self.log.debug(error)
             self.status = "Exception: DFE"
             raise
 
@@ -1029,19 +1032,21 @@ class Simulation:
             self.performance["total"] = nbits * nspb / (clock() - start_time)
             split_time = clock()
             self.status = f"Updating plots...(sweep {sweep_num} of {num_sweeps})"
-        except Exception:
+        except Exception as error:
+            self.log.debug(error)
             self.status = "Exception: jitter"
 
         # Update plots.
         # -------------------------------------------------------------------------------------------
         try:
-            if update_plots:
-                self.plots.update_results(self.results, self.jitter)
-                if not initial_run:
-                    self.plots.update_eyes(self.results)
+            # if update_plots:
+            #     self.plots.update_results(self.results, self.jitter)
+            #     if not initial_run:
+            #         self.plots.update_eyes(self.results)
 
             self.performance["plot"] = nbits * nspb / (clock() - split_time)
             self.status = "Ready."
-        except Exception:
+        except Exception as error:
+            self.log.debug(error)
             self.status = "Exception: plotting"
             raise

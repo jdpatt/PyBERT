@@ -1,5 +1,9 @@
 # PyBERT
 
+<p align="left">
+<a href="https://github.com/psf/black"><img alt="Code style: black" src="https://img.shields.io/badge/code%20style-black-000000.svg"></a>
+</p>
+
 PyBERT is a serial communication link bit error rate tester simulator with a graphical user interface (GUI).
 
 Notice: Before using this package for any purpose, you MUST read and understand the terms put forward in the accompanying "LICENSE" file.

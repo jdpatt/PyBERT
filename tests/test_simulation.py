@@ -1,8 +1,7 @@
 from unittest.mock import patch
-import pytest
 
 import numpy as np
-
+import pytest
 from pybert.simulation import Simulation
 
 

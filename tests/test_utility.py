@@ -1,10 +1,10 @@
 import time
 
 import numpy as np
-from pybert.utility import StoppableThread
 import pybert.utility as utility
 import pytest
 from pybert.equalization import TxTapTuner
+from pybert.utility import StoppableThread
 
 
 class Test_Utility:

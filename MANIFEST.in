@@ -1,6 +1,6 @@
 include README.md
 include LICENSE
-include pybert/images/icon.png
+include pybert/view/assets/icon.png
 recursive-include docs/
 recursive-include tests/
 global-exclude *.swp
