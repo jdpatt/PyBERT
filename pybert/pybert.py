@@ -18,6 +18,7 @@ import logging
 import logging.handlers
 import platform
 import sys
+import traceback
 from functools import lru_cache
 from pathlib import Path
 
@@ -81,8 +82,8 @@ class PyBERT:
         self.log.info("Log file created at: %s", log_file_path)
 
         app = QApplication([])
-        gui = PyBERT_GUI()
-        gui.show()
+        self.gui = PyBERT_GUI()
+        self.gui.show()
 
         self.log.info(
             "System: %s %s Version: %s", platform.system(), platform.release(), platform.version()
@@ -108,7 +109,8 @@ class PyBERT:
             else:
                 self.channel.calc_chnl_h()  # Prevents missing attribute error in _get_ctle_out_h_tune().
         except Exception as error:
-            raise
+            self.log.error(traceback.format_exc())
+            self.gui.popup_alert(error)
         sys.exit(app.exec_())
 
     # TODO: The connect slots should move here so that the view (gui) tell's the controller (pybert) to do something with the model (simulation).

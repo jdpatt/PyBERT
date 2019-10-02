@@ -1,5 +1,4 @@
 """Jitter calculation and container for the system."""
-from dataclasses import dataclass
 from logging import getLogger
 
 import numpy as np
@@ -14,24 +13,41 @@ from scipy.stats import norm
 log = getLogger("pybert.jitter")
 
 
-@dataclass
 class Jitter:
     """docstring for Jitter"""
 
-    jitter = 0.0
-    t_jitter = 0.0
-    isi = 0.0
-    dcd = 0.0
-    pj = 0.0
-    rj = 0.0
-    tie_ind = np.array([])
-    thresh = np.array([])
-    jitter_spectrum = np.array([])
-    tie_ind_spectrum = np.array([])
-    spectrum_freqs = np.array([])
-    hist = np.array([])
-    hist_synth = np.array([])
-    bin_centers = np.array([])
+    def __init__(
+        self,
+        jitter,
+        t_jitter,
+        isi,
+        dcd,
+        pj,
+        rj,
+        tie_ind,
+        thresh,
+        jitter_spectrum,
+        tie_ind_spectrum,
+        spectrum_freqs,
+        hist,
+        hist_synth,
+        bin_centers,
+    ):
+
+        self.jitter = jitter
+        self.t_jitter = t_jitter
+        self.isi = isi
+        self.dcd = dcd
+        self.pj = pj
+        self.rj = rj
+        self.tie_ind = tie_ind
+        self.thresh = thresh
+        self.jitter_spectrum = jitter_spectrum
+        self.tie_ind_spectrum = tie_ind_spectrum
+        self.spectrum_freqs = spectrum_freqs
+        self.hist = hist
+        self.hist_synth = hist_synth
+        self.bin_centers = bin_centers
 
     @classmethod
     def calc_jitter(

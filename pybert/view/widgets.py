@@ -1,4 +1,5 @@
-"""This file contains all the widgets that make up each tab of the GUI."""
+"""This file contains all the widgets that make up each major tab of the GUI."""
+import pyqtgraph as pg
 from PySide2.QtCore import *
 from PySide2.QtWidgets import *
 
@@ -6,77 +7,179 @@ from PySide2.QtWidgets import *
 class ConfigWidget(QWidget):
     """This is where everything is setup and configured for the simulation."""
 
-    def __init__(self, parent):
+    def __init__(self):
         super().__init__()
         self.title = "Config."
+        layout = QGridLayout()
+
+        self.sim_control = QGroupBox()
+        self.sim_control.setTitle("Simulation Control")
+
+        self.channel = QGroupBox()
+        self.channel.setTitle("Channel Parameters")
+
+        self.tx = QGroupBox()
+        self.tx.setTitle("Tx Equalization")
+
+        self.rx = QGroupBox()
+        self.rx.setTitle("Rx Equalization")
+
+        self.cdr = QGroupBox()
+        self.cdr.setTitle("CDR Parameters")
+
+        self.dfe = QGroupBox()
+        self.dfe.setTitle("DFE Parameters")
+
+        layout.addWidget(self.sim_control, 0, 0)
+        layout.addWidget(self.channel, 0, 1)
+        layout.addWidget(self.tx, 1, 0)
+        layout.addWidget(self.rx, 1, 1)
+        layout.addWidget(self.cdr, 2, 0)
+        layout.addWidget(self.dfe, 2, 1)
+        self.setLayout(layout)
 
 
 class DFEWidget(QWidget):
-    def __init__(self, parent):
+    def __init__(self):
         super().__init__()
         self.title = "DFE"
+        layout = QGridLayout()
+
+        self.cdr_adapt = pg.PlotWidget()
+        self.dfe_adapt = pg.PlotWidget()
+        self.cdr_histo = pg.PlotWidget()
+        self.cdr_spect = pg.PlotWidget()
+        layout.addWidget(self.cdr_adapt, 0, 0)  # Upper Left
+        layout.addWidget(self.dfe_adapt, 0, 1)  # Upper Right
+        layout.addWidget(self.cdr_histo, 1, 0)  # Lower Left
+        layout.addWidget(self.cdr_spect, 1, 1)  # Lower Right
+        self.setLayout(layout)
 
 
 class EQTuneWidget(QWidget):
-    def __init__(self, parent):
+    def __init__(self):
         super().__init__()
         self.title = "EQ Tune"
+        layout = QGridLayout()
+        self.tune = pg.PlotWidget()
+
+        self.txeq = QGroupBox()
+        self.txeq.setTitle("Tx Equalization")
+        self.rxeq = QGroupBox()
+        self.rxeq.setTitle("Rx Equalization")
+        self.tune_options = QGroupBox()
+        self.tune_options.setTitle("Tunning Options")
+
+        # Setup the buttons and group the slots under one QButtonGroup
+        self.tune_buttons = QButtonGroup()
+        reset = QPushButton("&Reset", self)
+        reset.setStatusTip(self.tr("Reset the Equalization back to Default."))
+        save = QPushButton("&Save", self)
+        save.setStatusTip(self.tr("Save the Equalization as Default."))
+        opt_tx = QPushButton("&Opt Tx", self)
+        opt_tx.setStatusTip(self.tr("Optimize the Tx Equalization."))
+        opt_rx = QPushButton("&Opt Rx", self)
+        opt_rx.setStatusTip(self.tr("Optimize the Rx Equalization."))
+        opt_co = QPushButton("&Co-Opt", self)
+        opt_co.setStatusTip(self.tr("Optimize the Tx & Rx Equalization together."))
+        opt_abort = QPushButton("&Abort Opt", self)
+        opt_abort.setStatusTip(self.tr("Abort the Current Equalization."))
+        self.tune_buttons.addButton(reset)
+        self.tune_buttons.addButton(save)
+        self.tune_buttons.addButton(opt_tx)
+        self.tune_buttons.addButton(opt_rx)
+        self.tune_buttons.addButton(opt_co)
+        self.tune_buttons.addButton(opt_abort)
+
+        # Actually add the buttons to the GUI
+        self.buttons = QHBoxLayout()
+        self.buttons.addWidget(reset)
+        self.buttons.addWidget(save)
+        self.buttons.addWidget(opt_tx)
+        self.buttons.addWidget(opt_rx)
+        self.buttons.addWidget(opt_co)
+        self.buttons.addWidget(opt_abort)
+
+        layout.addWidget(self.txeq, 0, 0)
+        layout.addWidget(self.rxeq, 0, 1)
+        layout.addWidget(self.tune_options, 0, 2)
+        layout.addWidget(self.tune, 1, 0, 1, -1)
+        layout.addLayout(self.buttons, 2, 0)
+        self.setLayout(layout)
 
 
-class ImpulseWidget(QWidget):
-    def __init__(self, parent):
+class ChannelPlotWidget(QWidget):
+    def __init__(self):
+        super().__init__()
+        layout = QGridLayout()
+
+        self.channel = pg.PlotWidget()
+        self.channel_tx = pg.PlotWidget()
+        self.channel_tx_ctle = pg.PlotWidget()
+        self.channel_all = pg.PlotWidget()
+        layout.addWidget(self.channel, 0, 0)  # Upper Left
+        layout.addWidget(self.channel_tx, 0, 1)  # Upper Right
+        layout.addWidget(self.channel_tx_ctle, 1, 0)  # Lower Left
+        layout.addWidget(self.channel_all, 1, 1)  # Lower Right
+        self.setLayout(layout)
+
+
+class ImpulseWidget(ChannelPlotWidget):
+    def __init__(self):
         super().__init__()
         self.title = "Impulses"
 
 
-class StepWidget(QWidget):
-    def __init__(self, parent):
+class StepWidget(ChannelPlotWidget):
+    def __init__(self):
         super().__init__()
         self.title = "Steps"
 
-class PulsesWidget(QWidget):
-    def __init__(self, parent):
+
+class PulsesWidget(ChannelPlotWidget):
+    def __init__(self):
         super().__init__()
         self.title = "Pulses"
 
-class FrequencyWidget(QWidget):
-    def __init__(self, parent):
+
+class FrequencyWidget(ChannelPlotWidget):
+    def __init__(self):
         super().__init__()
         self.title = "Frequency Responses"
 
 
-class OutputWidget(QWidget):
-    def __init__(self, parent):
+class OutputWidget(ChannelPlotWidget):
+    def __init__(self):
         super().__init__()
         self.title = "Outputs"
 
 
-class EyeDiagramWidget(QWidget):
-    def __init__(self, parent):
+class EyeDiagramWidget(ChannelPlotWidget):
+    def __init__(self):
         super().__init__()
         self.title = "Eyes"
 
 
-class JitterDistributionsWidget(QWidget):
-    def __init__(self, parent):
+class JitterDistributionsWidget(ChannelPlotWidget):
+    def __init__(self):
         super().__init__()
         self.title = "Jitter Dist."
 
 
-class JitterSpectrumsWidget(QWidget):
-    def __init__(self, parent):
+class JitterSpectrumsWidget(ChannelPlotWidget):
+    def __init__(self):
         super().__init__()
         self.title = "Jitter Spec."
 
 
-class BathtubCurvesWidget(QWidget):
-    def __init__(self, parent):
+class BathtubCurvesWidget(ChannelPlotWidget):
+    def __init__(self):
         super().__init__()
         self.title = "Bathtubs"
 
 
 class JitterInfoWidget(QWidget):
-    def __init__(self, parent):
+    def __init__(self):
         super().__init__()
         self.title = "Jitter Info"
 

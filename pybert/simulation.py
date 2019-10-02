@@ -683,7 +683,6 @@ class Simulation:
             split_time = clock()
             self.status = f"Running Tx...(sweep {sweep_num} of {num_sweeps})"
         except Exception as error:
-            self.log.debug(error)
             self.status = "Exception: channel"
             raise
 
@@ -785,7 +784,6 @@ class Simulation:
             split_time = clock()
             self.status = f"Running CTLE...(sweep {sweep_num} of {num_sweeps})"
         except Exception as error:
-            self.log.debug(error)
             self.status = "Exception: Tx"
             raise
 
@@ -876,7 +874,6 @@ class Simulation:
             split_time = clock()
             self.status = f"Running DFE/CDR...(sweep {sweep_num} of {num_sweeps})"
         except Exception as error:
-            self.log.debug(error)
             self.status = "Exception: Rx"
             raise
 
@@ -968,7 +965,6 @@ class Simulation:
             split_time = clock()
             self.status = f"Analyzing jitter...(sweep {sweep_num} of {num_sweeps})"
         except Exception as error:
-            self.log.debug(error)
             self.status = "Exception: DFE"
             raise
 
@@ -1033,8 +1029,8 @@ class Simulation:
             split_time = clock()
             self.status = f"Updating plots...(sweep {sweep_num} of {num_sweeps})"
         except Exception as error:
-            self.log.debug(error)
             self.status = "Exception: jitter"
+            raise
 
         # Update plots.
         # -------------------------------------------------------------------------------------------
@@ -1047,6 +1043,5 @@ class Simulation:
             self.performance["plot"] = nbits * nspb / (clock() - split_time)
             self.status = "Ready."
         except Exception as error:
-            self.log.debug(error)
             self.status = "Exception: plotting"
             raise

@@ -6,8 +6,9 @@ Original date:   September 27, 2014 (Copied from pybert_cntrl.py.)
 
 Copyright (c) 2014 David Banas; all rights reserved World wide.
 """
-import matplotlib # isort:skip
-matplotlib.use("Qt5Agg") # isort:skip
+import matplotlib  # isort:skip
+
+matplotlib.use("Qt5Agg")  # isort:skip
 
 import re
 
@@ -22,8 +23,6 @@ from typing import List, Sequence
 import numpy as np
 import skrf as rf
 from scipy.signal import freqs, get_window, invres
-
-
 
 log = getLogger("pybert.utility")
 
@@ -84,7 +83,12 @@ def moving_average(a, n=3):
 
     ret = np.cumsum(a, dtype=np.float)
     ret[n:] = ret[n:] - ret[:-n]
-    return ret[n - 1 :] / n
+    # return ret[n - 1 :] / n
+    # TODO: This returns an array that is shorter than the orginal which causes pybert to crash.
+    # Looking at line 203 in jitter.py, he may have intentionally padded
+    # this just didn't note here that its intentionally padded.
+    # Error: operands could not be broadcast together with shapes (8000,) (7201,)
+    return np.insert(ret[n - 1 :], 0, ret[n - 1] * np.ones(n - 1)) / n
 
 
 def find_crossing_times(
