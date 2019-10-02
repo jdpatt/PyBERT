@@ -17,17 +17,27 @@ class DFEWidget(QWidget):
         self.title = "DFE"
 
 
+class EQTuneWidget(QWidget):
+    def __init__(self, parent):
+        super().__init__()
+        self.title = "EQ Tune"
+
+
 class ImpulseWidget(QWidget):
     def __init__(self, parent):
         super().__init__()
-        self.title = "Impulse Responses"
+        self.title = "Impulses"
 
 
 class StepWidget(QWidget):
     def __init__(self, parent):
         super().__init__()
-        self.title = "Step Responses"
+        self.title = "Steps"
 
+class PulsesWidget(QWidget):
+    def __init__(self, parent):
+        super().__init__()
+        self.title = "Pulses"
 
 class FrequencyWidget(QWidget):
     def __init__(self, parent):
@@ -44,25 +54,25 @@ class OutputWidget(QWidget):
 class EyeDiagramWidget(QWidget):
     def __init__(self, parent):
         super().__init__()
-        self.title = "Eye Diagrams"
+        self.title = "Eyes"
 
 
 class JitterDistributionsWidget(QWidget):
     def __init__(self, parent):
         super().__init__()
-        self.title = "Jitter Distributions"
+        self.title = "Jitter Dist."
 
 
 class JitterSpectrumsWidget(QWidget):
     def __init__(self, parent):
         super().__init__()
-        self.title = "Jitter Spectrums"
+        self.title = "Jitter Spec."
 
 
 class BathtubCurvesWidget(QWidget):
     def __init__(self, parent):
         super().__init__()
-        self.title = "Bathtub Curves"
+        self.title = "Bathtubs"
 
 
 class JitterInfoWidget(QWidget):
@@ -77,8 +87,10 @@ class JitterInfoWidget(QWidget):
 TABS = {
     "config_wig": ConfigWidget,
     "dfe_wig": DFEWidget,
+    "eq_wig": EQTuneWidget,
     "impulse_wig": ImpulseWidget,
     "step_wig": StepWidget,
+    "pulse_wig": PulsesWidget,
     "frequency_wig": FrequencyWidget,
     "output_wig": OutputWidget,
     "eyes_wig": EyeDiagramWidget,
