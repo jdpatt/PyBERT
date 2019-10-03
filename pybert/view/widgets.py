@@ -3,6 +3,8 @@ import pyqtgraph as pg
 from PySide2.QtCore import *
 from PySide2.QtWidgets import *
 
+pg.setConfigOption('background', 'w')
+pg.setConfigOption('foreground', 'k')
 
 class ConfigWidget(QWidget):
     """This is where everything is setup and configured for the simulation."""
@@ -12,23 +14,12 @@ class ConfigWidget(QWidget):
         self.title = "Config."
         layout = QGridLayout()
 
-        self.sim_control = QGroupBox()
-        self.sim_control.setTitle("Simulation Control")
-
-        self.channel = QGroupBox()
-        self.channel.setTitle("Channel Parameters")
-
-        self.tx = QGroupBox()
-        self.tx.setTitle("Tx Equalization")
-
-        self.rx = QGroupBox()
-        self.rx.setTitle("Rx Equalization")
-
-        self.cdr = QGroupBox()
-        self.cdr.setTitle("CDR Parameters")
-
-        self.dfe = QGroupBox()
-        self.dfe.setTitle("DFE Parameters")
+        self.sim_control = QGroupBox("Simulation Control")
+        self.channel = QGroupBox("Channel Parameters")
+        self.tx = QGroupBox("Tx Equalization")
+        self.rx = QGroupBox("Rx Equalization")
+        self.cdr = QGroupBox("CDR Parameters")
+        self.dfe = QGroupBox("DFE Parameters")
 
         layout.addWidget(self.sim_control, 0, 0)
         layout.addWidget(self.channel, 0, 1)
@@ -63,12 +54,11 @@ class EQTuneWidget(QWidget):
         layout = QGridLayout()
         self.tune = pg.PlotWidget()
 
-        self.txeq = QGroupBox()
-        self.txeq.setTitle("Tx Equalization")
-        self.rxeq = QGroupBox()
-        self.rxeq.setTitle("Rx Equalization")
-        self.tune_options = QGroupBox()
-        self.tune_options.setTitle("Tunning Options")
+        self.txeq = QGroupBox("Tx Equalization")
+
+        self.rxeq = QGroupBox("Rx Equalization")
+
+        self.tune_options = QGroupBox("Tunning Options")
 
         # Setup the buttons and group the slots under one QButtonGroup
         self.tune_buttons = QButtonGroup()

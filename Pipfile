@@ -4,10 +4,9 @@ url = "https://pypi.org/simple"
 verify_ssl = true
 
 [dev-packages]
+pytest = "*"
 
 [packages]
+pyqtgraph = {editable = true,path = "."}
 pyibis-ami = {editable = true,path = "./PyAMI"}
-setuptools = {editable = true,path = "."}
-
-[requires]
-python_version = "3.7"
+pytest = "*"
