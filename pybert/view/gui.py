@@ -36,6 +36,8 @@ class PyBERT_GUI(QMainWindow):
         self.setCentralWidget(self.create_tabs())
         self.showMaximized()
 
+        pub.subscribe(self.update_statusbar, "simulation.status")
+
     def create_actions(self):
         """Global Actions for the GUI."""
         self.save_confg_act = QAction(self.tr("&Save Configuration"))
@@ -72,7 +74,9 @@ class PyBERT_GUI(QMainWindow):
         self.help_act = QAction(self.tr("&Help"), self)
         self.help_act.triggered.connect(self.help)
 
-        self.run_act = QAction(self.tr("&Start Simulation"), self)
+        self.abort_act = QAction(self.tr("&Abort Sim"), self)
+        self.abort_act.triggered.connect(self.abort_simulation)
+        self.run_act = QAction(self.tr("&Start Sim"), self)
         self.run_act.triggered.connect(self.start_simulation)
 
     def create_console_dock(self):
@@ -111,6 +115,7 @@ class PyBERT_GUI(QMainWindow):
         self.view_menu = self.menuBar().addMenu(self.tr("&View"))
 
         self.menuBar().addAction(self.run_act)
+        self.menuBar().addAction(self.abort_act)
 
         self.help_menu = self.menuBar().addMenu(self.tr("&Help"))
         self.help_menu.addAction(self.doc_act)
@@ -124,6 +129,10 @@ class PyBERT_GUI(QMainWindow):
         """
         self.status_label = QLabel()
         self.statusBar().addPermanentWidget(self.status_label)
+
+    def update_statusbar(self, status_str):
+        """Update the content of the status bar."""
+        self.status_label.setText(status_str)
 
     def create_tabs(self):
         """Create a widget to hold every tab of the GUI."""
@@ -166,3 +175,7 @@ class PyBERT_GUI(QMainWindow):
     def start_simulation(self):
         """Tell pybert to start the simulation."""
         pub.sendMessage("simulation.start")
+
+    def abort_simulation(self):
+        """Tell pybert to kill the simulation."""
+        pub.sendMessage("simulation.abort")

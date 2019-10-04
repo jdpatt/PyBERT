@@ -1,14 +1,14 @@
 import logging
 
-from PySide2.QtGui import QColor
-from PySide2.QtWidgets import QTextEdit
+from PySide2.QtGui import QColor, QSyntaxHighlighter
+from PySide2.QtWidgets import QPlainTextEdit
 
 TEXT_COLOR = {
-    "WARNING": QColor("black"),
-    "INFO": QColor("black"),
-    "DEBUG": QColor("red"),
-    "CRITICAL": QColor("red"),
-    "ERROR": QColor("red"),
+    "WARNING": "black",
+    "INFO": "black",
+    "DEBUG": "navy",
+    "CRITICAL": "red",
+    "ERROR": "red",
 }
 
 
@@ -17,13 +17,17 @@ class QTextEditLogger(logging.Handler):
 
     def __init__(self, parent):
         super().__init__()
-        self.widget = QTextEdit(parent)
+        self.widget = QPlainTextEdit(parent)
         self.widget.setReadOnly(True)
+        self.widget.setMaximumBlockCount(100)
+        self.widget.setCenterOnScroll(True)
 
     def emit(self, record):
         """Append the record to the Widget.  Color according to 'TEXT_COLOR'."""
         msg = self.format(record)
         level = record.levelname
         if level in TEXT_COLOR:
-            self.widget.setTextColor(TEXT_COLOR[level])
-            self.widget.append(msg)
+            self.widget.appendHtml(f'<p style="color:{TEXT_COLOR[level]};">{msg}</p>')
+        else:
+            self.widget.appendPlainText(msg)
+        self.widget.ensureCursorVisible()

@@ -22,14 +22,12 @@ import traceback
 from functools import lru_cache
 from pathlib import Path
 
-from pubsub.utils.notification import useNotifyByWriteFile
 from pybert import __version__ as VERSION
 
 # from pybert.configuration import ConfigurationData
 from pybert.defaults import DEBUG, NUM_TAPS
 from pybert.simulation import Simulation
 from pybert.static import (
-    help_menu,
     jitter_rejection_menu,
     performance_menu,
     status_string,
@@ -39,19 +37,6 @@ from pybert.view.gui import PyBERT_GUI
 from PySide2.QtWidgets import QApplication
 
 # from pybert.waveform_data import WaveformData
-
-
-class PubSubLoggerWriter:
-    def __init__(self):
-        self.logger = logging.getLogger("pybert.pubsub")
-        self.level = logging.DEBUG
-
-    def write(self, message):
-        if message != "\n":
-            self.logger.log(self.level, message.rstrip())
-
-
-useNotifyByWriteFile(PubSubLoggerWriter())
 
 
 class PyBERT:
@@ -111,8 +96,6 @@ class PyBERT:
         self.sim = Simulation()
         self.channel = self.sim.channel
 
-        # self.help_tab = help_menu()
-
         try:
             if run_simulation:
                 # Running the simulation will fill in the required data structure.
@@ -147,17 +130,6 @@ class PyBERT:
             jitter_info = "<H1>Jitter Rejection by Equalization Component</H1>\n"
             # popup_alert("Jitter Calculation Failed", error)
         return jitter_info
-
-    @lru_cache(maxsize=None)
-    def _get_status_str(self):
-        return status_string(
-            self.status,
-            self.sim.performance["total"],
-            self.channel.chnl_dly,
-            self.sim.bit_errors,
-            self.sim.tx.rel_power,
-            self.sim.jitter["dfe"],
-        )
 
 
 def main():

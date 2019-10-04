@@ -21,6 +21,9 @@ from pybert.defaults import (
 from pybert.dfe import DFE
 from pybert.equalization import Equalization
 from pybert.jitter import Jitter
+from pybert.static import (
+    status_string
+)
 from pybert.utility import (
     MODULATION,
     StoppableThread,
@@ -34,16 +37,21 @@ from pybert.utility import (
     trim_impulse,
 )
 from pybert.view.plot import Plots
+from PySide2.QtCore import QThread
 from scipy.signal import iirfilter, lfilter
 from scipy.signal.windows import hann
 
 
-class RunSimThread(StoppableThread):
+class RunSimThread(QThread):
     """Used to run the simulation in its own thread, in order to preserve GUI responsiveness."""
+
+    def __init__(self, simulation):
+        super().__init__()
+        self.sim = simulation
 
     def run(self):
         """Run the simulation(s)."""
-        sim.run_simulation_sweeps()
+        self.sim.run_simulation_sweeps()
 
 
 class Simulation:
@@ -53,7 +61,7 @@ class Simulation:
         super(Simulation, self).__init__()
         self.log = getLogger("pybert.simulation")
         self.log.debug("Initializing Simulation")
-        self._status = "Ready."
+        self._status = "Ready"
 
         self.bit_rate = BIT_RATE  #: (Gbps)
         self.nbits = NUM_BITS  #: Number of bits to simulate.
@@ -160,13 +168,15 @@ class Simulation:
 
         self.run_sim_thread = None
 
+        pub.subscribe(self.run, "simulation.start")
+        pub.subscribe(self.abort, "simulation.abort")
+
     def run(self):
         """Spawn a simulation thread and run with the current settings."""
-        if self.run_sim_thread and self.run_sim_thread.is_alive():
+        if self.run_sim_thread and self.run_sim_thread.is_alive() and self.status != "Ready":
             pass
         else:
-            self.run_sim_thread = RunSimThread()
-            self.run_sim_thread.the_pybert = the_pybert
+            self.run_sim_thread = RunSimThread(self)
             self.log.debug("Simulation Started")
             self.run_sim_thread.start()
 
@@ -186,6 +196,7 @@ class Simulation:
         """Override the status setter so that we can log all messages."""
         self.log.info(message)
         self._status = message
+        pub.sendMessage("simulation.status", status_str=self._get_status_str())
 
     # Dependent variable definitions
     @property
@@ -608,7 +619,7 @@ class Simulation:
         sweep_num = self.sweep_num
 
         start_time = clock()
-        self.status = f"Running channel...(sweep {sweep_num} of {num_sweeps})"
+        self.status = f"Running Channel...(Sweep {sweep_num} of {num_sweeps})"
         self.run_count += 1  # Force regeneration of bit stream.
 
         # Pull class variables into local storage, performing unit conversion where necessary.
@@ -1045,8 +1056,18 @@ class Simulation:
                     pub.sendMessage("simulation.results.eyes")
             # Plot performance is not really valid since it just has to send a message now.
             self.performance["plot"] = nbits * nspb / (clock() - split_time)
-            self.status = "Ready."
+            pub.sendMessage("simulation.performance", performance=self.performance)
+            self.status = "Ready"
         except Exception as error:
             self.status = "Exception: plotting"
             raise
-        pub.sendMessage("simulation.performance", performance=self.performance)
+
+    def _get_status_str(self):
+        return status_string(
+            self.status,
+            self.performance.get("total", 0.0),
+            self.channel.chnl_dly,
+            self.results.get("bit_errors",0),
+            self.tx.rel_power,
+            self.jitter.get("dfe", None),
+        )
