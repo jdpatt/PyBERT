@@ -1,10 +1,12 @@
 """This file contains all the widgets that make up each major tab of the GUI."""
 import pyqtgraph as pg
+from pubsub import pub
 from PySide2.QtCore import *
 from PySide2.QtWidgets import *
 
-pg.setConfigOption('background', 'w')
-pg.setConfigOption('foreground', 'k')
+pg.setConfigOption("background", "w")
+pg.setConfigOption("foreground", "k")
+
 
 class ConfigWidget(QWidget):
     """This is where everything is setup and configured for the simulation."""
@@ -36,10 +38,18 @@ class DFEWidget(QWidget):
         self.title = "DFE"
         layout = QGridLayout()
 
-        self.cdr_adapt = pg.PlotWidget()
-        self.dfe_adapt = pg.PlotWidget()
-        self.cdr_histo = pg.PlotWidget()
-        self.cdr_spect = pg.PlotWidget()
+        self.cdr_adapt = pg.PlotWidget(
+            title="CDR Adaptation", labels={"left": "UI (ps)", "bottom": "Time (ns)"}
+        )
+        self.dfe_adapt = pg.PlotWidget(title="DFE Adaptation")
+        self.cdr_histo = pg.PlotWidget(
+            title="CDR Clock Period Histogram",
+            labels={"left": "Bin Count", "bottom": "Clock Period (ps)"},
+        )
+        self.cdr_spect = pg.PlotWidget(
+            title="CDR Adaptation",
+            labels={"left": "|H(f)| (dB mean)", "bottom": "Frequency (bit rate)"},
+        )
         layout.addWidget(self.cdr_adapt, 0, 0)  # Upper Left
         layout.addWidget(self.dfe_adapt, 0, 1)  # Upper Right
         layout.addWidget(self.cdr_histo, 1, 0)  # Lower Left
@@ -52,7 +62,10 @@ class EQTuneWidget(QWidget):
         super().__init__()
         self.title = "EQ Tune"
         layout = QGridLayout()
-        self.tune = pg.PlotWidget()
+        self.tune = pg.PlotWidget(
+            title="Channel + Tx Preemphasis + CTLE + Ideal DFE",
+            labels={"left": "Post-CTLE Pulse Response (V)", "bottom": "Time (ns)"},
+        )
 
         vbox = QVBoxLayout()
         self.txeq = QTableWidget(4, 5)
@@ -89,11 +102,16 @@ class EQTuneWidget(QWidget):
         line.setStatusTip(self.tr("Number of ideal DFE taps."))
         hbox.addWidget(line)
         self.rxeq.addRow(hbox)
-        self.rxeq.addRow(QLabel(self.tr("Note: Only peaking magnitude will be optimized; please set"
-            " peak fequency, bandwidth and mode appropriately.")))
+        self.rxeq.addRow(
+            QLabel(
+                self.tr(
+                    "Note: Only peaking magnitude will be optimized; please set"
+                    " peak fequency, bandwidth and mode appropriately."
+                )
+            )
+        )
         rxeq_box = QGroupBox(self.tr("Rx Equalization"))
         rxeq_box.setLayout(self.rxeq)
-
 
         self.tune_options = QFormLayout()
         line = QLineEdit()
@@ -104,7 +122,7 @@ class EQTuneWidget(QWidget):
         self.tune_options.addRow(self.tr("Relative Opt.: "), line)
         line = QLabel()
         line.setStatusTip(self.tr("Pulse Response Zero Forcing approximation error."))
-        self.tune_options.addRow(self.tr("PRZF Error: "), line)        
+        self.tune_options.addRow(self.tr("PRZF Error: "), line)
         tune_opt_box = QGroupBox(self.tr("Tunning Options"))
         tune_opt_box.setLayout(self.tune_options)
 
@@ -122,12 +140,16 @@ class EQTuneWidget(QWidget):
         opt_co.setStatusTip(self.tr("Optimize the Tx & Rx Equalization together."))
         opt_abort = QPushButton("&Abort Opt", self)
         opt_abort.setStatusTip(self.tr("Abort the Current Equalization."))
-        self.tune_buttons.addButton(reset)
-        self.tune_buttons.addButton(save)
-        self.tune_buttons.addButton(opt_tx)
-        self.tune_buttons.addButton(opt_rx)
-        self.tune_buttons.addButton(opt_co)
-        self.tune_buttons.addButton(opt_abort)
+
+        # Add the button to a group and set an ID; so that we don't have to parse their text
+        self.tune_buttons.addButton(reset, 0)
+        self.tune_buttons.addButton(save, 1)
+        self.tune_buttons.addButton(opt_tx, 2)
+        self.tune_buttons.addButton(opt_rx, 3)
+        self.tune_buttons.addButton(opt_co, 4)
+        self.tune_buttons.addButton(opt_abort, 5)
+
+        self.tune_buttons.buttonClicked[int].connect(self.hanndle_button)
 
         # Actually add the buttons to the GUI
         self.buttons = QHBoxLayout()
@@ -145,75 +167,199 @@ class EQTuneWidget(QWidget):
         layout.addLayout(self.buttons, 2, 0)
         self.setLayout(layout)
 
+    def hanndle_button(self, button_id):
+        """Send a message based off which button is pressed."""
+        if button_id == 0:  # Reset EQ
+            pub.sendMessage("eq.reset")
+        elif button_id == 1:  # Save EQ
+            pub.sendMessage("eq.save")
+        elif button_id == 2:  # Start Tx Opt
+            pub.sendMessage("eq.start", opt="tx")
+        elif button_id == 3:  # Start Rx Opt
+            pub.sendMessage("eq.start", opt="rx")
+        elif button_id == 4:  # Start Co Opt
+            pub.sendMessage("eq.start", opt="co")
+        elif button_id == 5:  # Abort Opt
+            pub.sendMessage("eq.abort")
 
-class ChannelPlotWidget(QWidget):
-    def __init__(self):
-        super().__init__()
-        layout = QGridLayout()
 
-        self.channel = pg.PlotWidget()
-        self.channel_tx = pg.PlotWidget()
-        self.channel_tx_ctle = pg.PlotWidget()
-        self.channel_all = pg.PlotWidget()
-        layout.addWidget(self.channel, 0, 0)  # Upper Left
-        layout.addWidget(self.channel_tx, 0, 1)  # Upper Right
-        layout.addWidget(self.channel_tx_ctle, 1, 0)  # Lower Left
-        layout.addWidget(self.channel_all, 1, 1)  # Lower Right
-        self.setLayout(layout)
+TITLES = [
+    "Channel",
+    "Channel + Tx Preemphasis",
+    "Channel + Tx Preemphasis + CTLE",
+    "Channel + Tx Preemphasis + CTLE + DFE",
+]
 
 
-class ImpulseWidget(ChannelPlotWidget):
-    def __init__(self):
+class ImpulseWidget(pg.GraphicsLayoutWidget):
+    def __init__(self, y_axis="Impulse Response (V/ns)", x_axis="Time (ns)"):
         super().__init__()
         self.title = "Impulses"
 
+        self.channel = self.addPlot(
+            row=0, col=0, title=TITLES[0], labels={"left": y_axis, "bottom": x_axis}
+        )
+        self.channel_tx = self.addPlot(
+            row=0, col=1, title=TITLES[1], labels={"left": y_axis, "bottom": x_axis}
+        )
+        self.channel_ctle = self.addPlot(
+            row=1, col=0, title=TITLES[2], labels={"left": y_axis, "bottom": x_axis}
+        )
+        self.channel_dfe = self.addPlot(
+            row=1, col=1, title=TITLES[3], labels={"left": y_axis, "bottom": x_axis}
+        )
 
-class StepWidget(ChannelPlotWidget):
-    def __init__(self):
+
+class StepWidget(pg.GraphicsLayoutWidget):
+    def __init__(self, y_axis="Step Response (V)", x_axis="Time (ns)"):
         super().__init__()
         self.title = "Steps"
 
+        self.channel = self.addPlot(
+            row=0, col=0, title=TITLES[0], labels={"left": y_axis, "bottom": x_axis}
+        )
+        self.channel_tx = self.addPlot(
+            row=0, col=1, title=TITLES[1], labels={"left": y_axis, "bottom": x_axis}
+        )
+        self.channel_ctle = self.addPlot(
+            row=1, col=0, title=TITLES[2], labels={"left": y_axis, "bottom": x_axis}
+        )
+        self.channel_dfe = self.addPlot(
+            row=1, col=1, title=TITLES[3], labels={"left": y_axis, "bottom": x_axis}
+        )
 
-class PulsesWidget(ChannelPlotWidget):
-    def __init__(self):
+
+class PulsesWidget(pg.GraphicsLayoutWidget):
+    def __init__(self, y_axis="Pulse Response (V)", x_axis="Time (ns)"):
         super().__init__()
         self.title = "Pulses"
 
+        self.channel = self.addPlot(
+            row=0, col=0, title=TITLES[0], labels={"left": y_axis, "bottom": x_axis}
+        )
+        self.channel_tx = self.addPlot(
+            row=0, col=1, title=TITLES[1], labels={"left": y_axis, "bottom": x_axis}
+        )
+        self.channel_ctle = self.addPlot(
+            row=1, col=0, title=TITLES[2], labels={"left": y_axis, "bottom": x_axis}
+        )
+        self.channel_dfe = self.addPlot(
+            row=1, col=1, title=TITLES[3], labels={"left": y_axis, "bottom": x_axis}
+        )
 
-class FrequencyWidget(ChannelPlotWidget):
-    def __init__(self):
+
+class FrequencyWidget(pg.GraphicsLayoutWidget):
+    def __init__(self, y_axis="Frequency Response (dB)", x_axis="Frequency (GHz)"):
         super().__init__()
         self.title = "Frequency Responses"
 
+        self.channel = self.addPlot(
+            row=0, col=0, title=TITLES[0], labels={"left": y_axis, "bottom": x_axis}
+        )
+        self.channel_tx = self.addPlot(
+            row=0, col=1, title=TITLES[1], labels={"left": y_axis, "bottom": x_axis}
+        )
+        self.channel_ctle = self.addPlot(
+            row=1, col=0, title=TITLES[2], labels={"left": y_axis, "bottom": x_axis}
+        )
+        self.channel_dfe = self.addPlot(
+            row=1, col=1, title=TITLES[3], labels={"left": y_axis, "bottom": x_axis}
+        )
 
-class OutputWidget(ChannelPlotWidget):
-    def __init__(self):
+
+class OutputWidget(pg.GraphicsLayoutWidget):
+    def __init__(self, y_axis="Output (V)", x_axis="Time (ns)"):
         super().__init__()
         self.title = "Outputs"
 
+        self.channel = self.addPlot(
+            row=0, col=0, title=TITLES[0], labels={"left": y_axis, "bottom": x_axis}
+        )
+        self.channel_tx = self.addPlot(
+            row=0, col=1, title=TITLES[1], labels={"left": y_axis, "bottom": x_axis}
+        )
+        self.channel_ctle = self.addPlot(
+            row=1, col=0, title=TITLES[2], labels={"left": y_axis, "bottom": x_axis}
+        )
+        self.channel_dfe = self.addPlot(
+            row=1, col=1, title=TITLES[3], labels={"left": y_axis, "bottom": x_axis}
+        )
 
-class EyeDiagramWidget(ChannelPlotWidget):
-    def __init__(self):
+
+class EyeDiagramWidget(pg.GraphicsLayoutWidget):
+    def __init__(self, y_axis="Signal Level (V)", x_axis="Time (ps)"):
         super().__init__()
         self.title = "Eyes"
 
+        self.channel = self.addPlot(
+            row=0, col=0, title=TITLES[0], labels={"left": y_axis, "bottom": x_axis}
+        )
+        self.channel_tx = self.addPlot(
+            row=0, col=1, title=TITLES[1], labels={"left": y_axis, "bottom": x_axis}
+        )
+        self.channel_ctle = self.addPlot(
+            row=1, col=0, title=TITLES[2], labels={"left": y_axis, "bottom": x_axis}
+        )
+        self.channel_dfe = self.addPlot(
+            row=1, col=1, title=TITLES[3], labels={"left": y_axis, "bottom": x_axis}
+        )
 
-class JitterDistributionsWidget(ChannelPlotWidget):
-    def __init__(self):
+
+class JitterDistributionsWidget(pg.GraphicsLayoutWidget):
+    def __init__(self, y_axis="Count", x_axis="Time (ps)"):
         super().__init__()
         self.title = "Jitter Dist."
 
+        self.channel = self.addPlot(
+            row=0, col=0, title=TITLES[0], labels={"left": y_axis, "bottom": x_axis}
+        )
+        self.channel_tx = self.addPlot(
+            row=0, col=1, title=TITLES[1], labels={"left": y_axis, "bottom": x_axis}
+        )
+        self.channel_ctle = self.addPlot(
+            row=1, col=0, title=TITLES[2], labels={"left": y_axis, "bottom": x_axis}
+        )
+        self.channel_dfe = self.addPlot(
+            row=1, col=1, title=TITLES[3], labels={"left": y_axis, "bottom": x_axis}
+        )
 
-class JitterSpectrumsWidget(ChannelPlotWidget):
-    def __init__(self):
+
+class JitterSpectrumsWidget(pg.GraphicsLayoutWidget):
+    def __init__(self, y_axis="|FFT(TIE)| (dBui)", x_axis="Frequency (MHz)"):
         super().__init__()
         self.title = "Jitter Spec."
 
+        self.channel = self.addPlot(
+            row=0, col=0, title=TITLES[0], labels={"left": y_axis, "bottom": x_axis}
+        )
+        self.channel_tx = self.addPlot(
+            row=0, col=1, title=TITLES[1], labels={"left": y_axis, "bottom": x_axis}
+        )
+        self.channel_ctle = self.addPlot(
+            row=1, col=0, title=TITLES[2], labels={"left": y_axis, "bottom": x_axis}
+        )
+        self.channel_dfe = self.addPlot(
+            row=1, col=1, title=TITLES[3], labels={"left": y_axis, "bottom": x_axis}
+        )
 
-class BathtubCurvesWidget(ChannelPlotWidget):
-    def __init__(self):
+
+class BathtubCurvesWidget(pg.GraphicsLayoutWidget):
+    def __init__(self, y_axis="Log10(P(Transition occurs inside.))", x_axis="Time (ps)"):
         super().__init__()
         self.title = "Bathtubs"
+
+        self.channel = self.addPlot(
+            row=0, col=0, title=TITLES[0], labels={"left": y_axis, "bottom": x_axis}
+        )
+        self.channel_tx = self.addPlot(
+            row=0, col=1, title=TITLES[1], labels={"left": y_axis, "bottom": x_axis}
+        )
+        self.channel_ctle = self.addPlot(
+            row=1, col=0, title=TITLES[2], labels={"left": y_axis, "bottom": x_axis}
+        )
+        self.channel_dfe = self.addPlot(
+            row=1, col=1, title=TITLES[3], labels={"left": y_axis, "bottom": x_axis}
+        )
 
 
 class JitterInfoWidget(QWidget):

@@ -6,6 +6,7 @@ from time import clock
 import numpy as np
 from numpy.fft import fft, ifft
 from numpy.random import normal, randint
+from pubsub import pub
 from pybert.buffer import Receiver, Transmitter
 from pybert.channel import Channel
 from pybert.defaults import (
@@ -67,7 +68,6 @@ class Simulation:
 
         self.performance = {}
         self.sweep_results = []
-        self.bit_errors = 0  #: # of bit errors observed in last run.
         self.run_count = 0  # Used as a mechanism to force bit stream regeneration.
         self.thresh = THRESHOLD
 
@@ -77,9 +77,8 @@ class Simulation:
         self.eq = Equalization()
 
         self.jitter = {}
-        self.plots = Plots()
-
         self.results = {
+            "bit_errors": 0,  #: Number of bit errors observed in last run.
             "tx": {
                 "s": np.array([]),
                 "out": np.array([]),
@@ -402,8 +401,8 @@ class Simulation:
                 if clock_pos + nspui * (1 + i) < len(p):
                     p[int(clock_pos + nspui * (0.5 + i)) :] -= p[clock_pos + nspui * (1 + i)]
 
-        self.plots.update_data("ctle_out_h_tune", p)
-        self.plots.update_data("clocks_tune", clocks)
+        pub.sendMessage("simulation.ctle_out_h_tune", p=p)
+        pub.sendMessage("simulation.clocks_tune", clocks=clocks)
 
         if self.mod_type == MODULATION.DUO:
             return (
@@ -583,7 +582,7 @@ class Simulation:
                 for i in range(sweep_aves):
                     self.sweep_num = sweep_num
                     self.run_simulation(update_plots=False)
-                    bit_errs.append(self.bit_errors)
+                    bit_errs.append(self.results["bit_errors"])
                     sweep_num += 1
                 sweep_results.append((sweep, np.mean(bit_errs), np.std(bit_errs)))
             self.sweep_results = sweep_results
@@ -671,6 +670,7 @@ class Simulation:
             self.ideal_xings = ideal_xings
 
             # Calculate the channel output.
+            # -------------------------------------------------------------------------------------
             #
             # Note: We're not using 'self.ideal_signal', because we rely on the system response to
             #       create the duobinary waveform. We only create it explicitly, above,
@@ -690,6 +690,7 @@ class Simulation:
         self.results["channel"]["out_H"] = fft(chnl_out)
 
         # Generate the output from, and the incremental/cumulative impulse/step/frequency responses of, the Tx.
+        # -----------------------------------------------------------------------------------------
         try:
             if self.tx.use_ami:
                 try:
@@ -788,6 +789,7 @@ class Simulation:
             raise
 
         # Generate the output from, and the incremental/cumulative impulse/step/frequency responses of, the CTLE.
+        # -----------------------------------------------------------------------------------------
         try:
             if self.rx.use_ami:
                 try:
@@ -878,6 +880,7 @@ class Simulation:
             raise
 
         # Generate the output from, and the incremental/cumulative impulse/step/frequency responses of, the DFE.
+        # -----------------------------------------------------------------------------------------
         try:
             if self.eq.use_dfe:
                 dfe = DFE(
@@ -936,7 +939,7 @@ class Simulation:
             elif len(bits_tst) > len(bits_ref):
                 bits_tst = bits_tst[: len(bits_ref)]
             bit_errs = np.where(bits_tst ^ bits_ref)[0]
-            self.bit_errors = len(bit_errs)
+            self.results["bit_errors"] = len(bit_errs)
 
             dfe_h = np.array(
                 [1.0]
@@ -976,7 +979,7 @@ class Simulation:
         self.clock_times = clock_times
 
         # Analyze the jitter.
-        # -------------------------------------------------------------------------------------------
+        # -----------------------------------------------------------------------------------------
 
         try:
             if self.mod_type == MODULATION.DUO:  # Handle duo-binary case.
@@ -1027,21 +1030,23 @@ class Simulation:
             self.performance["jitter"] = nbits * nspb / (clock() - split_time)
             self.performance["total"] = nbits * nspb / (clock() - start_time)
             split_time = clock()
-            self.status = f"Updating plots...(sweep {sweep_num} of {num_sweeps})"
         except Exception as error:
             self.status = "Exception: jitter"
             raise
 
-        # Update plots.
-        # -------------------------------------------------------------------------------------------
+        # Tell the GUI that the simulation is done and to update everything.
+        # -----------------------------------------------------------------------------------------
         try:
-            # if update_plots:
-            #     self.plots.update_results(self.results, self.jitter)
-            #     if not initial_run:
-            #         self.plots.update_eyes(self.results)
-
+            if update_plots:
+                self.status = f"Updating plots...(sweep {sweep_num} of {num_sweeps})"
+                pub.sendMessage("simulation.jitter", jitter=self.jitter)
+                pub.sendMessage("simulation.results", results=self.results)
+                if not initial_run:
+                    pub.sendMessage("simulation.results.eyes")
+            # Plot performance is not really valid since it just has to send a message now.
             self.performance["plot"] = nbits * nspb / (clock() - split_time)
             self.status = "Ready."
         except Exception as error:
             self.status = "Exception: plotting"
             raise
+        pub.sendMessage("simulation.performance", performance=self.performance)

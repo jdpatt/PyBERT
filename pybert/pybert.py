@@ -22,6 +22,7 @@ import traceback
 from functools import lru_cache
 from pathlib import Path
 
+from pubsub.utils.notification import useNotifyByWriteFile
 from pybert import __version__ as VERSION
 
 # from pybert.configuration import ConfigurationData
@@ -38,6 +39,19 @@ from pybert.view.gui import PyBERT_GUI
 from PySide2.QtWidgets import QApplication
 
 # from pybert.waveform_data import WaveformData
+
+
+class PubSubLoggerWriter:
+    def __init__(self):
+        self.logger = logging.getLogger("pybert.pubsub")
+        self.level = logging.DEBUG
+
+    def write(self, message):
+        if message != "\n":
+            self.logger.log(self.level, message.rstrip())
+
+
+useNotifyByWriteFile(PubSubLoggerWriter())
 
 
 class PyBERT:

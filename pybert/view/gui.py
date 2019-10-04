@@ -9,6 +9,7 @@ import traceback
 import webbrowser
 
 import pybert.view.widgets as widgets
+from pubsub import pub
 from pybert import __authors__ as AUTHORS
 from pybert import __copy__ as COPY
 from pybert import __date__ as DATE
@@ -71,8 +72,8 @@ class PyBERT_GUI(QMainWindow):
         self.help_act = QAction(self.tr("&Help"), self)
         self.help_act.triggered.connect(self.help)
 
-        self.run_act = QAction(self.tr("&Run"), self)
-        self.abort_act = QAction(self.tr("&Abort"), self)
+        self.run_act = QAction(self.tr("&Start Simulation"), self)
+        self.run_act.triggered.connect(self.start_simulation)
 
     def create_console_dock(self):
         """Create a dockable toolbar on the bottom.
@@ -110,7 +111,6 @@ class PyBERT_GUI(QMainWindow):
         self.view_menu = self.menuBar().addMenu(self.tr("&View"))
 
         self.menuBar().addAction(self.run_act)
-        self.menuBar().addAction(self.abort_act)
 
         self.help_menu = self.menuBar().addMenu(self.tr("&Help"))
         self.help_menu.addAction(self.doc_act)
@@ -162,3 +162,7 @@ class PyBERT_GUI(QMainWindow):
         # if DEBUG:
         #     raise error
         QMessageBox.warning(self, self.tr("PyBERT Error"), str(error))
+
+    def start_simulation(self):
+        """Tell pybert to start the simulation."""
+        pub.sendMessage("simulation.start")

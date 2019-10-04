@@ -15,10 +15,6 @@ import numpy as np
 from pybert.defaults import MIN_BATHTUB_VAL
 from pybert.utility import calc_eye
 
-# from chaco.api import ArrayPlotData, ColorMapper, GridPlotContainer, Plot
-# from chaco.tools.api import PanTool, ZoomTool
-# from traits.api import Instance
-
 
 class Plots:
     """docstring for Plots"""
