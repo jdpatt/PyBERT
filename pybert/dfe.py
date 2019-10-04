@@ -13,8 +13,7 @@ Copyright (c) 2014 by David Banas; All rights reserved World wide.
 """
 from numpy import array, sign, zeros
 from pybert.cdr import CDR
-from pybert.defaults import SUM_NUM_TAPS
-from pybert.utility import MODULATION
+from pybert.defaults import MODULATION, SUM_NUM_TAPS
 from scipy.signal import iirfilter
 
 

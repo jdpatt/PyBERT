@@ -13,7 +13,6 @@ matplotlib.use("Qt5Agg")  # isort:skip
 import re
 
 # pylint: disable=C0103
-from enum import Enum, auto
 from functools import reduce
 from logging import getLogger
 from pathlib import Path
@@ -21,27 +20,11 @@ from threading import Event, Thread
 from typing import List, Sequence
 
 import numpy as np
+from pybert.defaults import CTLE_MODE, MODULATION
 import skrf as rf
 from scipy.signal import freqs, get_window, invres
 
 log = getLogger("pybert.utility")
-
-
-class CTLE_MODE(Enum):
-    """The different CTLE (Continuous Time Linear Equalizer) modes supported by PyBERT."""
-
-    OFF = auto()
-    PASSIVE = auto()
-    AGC = auto()
-    MANUAL = auto()
-
-
-class MODULATION(Enum):
-    """The different modulation types supported by PyBERT."""
-
-    NRZ = auto()
-    DUO = auto()
-    PAM4 = auto()
 
 
 class StoppableThread(Thread):

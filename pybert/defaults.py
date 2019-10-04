@@ -1,4 +1,5 @@
 """This file holds all the default settings that get populated in pybert."""
+from enum import Enum, auto
 
 DEBUG = True
 DEBUG_OPTIMIZE = False
@@ -58,3 +59,20 @@ LOCK_SUSTAIN = 500
 
 # - Analysis ----------------------------------------------------------
 THRESHOLD = 6  # threshold for identifying periodic jitter spectral elements (sigma)
+
+
+class CTLE_MODE(Enum):
+    """The different CTLE (Continuous Time Linear Equalizer) modes supported by PyBERT."""
+
+    OFF = auto()
+    PASSIVE = auto()
+    AGC = auto()
+    MANUAL = auto()
+
+
+class MODULATION(Enum):
+    """The different modulation types supported by PyBERT."""
+
+    NRZ = auto()
+    DUO = auto()
+    PAM4 = auto()

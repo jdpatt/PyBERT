@@ -1,16 +1,28 @@
 import logging
+import platform
 
 from PySide2.QtGui import QColor, QSyntaxHighlighter
 from PySide2.QtWidgets import QPlainTextEdit
 
-TEXT_COLOR = {
-    "WARNING": "black",
-    "INFO": "black",
-    "DEBUG": "navy",
-    "CRITICAL": "red",
-    "ERROR": "red",
-}
 
+# I have dark mode enabled in os x which ruins the text colors.  Look into
+# stylesheets for different platforms.
+if "darwin" in platform.system().lower():
+    TEXT_COLOR = {
+        "WARNING": "white",
+        "INFO": "white",
+        "DEBUG": "LightCyan",
+        "CRITICAL": "red",
+        "ERROR": "red",
+    }
+else:
+    TEXT_COLOR = {
+        "WARNING": "black",
+        "INFO": "black",
+        "DEBUG": "navy",
+        "CRITICAL": "red",
+        "ERROR": "red",
+    }
 
 class QTextEditLogger(logging.Handler):
     """Create a custom logginer handler that appends each record to the TextEdit Widget."""

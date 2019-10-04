@@ -8,6 +8,7 @@ from numpy.fft import ifft
 from pybert.defaults import (
     ALPHA,
     BANDWIDTH,
+    CTLE_MODE,
     CTLE_OFFSET,
     DEBUG_OPTIMIZE,
     DECISION_SCALER,
@@ -25,7 +26,7 @@ from pybert.defaults import (
     REL_LOCK_TOL,
     USE_DFE,
 )
-from pybert.utility import CTLE_MODE, StoppableThread, fir_numerator, make_ctle
+from pybert.utility import StoppableThread, fir_numerator, make_ctle
 from scipy.optimize import minimize, minimize_scalar
 
 

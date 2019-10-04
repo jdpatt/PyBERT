@@ -1,6 +1,5 @@
 """This file contains all the widgets that make up each major tab of the GUI."""
 import pyqtgraph as pg
-from pubsub import pub
 from PySide2.QtCore import *
 from PySide2.QtWidgets import *
 
@@ -169,18 +168,19 @@ class EQTuneWidget(QWidget):
 
     def hanndle_button(self, button_id):
         """Send a message based off which button is pressed."""
-        if button_id == 0:  # Reset EQ
-            pub.sendMessage("eq.reset")
-        elif button_id == 1:  # Save EQ
-            pub.sendMessage("eq.save")
-        elif button_id == 2:  # Start Tx Opt
-            pub.sendMessage("eq.start", opt="tx")
-        elif button_id == 3:  # Start Rx Opt
-            pub.sendMessage("eq.start", opt="rx")
-        elif button_id == 4:  # Start Co Opt
-            pub.sendMessage("eq.start", opt="co")
-        elif button_id == 5:  # Abort Opt
-            pub.sendMessage("eq.abort")
+        pass
+        # if button_id == 0:  # Reset EQ
+        #     pub.sendMessage("eq.reset")
+        # elif button_id == 1:  # Save EQ
+        #     pub.sendMessage("eq.save")
+        # elif button_id == 2:  # Start Tx Opt
+        #     pub.sendMessage("eq.start", opt="tx")
+        # elif button_id == 3:  # Start Rx Opt
+        #     pub.sendMessage("eq.start", opt="rx")
+        # elif button_id == 4:  # Start Co Opt
+        #     pub.sendMessage("eq.start", opt="co")
+        # elif button_id == 5:  # Abort Opt
+        #     pub.sendMessage("eq.abort")
 
 
 TITLES = [

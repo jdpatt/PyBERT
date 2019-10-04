@@ -6,7 +6,6 @@ from time import clock
 import numpy as np
 from numpy.fft import fft, ifft
 from numpy.random import normal, randint
-from pubsub import pub
 from pybert.buffer import Receiver, Transmitter
 from pybert.channel import Channel
 from pybert.defaults import (
@@ -14,6 +13,7 @@ from pybert.defaults import (
     HPF_CORNER_COUPLING,
     NUM_AVG,
     NUM_BITS,
+    MODULATION,
     PATTERN_LEN,
     SAMPLES_PER_BIT,
     THRESHOLD,
@@ -25,7 +25,6 @@ from pybert.static import (
     status_string
 )
 from pybert.utility import (
-    MODULATION,
     StoppableThread,
     calc_G,
     calc_gamma,
@@ -37,7 +36,7 @@ from pybert.utility import (
     trim_impulse,
 )
 from pybert.view.plot import Plots
-from PySide2.QtCore import QThread
+from PySide2.QtCore import QThread, QObject
 from scipy.signal import iirfilter, lfilter
 from scipy.signal.windows import hann
 
@@ -54,7 +53,7 @@ class RunSimThread(QThread):
         self.sim.run_simulation_sweeps()
 
 
-class Simulation:
+class Simulation(QObject):
     """docstring for Simulation"""
 
     def __init__(self):
@@ -168,8 +167,6 @@ class Simulation:
 
         self.run_sim_thread = None
 
-        pub.subscribe(self.run, "simulation.start")
-        pub.subscribe(self.abort, "simulation.abort")
 
     def run(self):
         """Spawn a simulation thread and run with the current settings."""
@@ -196,7 +193,7 @@ class Simulation:
         """Override the status setter so that we can log all messages."""
         self.log.info(message)
         self._status = message
-        pub.sendMessage("simulation.status", status_str=self._get_status_str())
+        # pub.sendMessage("simulation.status", status_str=self._get_status_str())
 
     # Dependent variable definitions
     @property
@@ -412,8 +409,8 @@ class Simulation:
                 if clock_pos + nspui * (1 + i) < len(p):
                     p[int(clock_pos + nspui * (0.5 + i)) :] -= p[clock_pos + nspui * (1 + i)]
 
-        pub.sendMessage("simulation.ctle_out_h_tune", p=p)
-        pub.sendMessage("simulation.clocks_tune", clocks=clocks)
+        # pub.sendMessage("simulation.ctle_out_h_tune", p=p)
+        # pub.sendMessage("simulation.clocks_tune", clocks=clocks)
 
         if self.mod_type == MODULATION.DUO:
             return (
@@ -1050,13 +1047,14 @@ class Simulation:
         try:
             if update_plots:
                 self.status = f"Updating plots...(sweep {sweep_num} of {num_sweeps})"
-                pub.sendMessage("simulation.jitter", jitter=self.jitter)
-                pub.sendMessage("simulation.results", results=self.results)
+                # pub.sendMessage("simulation.jitter", jitter=self.jitter)
+                # pub.sendMessage("simulation.results", results=self.results)
                 if not initial_run:
-                    pub.sendMessage("simulation.results.eyes")
+                    pass
+                    # pub.sendMessage("simulation.results.eyes")
             # Plot performance is not really valid since it just has to send a message now.
             self.performance["plot"] = nbits * nspb / (clock() - split_time)
-            pub.sendMessage("simulation.performance", performance=self.performance)
+            # pub.sendMessage("simulation.performance", performance=self.performance)
             self.status = "Ready"
         except Exception as error:
             self.status = "Exception: plotting"

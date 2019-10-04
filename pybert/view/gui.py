@@ -9,7 +9,6 @@ import traceback
 import webbrowser
 
 import pybert.view.widgets as widgets
-from pubsub import pub
 from pybert import __authors__ as AUTHORS
 from pybert import __copy__ as COPY
 from pybert import __date__ as DATE
@@ -29,14 +28,13 @@ class PyBERT_GUI(QMainWindow):
         self.log = logging.getLogger("pybert.gui")
         self.log.debug("Initializing GUI")
         self.setWindowTitle("PyBERT")
+        self.create_console_dock()
         self.create_actions()
         self.create_menus()
         self.create_statusbar()
-        self.create_console_dock()
         self.setCentralWidget(self.create_tabs())
         self.showMaximized()
 
-        pub.subscribe(self.update_statusbar, "simulation.status")
 
     def create_actions(self):
         """Global Actions for the GUI."""
@@ -56,6 +54,10 @@ class PyBERT_GUI(QMainWindow):
         self.load_data_act.setShortcut(self.tr("Ctrl+M"))
         self.load_data_act.setStatusTip(self.tr("Load waveform data."))
 
+        self.console_act = self.console.toggleViewAction()
+        self.console_act.setShortcut(self.tr("Ctrl+`"))
+        self.console_act.setStatusTip(self.tr("Toggle Console Visibility"))
+
         self.preferences_act = QAction(self.tr("&Preferences"), self)
         self.preferences_act.setShortcut(self.tr("Ctrl+,"))
 
@@ -74,10 +76,13 @@ class PyBERT_GUI(QMainWindow):
         self.help_act = QAction(self.tr("&Help"), self)
         self.help_act.triggered.connect(self.help)
 
-        self.abort_act = QAction(self.tr("&Abort Sim"), self)
+        self.abort_act = QAction(self.tr("&Abort"), self)
         self.abort_act.triggered.connect(self.abort_simulation)
-        self.run_act = QAction(self.tr("&Start Sim"), self)
+        self.abort_act.setShortcut(self.tr("Ctrl+A"))
+        self.run_act = QAction(self.tr("&Run"), self)
         self.run_act.triggered.connect(self.start_simulation)
+        self.run_act.setShortcut(self.tr("Ctrl+R"))
+
 
     def create_console_dock(self):
         """Create a dockable toolbar on the bottom.
@@ -97,14 +102,10 @@ class PyBERT_GUI(QMainWindow):
         self.console.setAllowedAreas(Qt.BottomDockWidgetArea)
         self.addDockWidget(Qt.BottomDockWidgetArea, self.console)
 
-        self.console_act = self.console.toggleViewAction()
-        self.console_act.setShortcut(self.tr("Ctrl+`"))
-        self.console_act.setStatusTip(self.tr("Toggle Console Visibility"))
-        self.view_menu.addAction(self.console_act)
-
     def create_menus(self):
         """Create the main menus."""
-        self.file_menu = self.menuBar().addMenu(self.tr("&File"))
+        self.menubar = QMenuBar()
+        self.file_menu = self.menubar.addMenu(self.tr("&File"))
         self.file_menu.addAction(self.save_confg_act)
         self.file_menu.addAction(self.load_confg_act)
         self.file_menu.addAction(self.save_data_act)
@@ -112,12 +113,14 @@ class PyBERT_GUI(QMainWindow):
         self.file_menu.addAction(self.preferences_act)
         self.file_menu.addAction(self.exit_act)
 
-        self.view_menu = self.menuBar().addMenu(self.tr("&View"))
+        self.view_menu = self.menubar.addMenu(self.tr("&View"))
+        self.view_menu.addAction(self.console_act)
 
-        self.menuBar().addAction(self.run_act)
-        self.menuBar().addAction(self.abort_act)
+        self.sim_menu = self.menubar.addMenu(self.tr("&Simulation"))
+        self.sim_menu.addAction(self.run_act)
+        self.sim_menu.addAction(self.abort_act)
 
-        self.help_menu = self.menuBar().addMenu(self.tr("&Help"))
+        self.help_menu = self.menubar.addMenu(self.tr("&Help"))
         self.help_menu.addAction(self.doc_act)
         self.help_menu.addAction(self.about_act)
         self.help_menu.addAction(self.help_act)
@@ -174,8 +177,8 @@ class PyBERT_GUI(QMainWindow):
 
     def start_simulation(self):
         """Tell pybert to start the simulation."""
-        pub.sendMessage("simulation.start")
+        pass
 
     def abort_simulation(self):
         """Tell pybert to kill the simulation."""
-        pub.sendMessage("simulation.abort")
+        pass
