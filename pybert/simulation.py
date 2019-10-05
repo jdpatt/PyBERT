@@ -36,25 +36,13 @@ from pybert.utility import (
     trim_impulse,
 )
 from pybert.view.plot import Plots
-from PySide2.QtCore import QThread, QObject
+from PySide2.QtCore import QObject, Signal, Slot
 from scipy.signal import iirfilter, lfilter
 from scipy.signal.windows import hann
 
 
-class RunSimThread(QThread):
-    """Used to run the simulation in its own thread, in order to preserve GUI responsiveness."""
-
-    def __init__(self, simulation):
-        super().__init__()
-        self.sim = simulation
-
-    def run(self):
-        """Run the simulation(s)."""
-        self.sim.run_simulation_sweeps()
-
-
 class Simulation(QObject):
-    """docstring for Simulation"""
+    """The main object in pybert containing the simulator."""
 
     def __init__(self):
         super(Simulation, self).__init__()
@@ -165,24 +153,6 @@ class Simulation(QObject):
         self.chnl_p = np.array([])
         self.len_h = np.array([])
 
-        self.run_sim_thread = None
-
-
-    def run(self):
-        """Spawn a simulation thread and run with the current settings."""
-        if self.run_sim_thread and self.run_sim_thread.is_alive() and self.status != "Ready":
-            pass
-        else:
-            self.run_sim_thread = RunSimThread(self)
-            self.log.debug("Simulation Started")
-            self.run_sim_thread.start()
-
-    def abort(self):
-        """Kill the simulation thread."""
-        if self.run_sim_thread and self.run_sim_thread.is_alive():
-            self.run_sim_thread.stop()
-            self.log.warning("Simulation Aborted")
-
     @property
     def status(self):
         """Return the status string."""
@@ -193,7 +163,6 @@ class Simulation(QObject):
         """Override the status setter so that we can log all messages."""
         self.log.info(message)
         self._status = message
-        # pub.sendMessage("simulation.status", status_str=self._get_status_str())
 
     # Dependent variable definitions
     @property
@@ -539,7 +508,7 @@ class Simulation(QObject):
         self.chnl_p = chnl_p
         self.len_h = len_h
 
-    def run_simulation_sweeps(self):
+    def run_sweeps(self):
         """
         Runs the simulation sweeps.
 
@@ -548,6 +517,7 @@ class Simulation(QObject):
 
         """
 
+        self.log.debug("Simulation Started")
         sweep_aves = self.sweep_aves
         do_sweep = self.do_sweep
         tx_taps = self.eq.tx_taps
@@ -1069,3 +1039,22 @@ class Simulation(QObject):
             self.tx.rel_power,
             self.jitter.get("dfe", None),
         )
+
+    @lru_cache(maxsize=None)
+    def _get_sweep_info(self):
+        return sweep_results_menu(self.sweep_results)
+
+    @lru_cache(maxsize=None)
+    def _get_perf_info(self):
+        return performance_menu(
+            {key: value * 60.0e-6 for (key, value) in self.performance.items()}
+        )
+
+    @lru_cache(maxsize=None)
+    def _get_jitter_info(self):
+        try:
+            jitter_info = jitter_rejection_menu(self.jitter)
+        except Exception as error:
+            jitter_info = "<H1>Jitter Rejection by Equalization Component</H1>\n"
+            # popup_alert("Jitter Calculation Failed", error)
+        return jitter_info

@@ -111,7 +111,7 @@ class FailledDLLLoad(Exception):
 
 
 class Transmitter(Buffer):
-    """docstring for Transmitter"""
+    """Transmitter in the Channel"""
 
     def __init__(self, random_noise):
         super(Transmitter, self).__init__()
@@ -126,7 +126,7 @@ class Transmitter(Buffer):
 
 
 class Receiver(Buffer):
-    """docstring for Receiver"""
+    """Receiver in the Channel"""
 
     def __init__(self):
         super(Receiver, self).__init__()

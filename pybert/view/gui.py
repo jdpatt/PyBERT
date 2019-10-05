@@ -5,6 +5,7 @@ Copyright (c) 2019 David Patterson & David Banas; all rights reserved World wide
 
 import inspect
 import logging
+import platform
 import traceback
 import webbrowser
 
@@ -15,9 +16,27 @@ from pybert import __date__ as DATE
 from pybert import __version__ as VERSION
 from pybert.defaults import DEBUG
 from pybert.static import help_menu
-from pybert.view.console_logger import QTextEditLogger
 from PySide2.QtCore import *
 from PySide2.QtWidgets import *
+
+# I have dark mode enabled in os x which ruins the text colors.  Look into
+# stylesheets for different platforms.
+if "darwin" in platform.system().lower():
+    TEXT_COLOR = {
+        "WARNING": "white",
+        "INFO": "white",
+        "DEBUG": "LightCyan",
+        "CRITICAL": "red",
+        "ERROR": "red",
+    }
+else:
+    TEXT_COLOR = {
+        "WARNING": "black",
+        "INFO": "black",
+        "DEBUG": "navy",
+        "CRITICAL": "red",
+        "ERROR": "red",
+    }
 
 
 class PyBERT_GUI(QMainWindow):
@@ -68,7 +87,6 @@ class PyBERT_GUI(QMainWindow):
 
         self.about_act = QAction(self.tr("&About"), self)
         self.about_act.triggered.connect(self.about)
-        # TODO: These connections should move into pybert so that the view tell's the controller to do something with the model.
 
         self.doc_act = QAction(self.tr("&Documentation"), self)
         self.doc_act.triggered.connect(self.open_docs)
@@ -77,10 +95,8 @@ class PyBERT_GUI(QMainWindow):
         self.help_act.triggered.connect(self.help)
 
         self.abort_act = QAction(self.tr("&Abort"), self)
-        self.abort_act.triggered.connect(self.abort_simulation)
         self.abort_act.setShortcut(self.tr("Ctrl+A"))
         self.run_act = QAction(self.tr("&Run"), self)
-        self.run_act.triggered.connect(self.start_simulation)
         self.run_act.setShortcut(self.tr("Ctrl+R"))
 
 
@@ -92,12 +108,11 @@ class PyBERT_GUI(QMainWindow):
         """
         self.setDockOptions(QMainWindow.AllowTabbedDocks)
         self.console = QDockWidget()
-        logging_widget = QTextEditLogger(self)
-        logging_widget.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
-        logging_widget.setLevel(logging.DEBUG)
-        # Attach the widget to the root logger to get all messages.
-        logging.getLogger().addHandler(logging_widget)
-        self.console.setWidget(logging_widget.widget)
+        self.text_edit = QPlainTextEdit()
+        self.text_edit.setReadOnly(True)
+        self.text_edit.setMaximumBlockCount(100)
+        self.text_edit.setCenterOnScroll(True)
+        self.console.setWidget(self.text_edit)
         self.console.setWindowTitle("Console")
         self.console.setAllowedAreas(Qt.BottomDockWidgetArea)
         self.addDockWidget(Qt.BottomDockWidgetArea, self.console)
@@ -132,6 +147,14 @@ class PyBERT_GUI(QMainWindow):
         """
         self.status_label = QLabel()
         self.statusBar().addPermanentWidget(self.status_label)
+
+    def log_message(self, level, msg):
+        """Log any logger messages via the slot/signal mechanism so that its thread safe."""
+        self.text_edit.ensureCursorVisible()
+        if level in TEXT_COLOR:
+            self.text_edit.appendHtml(f'<p style="color:{TEXT_COLOR[level]};">{msg}</p>')
+        else:
+            self.text_edit.appendPlainText(msg)
 
     def update_statusbar(self, status_str):
         """Update the content of the status bar."""
@@ -174,11 +197,3 @@ class PyBERT_GUI(QMainWindow):
         # if DEBUG:
         #     raise error
         QMessageBox.warning(self, self.tr("PyBERT Error"), str(error))
-
-    def start_simulation(self):
-        """Tell pybert to start the simulation."""
-        pass
-
-    def abort_simulation(self):
-        """Tell pybert to kill the simulation."""
-        pass

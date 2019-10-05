@@ -8,7 +8,10 @@ from pybert.materials import MATERIALS, Materials
 
 @dataclass
 class Channel:
-    """docstring for Channel"""
+    """The physical properties of the channel.
+
+    Those can come from the materials defined in pybert or from an external file.
+    """
 
     use_ch_file: bool = False  # Import channel description from file?
     padded: bool = False  # Zero pad imported Touchstone data?

@@ -19,13 +19,13 @@ import logging.handlers
 import platform
 import sys
 import traceback
-from functools import lru_cache
 from pathlib import Path
 
 from pybert import __version__ as VERSION
 
 # from pybert.configuration import ConfigurationData
 from pybert.defaults import DEBUG, NUM_TAPS
+from pybert.logger import setup_logger, ThreadLogHandler
 from pybert.simulation import Simulation
 from pybert.static import (
     jitter_rejection_menu,
@@ -35,9 +35,9 @@ from pybert.static import (
 )
 from pybert.view.gui import PyBERT_GUI
 from PySide2.QtWidgets import QApplication
+from PySide2.QtCore import QThread
 
 # from pybert.waveform_data import WaveformData
-
 
 class PyBERT:
     """
@@ -66,22 +66,17 @@ class PyBERT:
         # to get all the Traits/UI machinery setup correctly.
         super(PyBERT, self).__init__()
 
-        self.log = logging.getLogger("pybert")
-        log_file_path = Path(__file__).parent.joinpath("pybert.log")
-        # Setup the File Handler.  All messages are logged.
-        file_handler = logging.handlers.RotatingFileHandler(
-            log_file_path, maxBytes=10485760, backupCount=5  # 10MB
-        )
-        fh_format = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-        file_handler.setFormatter(fh_format)
-        file_handler.setLevel(logging.DEBUG)
-        self.log.addHandler(file_handler)
-        self.log.setLevel(logging.DEBUG)
+        self.run_sim_thread = None
 
-        self.log.info("Log file created at: %s", log_file_path)
+        self.log = setup_logger("pybert", Path(__file__).parent.joinpath("pybert.log"))
 
         app = QApplication([])
         self.gui = PyBERT_GUI()
+
+        thread_log = ThreadLogHandler()
+        thread_log.new_record.connect(self.gui.log_message)
+        self.log.addHandler(thread_log)
+
         self.gui.show()
 
         self.log.info(
@@ -108,28 +103,14 @@ class PyBERT:
         except Exception as error:
             self.log.error(traceback.format_exc())
             self.gui.popup_alert(error)
+
+        self.sim_thread = QThread()
+        self.sim.moveToThread(self.sim_thread)
+        self.sim_thread.start()
+
+        self.gui.run_act.triggered.connect(self.sim.run_sweeps)
+
         sys.exit(app.exec_())
-
-    # TODO: The connect slots should move here so that the view (gui) tell's the controller (pybert) to do something with the model (simulation).
-
-    @lru_cache(maxsize=None)
-    def _get_sweep_info(self):
-        return sweep_results_menu(self.sim.sweep_results)
-
-    @lru_cache(maxsize=None)
-    def _get_perf_info(self):
-        return performance_menu(
-            {key: value * 60.0e-6 for (key, value) in self.sim.performance.items()}
-        )
-
-    @lru_cache(maxsize=None)
-    def _get_jitter_info(self):
-        try:
-            jitter_info = jitter_rejection_menu(self.sim.jitter)
-        except Exception as error:
-            jitter_info = "<H1>Jitter Rejection by Equalization Component</H1>\n"
-            # popup_alert("Jitter Calculation Failed", error)
-        return jitter_info
 
 
 def main():

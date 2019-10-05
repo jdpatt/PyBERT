@@ -1,4 +1,7 @@
-"""This file holds all the default settings that get populated in pybert."""
+"""This file holds all the default settings that get populated in the application.
+
+These are used to both populate the simulation and the GUI.
+"""
 from enum import Enum, auto
 
 DEBUG = True

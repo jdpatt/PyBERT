@@ -14,7 +14,7 @@ log = getLogger("pybert.jitter")
 
 
 class Jitter:
-    """docstring for Jitter"""
+    """From the crossings calculate the jitter numbers and store it in an object."""
 
     def __init__(
         self,

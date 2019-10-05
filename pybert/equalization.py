@@ -216,7 +216,7 @@ class TxTapTuner:
 
 
 class Equalization:
-    """docstring for Equalization"""
+    """Any equalization that the SerDes channel can make use of."""
 
     def __init__(self):
         super(Equalization, self).__init__()

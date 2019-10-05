@@ -17,7 +17,9 @@ from pybert.utility import calc_eye
 
 
 class Plots:
-    """docstring for Plots"""
+    """A lot of this class goes away with pyqtgraph but any other items needed
+    to generate the plots live here.
+    """
 
     def __init__(self):
         super(Plots, self).__init__()
