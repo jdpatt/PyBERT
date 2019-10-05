@@ -13,7 +13,7 @@ from logging import getLogger
 
 import numpy as np
 from pybert.defaults import MIN_BATHTUB_VAL
-from pybert.utility import calc_eye
+from pybert.sim.utility import calc_eye
 
 
 class Plots:

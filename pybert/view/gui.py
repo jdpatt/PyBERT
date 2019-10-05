@@ -15,7 +15,7 @@ from pybert import __copy__ as COPY
 from pybert import __date__ as DATE
 from pybert import __version__ as VERSION
 from pybert.defaults import DEBUG
-from pybert.static import help_menu
+from pybert.view.static import help_menu
 from PySide2.QtCore import *
 from PySide2.QtWidgets import *
 
@@ -53,7 +53,6 @@ class PyBERT_GUI(QMainWindow):
         self.create_statusbar()
         self.setCentralWidget(self.create_tabs())
         self.showMaximized()
-
 
     def create_actions(self):
         """Global Actions for the GUI."""
@@ -98,7 +97,6 @@ class PyBERT_GUI(QMainWindow):
         self.abort_act.setShortcut(self.tr("Ctrl+A"))
         self.run_act = QAction(self.tr("&Run"), self)
         self.run_act.setShortcut(self.tr("Ctrl+R"))
-
 
     def create_console_dock(self):
         """Create a dockable toolbar on the bottom.

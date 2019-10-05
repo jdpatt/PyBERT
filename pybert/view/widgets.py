@@ -148,8 +148,6 @@ class EQTuneWidget(QWidget):
         self.tune_buttons.addButton(opt_co, 4)
         self.tune_buttons.addButton(opt_abort, 5)
 
-        self.tune_buttons.buttonClicked[int].connect(self.hanndle_button)
-
         # Actually add the buttons to the GUI
         self.buttons = QHBoxLayout()
         self.buttons.addWidget(reset)
@@ -165,22 +163,6 @@ class EQTuneWidget(QWidget):
         layout.addWidget(self.tune, 1, 0, 1, -1)
         layout.addLayout(self.buttons, 2, 0)
         self.setLayout(layout)
-
-    def hanndle_button(self, button_id):
-        """Send a message based off which button is pressed."""
-        pass
-        # if button_id == 0:  # Reset EQ
-        #     pub.sendMessage("eq.reset")
-        # elif button_id == 1:  # Save EQ
-        #     pub.sendMessage("eq.save")
-        # elif button_id == 2:  # Start Tx Opt
-        #     pub.sendMessage("eq.start", opt="tx")
-        # elif button_id == 3:  # Start Rx Opt
-        #     pub.sendMessage("eq.start", opt="rx")
-        # elif button_id == 4:  # Start Co Opt
-        #     pub.sendMessage("eq.start", opt="co")
-        # elif button_id == 5:  # Abort Opt
-        #     pub.sendMessage("eq.abort")
 
 
 TITLES = [

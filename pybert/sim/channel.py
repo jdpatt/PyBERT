@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Union
 
-from pybert.materials import MATERIALS, Materials
+from pybert.sim.materials import MATERIALS, Materials
 
 
 @dataclass
@@ -28,5 +28,5 @@ class Channel:
     def change_material(self, new_material):
         """Update the material properties of the channel."""
         if new_material not in MATERIALS:
-            raise ValueError("Not a valid material choice.")
+            raise ValueError("Invalid Material Choice.")
         self.material = MATERIALS[new_material]

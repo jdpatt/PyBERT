@@ -20,8 +20,8 @@ from threading import Event, Thread
 from typing import List, Sequence
 
 import numpy as np
-from pybert.defaults import CTLE_MODE, MODULATION
 import skrf as rf
+from pybert.defaults import CTLE_MODE, MODULATION
 from scipy.signal import freqs, get_window, invres
 
 log = getLogger("pybert.utility")
@@ -672,20 +672,6 @@ def lfsr_bits(taps: Sequence[int], seed: int):
         if xor_res:
             seed += 1
         yield seed & 1
-
-
-def safe_log10(value):
-    """Guards against pesky 'Divide by 0' error messages.
-
-    If an array is passed to 'safe_log10' it will log10 each element in the array.
-    """
-
-    if hasattr(value, "__len__"):
-        value = np.where(value == 0, 1.0e-20 * np.ones(len(value)), value)
-    elif value == 0:
-        value = 1.0e-20
-    return np.log10(value)
-
 
 def pulse_center(p, nspui):
     """

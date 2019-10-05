@@ -1,4 +1,5 @@
 """Module to handle all of the equalization features of pybert."""
+import logging
 from dataclasses import dataclass
 from functools import lru_cache
 from time import sleep
@@ -26,7 +27,7 @@ from pybert.defaults import (
     REL_LOCK_TOL,
     USE_DFE,
 )
-from pybert.utility import StoppableThread, fir_numerator, make_ctle
+from pybert.sim.utility import StoppableThread, fir_numerator, make_ctle
 from scipy.optimize import minimize, minimize_scalar
 
 
@@ -220,6 +221,7 @@ class Equalization:
 
     def __init__(self):
         super(Equalization, self).__init__()
+        self.log = logging.getLogger("pybert.equalization")
         self.tx_taps = [
             TxTapTuner(name="Pre-tap", enabled=True, min_val=-0.2, max_val=0.2, value=0.0),
             TxTapTuner(name="Post-tap1", enabled=False, min_val=-0.4, max_val=0.4, value=0.0),
@@ -278,8 +280,24 @@ class Equalization:
         self.ctle_out_h_tune = np.array([])
         self._ffe = np.array([])
 
+    def handler(self, button_id):
+        """Given which button is pressed, run one of the actions."""
+        if button_id == 0:  # Reset EQ
+            self.reset_equalization()
+        elif button_id == 1:  # Save EQ
+            self.save_equalization()
+        elif button_id == 2:  # Start Tx Opt
+            self.run_tx_optimization()
+        elif button_id == 3:  # Start Rx Opt
+            self.run_rx_optimization()
+        elif button_id == 4:  # Start Co Opt
+            self.run_co_optimization()
+        elif button_id == 5:  # Abort Opt
+            self.abort_optimization()
+
     def reset_equalization(self):
         """Reset the equalization to the last set values."""
+        self.log.debug("Reset EQ")
         for index, tuner in enumerate(self.tx_tap_tuners):
             tuner.value = self.tx_taps[index].value
             tuner.enabled = self.tx_taps[index].enabled
@@ -293,6 +311,7 @@ class Equalization:
 
     def save_equalization(self):
         """Save the current set of equalization values."""
+        self.log.debug("Save EQ")
         for index, tuner in enumerate(self.tx_taps):
             tuner.value = self.tx_tap_tuners[index].value
             tuner.enabled = self.tx_tap_tuners[index].enabled
@@ -306,6 +325,7 @@ class Equalization:
 
     def run_tx_optimization(self):
         """Kick off the tx optimization thread if its not already running."""
+        self.log.debug("Run Tx Opt")
         if (
             self.tx_opt_thread
             and self.tx_opt_thread.is_alive()
@@ -323,6 +343,7 @@ class Equalization:
 
     def run_rx_optimization(self):
         """Kick off the rx optimization thread if its not already running."""
+        self.log.debug("Run Rx Opt")
         if self.rx_opt_thread and self.rx_opt_thread.is_alive() or self.ctle_mode_tune == "Off":
             pass
         else:
@@ -332,6 +353,7 @@ class Equalization:
 
     def run_co_optimization(self):
         """Kick off the co-optimization between Tx and Rx thread if its not already running."""
+        self.log.debug("Run Co Opt")
         if self.coopt_thread and self.coopt_thread.is_alive():
             pass
         else:
@@ -341,6 +363,7 @@ class Equalization:
 
     def abort_optimization(self):
         """Halt all optimization threads."""
+        self.log.debug("Abort Opt")
         if self.coopt_thread and self.coopt_thread.is_alive():
             self.coopt_thread.stop()
             self.coopt_thread.join(10)

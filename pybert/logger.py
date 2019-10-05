@@ -20,8 +20,10 @@ def setup_logger(root_name, log_file_path):
     log.info("Log file created at: %s", log_file_path)
     return log
 
+
 class LogQObject(QObject):
     """Create a dummy object to get around the PySide multiple inheritance problem."""
+
     new_record = Signal(str, str)
 
     def __init__(self):
@@ -37,7 +39,6 @@ class ThreadLogHandler(logging.Handler):
         self.new_record = self.log.new_record
         self.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
         self.setLevel(logging.DEBUG)
-        
 
     def emit(self, record):
         """Append the record to the Widget.  Color according to 'TEXT_COLOR'."""

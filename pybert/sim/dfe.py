@@ -12,7 +12,7 @@ into the larger *PyBERT* framework.
 Copyright (c) 2014 by David Banas; All rights reserved World wide.
 """
 from numpy import array, sign, zeros
-from pybert.cdr import CDR
+from pybert.sim.cdr import CDR
 from pybert.defaults import MODULATION, SUM_NUM_TAPS
 from scipy.signal import iirfilter
 

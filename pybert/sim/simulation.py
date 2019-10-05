@@ -6,25 +6,23 @@ from time import clock
 import numpy as np
 from numpy.fft import fft, ifft
 from numpy.random import normal, randint
-from pybert.buffer import Receiver, Transmitter
-from pybert.channel import Channel
+from pybert.sim.buffer import Receiver, Transmitter
+from pybert.sim.channel import Channel
 from pybert.defaults import (
     BIT_RATE,
     HPF_CORNER_COUPLING,
+    MODULATION,
     NUM_AVG,
     NUM_BITS,
-    MODULATION,
     PATTERN_LEN,
     SAMPLES_PER_BIT,
     THRESHOLD,
 )
-from pybert.dfe import DFE
-from pybert.equalization import Equalization
-from pybert.jitter import Jitter
-from pybert.static import (
-    status_string
-)
-from pybert.utility import (
+from pybert.sim.dfe import DFE
+from pybert.sim.equalization import Equalization
+from pybert.sim.jitter import Jitter
+from pybert.view.static import status_string
+from pybert.sim.utility import (
     StoppableThread,
     calc_G,
     calc_gamma,
@@ -43,6 +41,10 @@ from scipy.signal.windows import hann
 
 class Simulation(QObject):
     """The main object in pybert containing the simulator."""
+    eq_results = Signal(object, object)
+    sweep_results = Signal()
+    sim_done = Signal(dict, dict)
+    metrics = Signal(dict)
 
     def __init__(self):
         super(Simulation, self).__init__()
@@ -378,8 +380,8 @@ class Simulation(QObject):
                 if clock_pos + nspui * (1 + i) < len(p):
                     p[int(clock_pos + nspui * (0.5 + i)) :] -= p[clock_pos + nspui * (1 + i)]
 
-        # pub.sendMessage("simulation.ctle_out_h_tune", p=p)
-        # pub.sendMessage("simulation.clocks_tune", clocks=clocks)
+        # Signal the GUI that there is new data to plot
+        self.eq_results.emit(p, clocks)
 
         if self.mod_type == MODULATION.DUO:
             return (
@@ -1017,14 +1019,11 @@ class Simulation(QObject):
         try:
             if update_plots:
                 self.status = f"Updating plots...(sweep {sweep_num} of {num_sweeps})"
-                # pub.sendMessage("simulation.jitter", jitter=self.jitter)
-                # pub.sendMessage("simulation.results", results=self.results)
-                if not initial_run:
-                    pass
-                    # pub.sendMessage("simulation.results.eyes")
+                # Signal the GUI that there is new data to plot
+                self.sim_done.emit(self.jitter, self.results)
             # Plot performance is not really valid since it just has to send a message now.
             self.performance["plot"] = nbits * nspb / (clock() - split_time)
-            # pub.sendMessage("simulation.performance", performance=self.performance)
+            self.metrics.emit(self.performance)
             self.status = "Ready"
         except Exception as error:
             self.status = "Exception: plotting"
@@ -1035,7 +1034,7 @@ class Simulation(QObject):
             self.status,
             self.performance.get("total", 0.0),
             self.channel.chnl_dly,
-            self.results.get("bit_errors",0),
+            self.results.get("bit_errors", 0),
             self.tx.rel_power,
             self.jitter.get("dfe", None),
         )

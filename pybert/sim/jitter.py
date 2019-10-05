@@ -3,7 +3,7 @@ from logging import getLogger
 
 import numpy as np
 from numpy.fft import fft, ifft
-from pybert.utility import moving_average
+from pybert.sim.utility import moving_average
 from scipy.stats import norm
 
 # TODO: I'm not happy with the new jitter container.  Maybe a dict in a dict instead of a class?

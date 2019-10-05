@@ -25,19 +25,15 @@ from pybert import __version__ as VERSION
 
 # from pybert.configuration import ConfigurationData
 from pybert.defaults import DEBUG, NUM_TAPS
-from pybert.logger import setup_logger, ThreadLogHandler
-from pybert.simulation import Simulation
-from pybert.static import (
-    jitter_rejection_menu,
-    performance_menu,
-    status_string,
-    sweep_results_menu,
-)
+from pybert.logger import ThreadLogHandler, setup_logger
+from pybert.sim.simulation import Simulation
+
 from pybert.view.gui import PyBERT_GUI
-from PySide2.QtWidgets import QApplication
-from PySide2.QtCore import QThread
+from PySide2.QtCore import *
+from PySide2.QtWidgets import *
 
 # from pybert.waveform_data import WaveformData
+
 
 class PyBERT:
     """
@@ -66,7 +62,7 @@ class PyBERT:
         # to get all the Traits/UI machinery setup correctly.
         super(PyBERT, self).__init__()
 
-        self.run_sim_thread = None
+        run_sim_thread = None
 
         self.log = setup_logger("pybert", Path(__file__).parent.joinpath("pybert.log"))
 
@@ -86,10 +82,10 @@ class PyBERT:
         self.log.info("PyBERT Version: %s", VERSION)
         self.log.info("Starting PyBERT...")
 
-        # self.config = ConfigurationData(self)
-        # self.data = WaveformData(self)
+        # config = ConfigurationData(self)
+        # data = WaveformData(self)
         self.sim = Simulation()
-        self.channel = self.sim.channel
+        channel = self.sim.channel
 
         try:
             if run_simulation:
@@ -98,19 +94,29 @@ class PyBERT:
                 # Once the required data structure is filled in, we can create the plots.
                 # self.sim.plots.init_plots(self, NUM_TAPS)
                 # self.sim.plots.update_eyes()
-            else:
-                self.channel.calc_chnl_h()  # Prevents missing attribute error in _get_ctle_out_h_tune().
         except Exception as error:
             self.log.error(traceback.format_exc())
             self.gui.popup_alert(error)
 
-        self.sim_thread = QThread()
+        # Slot/Signal Connections
+        self.gui.run_act.triggered.connect(self.sim.run_sweeps)
+        self.gui.tab_widget.widget(2).tune_buttons.buttonClicked[int].connect(
+            self.sim.eq.handler
+        )  # EQ Tab
+        app.aboutToQuit.connect(self.close_application)
+
+        # Move the simulation to its own thread from the GUI.
+        self.sim_thread = QThread(self.gui)
         self.sim.moveToThread(self.sim_thread)
         self.sim_thread.start()
 
-        self.gui.run_act.triggered.connect(self.sim.run_sweeps)
-
         sys.exit(app.exec_())
+
+    def close_application(self):
+        """Close any threads and then kill the application."""
+        self.sim_thread.quit()
+        self.sim_thread.wait()  # Wait until its done.
+        QCoreApplication.instance().quit()
 
 
 def main():
