@@ -154,6 +154,7 @@ class PyBERT_GUI(QMainWindow):
         else:
             self.text_edit.appendPlainText(msg)
 
+    @Slot(str)
     def update_statusbar(self, status_str):
         """Update the content of the status bar."""
         self.status_label.setText(status_str)
@@ -162,10 +163,52 @@ class PyBERT_GUI(QMainWindow):
         """Create a widget to hold every tab of the GUI."""
         self.tab_widget = QTabWidget()
         self.tab_widget.setTabShape(QTabWidget.Triangular)
-        for widget, widget_class in widgets.TABS.items():
-            self.widget = widget_class()
-            self.tab_widget.addTab(self.widget, self.widget.title)
+
+        self.cofig_tab = widgets.ConfigWidget()
+        self.dfe_tab = widgets.DFEWidget()
+        self.eq_tab = widgets.EQTuneWidget()
+        self.impulse_tab = widgets.ImpulseWidget()
+        self.step_tab = widgets.StepWidget()
+        self.pulse_tab = widgets.PulsesWidget()
+        self.freq_tab = widgets.FrequencyWidget()
+        self.output_tab = widgets.OutputWidget()
+        self.eye_tab = widgets.EyeDiagramWidget()
+        self.jitter_dist_tab = widgets.JitterDistributionsWidget()
+        self.jitter_spect_tab = widgets.JitterSpectrumsWidget()
+        self.bath_tab = widgets.BathtubCurvesWidget()
+        self.jitter_info_tab = widgets.JitterInfoWidget()
+
+        self.tab_widget.addTab(self.cofig_tab, self.cofig_tab.title)
+        self.tab_widget.addTab(self.dfe_tab, self.dfe_tab.title)
+        self.tab_widget.addTab(self.eq_tab, self.eq_tab.title)
+        self.tab_widget.addTab(self.impulse_tab, self.impulse_tab.title)
+        self.tab_widget.addTab(self.step_tab, self.step_tab.title)
+        self.tab_widget.addTab(self.pulse_tab, self.pulse_tab.title)
+        self.tab_widget.addTab(self.freq_tab, self.freq_tab.title)
+        self.tab_widget.addTab(self.output_tab, self.output_tab.title)
+        self.tab_widget.addTab(self.eye_tab, self.eye_tab.title)
+        self.tab_widget.addTab(self.jitter_dist_tab, self.jitter_dist_tab.title)
+        self.tab_widget.addTab(self.jitter_spect_tab, self.jitter_spect_tab.title)
+        self.tab_widget.addTab(self.bath_tab, self.bath_tab.title)
+        self.tab_widget.addTab(self.jitter_info_tab, self.jitter_info_tab.title)
         return self.tab_widget
+
+    @Slot(dict, dict, object)
+    def update_plots(self, jitter, results, t_ns):
+        """Update the plots and any other items in the GUI with the simulation results."""
+        self.log.debug("Updating Plots")
+        # self.dfe_tab.update_plots()
+        # self.impulse_tab.update_plots()
+        # self.step_tab.update_plots()
+        # self.pulse_tab.update_plots(results)
+        # self.freq_tab.update_plots()
+        self.output_tab.update_plots(t_ns, results)
+        # self.eye_tab.update_plots()
+        self.jitter_dist_tab.update_plots(jitter)
+        # self.jitter_spect_tab.update_plots()
+        # self.bath_tab.update_plots()
+        # self.jitter_info_tab.update_plots()
+        self.log.debug("Plots Updated")
 
     def about(self):
         """Popup a Message Box with the About information."""

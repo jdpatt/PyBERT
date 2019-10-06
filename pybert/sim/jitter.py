@@ -27,10 +27,10 @@ class Jitter:
         tie_ind,
         thresh,
         jitter_spectrum,
-        tie_ind_spectrum,
+        tie_ind_spectrum,  # jitter_ind_spectrum
         spectrum_freqs,
-        hist,
-        hist_synth,
+        hist,  # jitter
+        hist_synth,  # ext_chnl
         bin_centers,
     ):
 

@@ -673,6 +673,7 @@ def lfsr_bits(taps: Sequence[int], seed: int):
             seed += 1
         yield seed & 1
 
+
 def pulse_center(p, nspui):
     """
     Determines the center of the pulse response, using the "Hula Hoop"

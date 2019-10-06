@@ -27,10 +27,9 @@ from pybert import __version__ as VERSION
 from pybert.defaults import DEBUG, NUM_TAPS
 from pybert.logger import ThreadLogHandler, setup_logger
 from pybert.sim.simulation import Simulation
-
 from pybert.view.gui import PyBERT_GUI
-from PySide2.QtCore import *
-from PySide2.QtWidgets import *
+from PySide2.QtWidgets import QApplication
+from PySide2.QtCore import QThread
 
 # from pybert.waveform_data import WaveformData
 
@@ -62,8 +61,6 @@ class PyBERT:
         # to get all the Traits/UI machinery setup correctly.
         super(PyBERT, self).__init__()
 
-        run_sim_thread = None
-
         self.log = setup_logger("pybert", Path(__file__).parent.joinpath("pybert.log"))
 
         app = QApplication([])
@@ -85,7 +82,15 @@ class PyBERT:
         # config = ConfigurationData(self)
         # data = WaveformData(self)
         self.sim = Simulation()
-        channel = self.sim.channel
+
+        # Slot/Signal Connections
+        self.sim.status_update.connect(self.gui.update_statusbar)
+        self.sim.sim_done.connect(self.gui.update_plots)
+        self.gui.run_act.triggered.connect(self.sim.run_sweeps)
+        self.gui.tab_widget.widget(2).tune_buttons.buttonClicked[int].connect(
+            self.sim.eq.handler
+        )  # EQ Tab
+        app.aboutToQuit.connect(self.close_application)
 
         try:
             if run_simulation:
@@ -97,13 +102,6 @@ class PyBERT:
         except Exception as error:
             self.log.error(traceback.format_exc())
             self.gui.popup_alert(error)
-
-        # Slot/Signal Connections
-        self.gui.run_act.triggered.connect(self.sim.run_sweeps)
-        self.gui.tab_widget.widget(2).tune_buttons.buttonClicked[int].connect(
-            self.sim.eq.handler
-        )  # EQ Tab
-        app.aboutToQuit.connect(self.close_application)
 
         # Move the simulation to its own thread from the GUI.
         self.sim_thread = QThread(self.gui)

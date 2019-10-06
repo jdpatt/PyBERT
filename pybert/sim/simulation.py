@@ -6,8 +6,6 @@ from time import clock
 import numpy as np
 from numpy.fft import fft, ifft
 from numpy.random import normal, randint
-from pybert.sim.buffer import Receiver, Transmitter
-from pybert.sim.channel import Channel
 from pybert.defaults import (
     BIT_RATE,
     HPF_CORNER_COUPLING,
@@ -18,10 +16,11 @@ from pybert.defaults import (
     SAMPLES_PER_BIT,
     THRESHOLD,
 )
+from pybert.sim.buffer import Receiver, Transmitter
+from pybert.sim.channel import Channel
 from pybert.sim.dfe import DFE
 from pybert.sim.equalization import Equalization
 from pybert.sim.jitter import Jitter
-from pybert.view.static import status_string
 from pybert.sim.utility import (
     StoppableThread,
     calc_G,
@@ -34,6 +33,7 @@ from pybert.sim.utility import (
     trim_impulse,
 )
 from pybert.view.plot import Plots
+from pybert.view.static import status_string
 from PySide2.QtCore import QObject, Signal, Slot
 from scipy.signal import iirfilter, lfilter
 from scipy.signal.windows import hann
@@ -41,9 +41,11 @@ from scipy.signal.windows import hann
 
 class Simulation(QObject):
     """The main object in pybert containing the simulator."""
+
     eq_results = Signal(object, object)
     sweep_results = Signal()
-    sim_done = Signal(dict, dict)
+    status_update = Signal(str)
+    sim_done = Signal(dict, dict, object)
     metrics = Signal(dict)
 
     def __init__(self):
@@ -76,6 +78,7 @@ class Simulation(QObject):
         self.jitter = {}
         self.results = {
             "bit_errors": 0,  #: Number of bit errors observed in last run.
+            "t_ns_chnl": np.array([]),
             "tx": {
                 "s": np.array([]),
                 "out": np.array([]),
@@ -106,7 +109,13 @@ class Simulation(QObject):
                 "out_H": np.array([]),
                 "out_h": np.array([]),
             },
-            "channel": {"out": np.array([]), "out_H": np.array([])},
+            "channel": {
+                "chnl_H": np.array([]),
+                "chnl_s": np.array([]),
+                "chnl_p": np.array([]),
+                "out": np.array([]),
+                "out_H": np.array([]),
+            },
         }
         # Variables that got defined randomly throughout the simulation.  TODO: Clean up data structure.
         self.x = np.array([])
@@ -149,10 +158,6 @@ class Simulation(QObject):
 
         self.chnl_dly = np.array([])
         self.start_ix = np.array([])
-        self.t_ns_chnl = np.array([])
-        self.chnl_H = np.array([])
-        self.chnl_s = np.array([])
-        self.chnl_p = np.array([])
         self.len_h = np.array([])
 
     @property
@@ -163,8 +168,9 @@ class Simulation(QObject):
     @status.setter
     def status(self, message):
         """Override the status setter so that we can log all messages."""
-        self.log.info(message)
         self._status = message
+        self.log.info(message)
+        self.status_update.emit(self.get_status_str())
 
     # Dependent variable definitions
     @property
@@ -504,10 +510,10 @@ class Simulation(QObject):
 
         self.chnl_dly = chnl_dly
         self.start_ix = start_ix
-        self.t_ns_chnl = t_ns_chnl
-        self.chnl_H = chnl_H
-        self.chnl_s = chnl_s
-        self.chnl_p = chnl_p
+        self.results["t_ns_chnl"] = t_ns_chnl
+        self.results["chnl_H"] = chnl_H
+        self.results["chnl_s"] = chnl_s
+        self.results["chnl_p"] = chnl_p
         self.len_h = len_h
 
     def run_sweeps(self):
@@ -1020,7 +1026,7 @@ class Simulation(QObject):
             if update_plots:
                 self.status = f"Updating plots...(sweep {sweep_num} of {num_sweeps})"
                 # Signal the GUI that there is new data to plot
-                self.sim_done.emit(self.jitter, self.results)
+                self.sim_done.emit(self.jitter, self.results, self.t_ns)
             # Plot performance is not really valid since it just has to send a message now.
             self.performance["plot"] = nbits * nspb / (clock() - split_time)
             self.metrics.emit(self.performance)
@@ -1029,7 +1035,7 @@ class Simulation(QObject):
             self.status = "Exception: plotting"
             raise
 
-    def _get_status_str(self):
+    def get_status_str(self):
         return status_string(
             self.status,
             self.performance.get("total", 0.0),

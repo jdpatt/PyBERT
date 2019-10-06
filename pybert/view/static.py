@@ -7,6 +7,8 @@ Original date:   April 15, 2015 (Copied from pybert.py.)
 
 Copyright (c) 2015 David Banas; all rights reserved World wide.
 """
+import numpy as np
+
 
 def safe_log10(value):
     """Guards against pesky 'Divide by 0' error messages.

@@ -191,6 +191,13 @@ class ImpulseWidget(pg.GraphicsLayoutWidget):
             row=1, col=1, title=TITLES[3], labels={"left": y_axis, "bottom": x_axis}
         )
 
+    def update_plots(self, t_ns, results):
+        """Update the four plots in this view."""
+        self.channel.plot(t_ns, results["channel"]["chnl_p"], pen="b")
+        self.channel_tx.plot(t_ns, results["tx"]["out_p"], pen="b")
+        self.channel_ctle.plot(t_ns, results["ctle"]["out_p"], pen="b")
+        self.channel_dfe.plot(t_ns, results["dfe"]["out_p"], pen="b")
+
 
 class StepWidget(pg.GraphicsLayoutWidget):
     def __init__(self, y_axis="Step Response (V)", x_axis="Time (ns)"):
@@ -210,6 +217,13 @@ class StepWidget(pg.GraphicsLayoutWidget):
             row=1, col=1, title=TITLES[3], labels={"left": y_axis, "bottom": x_axis}
         )
 
+    def update_plots(self, t_ns, results):
+        """Update the four plots in this view."""
+        self.channel.plot(t_ns, results["channel"]["chnl_p"], pen="b")
+        self.channel_tx.plot(t_ns, results["tx"]["out_p"], pen="b")
+        self.channel_ctle.plot(t_ns, results["ctle"]["out_p"], pen="b")
+        self.channel_dfe.plot(t_ns, results["dfe"]["out_p"], pen="b")
+
 
 class PulsesWidget(pg.GraphicsLayoutWidget):
     def __init__(self, y_axis="Pulse Response (V)", x_axis="Time (ns)"):
@@ -228,6 +242,13 @@ class PulsesWidget(pg.GraphicsLayoutWidget):
         self.channel_dfe = self.addPlot(
             row=1, col=1, title=TITLES[3], labels={"left": y_axis, "bottom": x_axis}
         )
+
+    def update_plots(self, t_ns, results):
+        """Update the four plots in this view."""
+        self.channel.plot(t_ns, results["channel"]["chnl_p"], pen="b")
+        self.channel_tx.plot(t_ns, results["tx"]["out_p"], pen="b")
+        self.channel_ctle.plot(t_ns, results["ctle"]["out_p"], pen="b")
+        self.channel_dfe.plot(t_ns, results["dfe"]["out_p"], pen="b")
 
 
 class FrequencyWidget(pg.GraphicsLayoutWidget):
@@ -267,6 +288,13 @@ class OutputWidget(pg.GraphicsLayoutWidget):
             row=1, col=1, title=TITLES[3], labels={"left": y_axis, "bottom": x_axis}
         )
 
+    def update_plots(self, t_ns, results):
+        """Update the four plots in this view."""
+        self.channel.plot(t_ns, results["channel"]["out"], pen="b")
+        self.channel_tx.plot(t_ns, results["tx"]["out"], pen="b")
+        self.channel_ctle.plot(t_ns, results["ctle"]["out"], pen="b")
+        self.channel_dfe.plot(t_ns, results["dfe"]["out"], pen="b")
+
 
 class EyeDiagramWidget(pg.GraphicsLayoutWidget):
     def __init__(self, y_axis="Signal Level (V)", x_axis="Time (ps)"):
@@ -303,6 +331,38 @@ class JitterDistributionsWidget(pg.GraphicsLayoutWidget):
         )
         self.channel_dfe = self.addPlot(
             row=1, col=1, title=TITLES[3], labels={"left": y_axis, "bottom": x_axis}
+        )
+        self.channel.addLegend()
+        self.channel_tx.addLegend()
+        self.channel_ctle.addLegend()
+        self.channel_dfe.addLegend()
+
+    def update_plots(self, jitter):
+        """Update the four plots in this view."""
+        self.channel.plot(
+            jitter["channel"].bin_centers, jitter["channel"].hist, pen="b", name="Measured"
+        )
+        self.channel.plot(
+            jitter["channel"].bin_centers,
+            jitter["channel"].hist_synth,
+            pen="r",
+            name="Extrapolated",
+        )
+        self.channel_tx.plot(jitter["tx"].bin_centers, jitter["tx"].hist, pen="b", name="Measured")
+        self.channel_tx.plot(
+            jitter["tx"].bin_centers, jitter["tx"].hist_synth, pen="r", name="Extrapolated"
+        )
+        self.channel_ctle.plot(
+            jitter["ctle"].bin_centers, jitter["ctle"].hist, pen="b", name="Measured"
+        )
+        self.channel_ctle.plot(
+            jitter["ctle"].bin_centers, jitter["ctle"].hist_synth, pen="r", name="Extrapolated"
+        )
+        self.channel_dfe.plot(
+            jitter["dfe"].bin_centers, jitter["dfe"].hist, pen="b", name="Measured"
+        )
+        self.channel_dfe.plot(
+            jitter["dfe"].bin_centers, jitter["dfe"].hist_synth, pen="r", name="Extrapolated"
         )
 
 
@@ -348,23 +408,3 @@ class JitterInfoWidget(QWidget):
     def __init__(self):
         super().__init__()
         self.title = "Jitter Info"
-
-
-#  The order matters.  This is the order that they will be in the GUI.
-#  If we add the ability to allow plugins or adatper pattern, this is probably an easy place
-#  to insert additional tabs or content.
-TABS = {
-    "config_wig": ConfigWidget,
-    "dfe_wig": DFEWidget,
-    "eq_wig": EQTuneWidget,
-    "impulse_wig": ImpulseWidget,
-    "step_wig": StepWidget,
-    "pulse_wig": PulsesWidget,
-    "frequency_wig": FrequencyWidget,
-    "output_wig": OutputWidget,
-    "eyes_wig": EyeDiagramWidget,
-    "jitter_dist_wig": JitterDistributionsWidget,
-    "jitter_spect_wig": JitterSpectrumsWidget,
-    "bathtub_wig": BathtubCurvesWidget,
-    "jitter_info_wig": JitterInfoWidget,
-}

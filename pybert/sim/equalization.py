@@ -324,7 +324,7 @@ class Equalization:
         self.n_taps = self.n_taps_tune
 
     def run_tx_optimization(self):
-        """Kick off the tx optimization thread if its not already running."""
+        """Kick off the tx optimization."""
         self.log.debug("Run Tx Opt")
         if (
             self.tx_opt_thread
@@ -342,7 +342,7 @@ class Equalization:
         self.tx_opt_thread.start()
 
     def run_rx_optimization(self):
-        """Kick off the rx optimization thread if its not already running."""
+        """Kick off the rx optimization."""
         self.log.debug("Run Rx Opt")
         if self.rx_opt_thread and self.rx_opt_thread.is_alive() or self.ctle_mode_tune == "Off":
             pass
@@ -352,7 +352,7 @@ class Equalization:
             self.rx_opt_thread.start()
 
     def run_co_optimization(self):
-        """Kick off the co-optimization between Tx and Rx thread if its not already running."""
+        """Kick off the co-optimization between Tx and Rx."""
         self.log.debug("Run Co Opt")
         if self.coopt_thread and self.coopt_thread.is_alive():
             pass
