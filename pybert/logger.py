@@ -1,4 +1,5 @@
 import logging
+import logging.handlers
 import platform
 
 from PySide2.QtCore import QObject, Signal

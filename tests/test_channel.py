@@ -1,5 +1,5 @@
 import pytest
-from pybert.channel import Channel
+from pybert.sim.channel import Channel
 
 
 @pytest.fixture(scope="module")

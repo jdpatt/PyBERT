@@ -27,181 +27,8 @@ from pybert.defaults import (
     REL_LOCK_TOL,
     USE_DFE,
 )
-from pybert.sim.utility import StoppableThread, fir_numerator, make_ctle
+from pybert.sim.utility import fir_numerator, make_ctle
 from scipy.optimize import minimize, minimize_scalar
-
-
-class TxOptThread(StoppableThread):
-    """Used to run Tx tap weight optimization in its own thread,
-    in order to preserve GUI responsiveness.
-    """
-
-    def run(self):
-        """Run the Tx equalization optimization thread."""
-
-        pybert = self.pybert
-
-        if self.update_status:
-            pybert.status = "Optimizing Tx..."
-
-        max_iter = pybert.max_iter
-
-        old_taps = []
-        min_vals = []
-        max_vals = []
-        for tuner in pybert.tx_tap_tuners:
-            if tuner.enabled:
-                old_taps.append(tuner.value)
-                min_vals.append(tuner.min_val)
-                max_vals.append(tuner.max_val)
-
-        cons = {"type": "ineq", "fun": lambda x: 0.7 - sum(abs(x))}
-
-        bounds = list(zip(min_vals, max_vals))
-
-        try:
-            if DEBUG_OPTIMIZE:
-                res = minimize(
-                    self.do_opt_tx,
-                    old_taps,
-                    bounds=bounds,
-                    constraints=cons,
-                    options={"disp": True, "maxiter": max_iter},
-                )
-            else:
-                res = minimize(
-                    self.do_opt_tx,
-                    old_taps,
-                    bounds=bounds,
-                    constraints=cons,
-                    options={"disp": False, "maxiter": max_iter},
-                )
-
-            if self.update_status:
-                if res["success"]:
-                    pybert.status = "Optimization succeeded."
-                else:
-                    pybert.status = "Optimization failed: {}".format(res["message"])
-
-        except Exception as err:
-            pybert.status = err
-
-    def do_opt_tx(self, taps):
-        """Run the Tx Optimization."""
-        sleep(0.001)  # Give the GUI a chance to acknowledge user clicking the Abort button.
-
-        if self.stopped():
-            raise RuntimeError("Optimization aborted.")
-
-        pybert = self.pybert
-        tuners = pybert.tx_tap_tuners
-        taps = list(taps)
-        for tuner in tuners:
-            if tuner.enabled:
-                tuner.value = taps.pop(0)
-        return pybert.cost
-
-
-class RxOptThread(StoppableThread):
-    """Used to run Rx tap weight optimization in its own thread,
-    in order to preserve GUI responsiveness.
-    """
-
-    def run(self):
-        """Run the Rx equalization optimization thread."""
-
-        pybert = self.pybert
-
-        pybert.status = "Optimizing Rx..."
-        max_iter = pybert.max_iter
-
-        try:
-            if DEBUG_OPTIMIZE:
-                res = minimize_scalar(
-                    self.do_opt_rx,
-                    bounds=(0, MAX_CTLE_PEAK),
-                    method="Bounded",
-                    options={"disp": True, "maxiter": max_iter},
-                )
-            else:
-                res = minimize_scalar(
-                    self.do_opt_rx,
-                    bounds=(0, MAX_CTLE_PEAK),
-                    method="Bounded",
-                    options={"disp": False, "maxiter": max_iter},
-                )
-
-            if res["success"]:
-                pybert.status = "Optimization succeeded."
-            else:
-                pybert.status = "Optimization failed: {}".format(res["message"])
-
-        except Exception as err:
-            pybert.status = err
-
-    def do_opt_rx(self, peak_mag):
-        """Run the Rx Optimization."""
-        sleep(0.001)  # Give the GUI a chance to acknowledge user clicking the Abort button.
-
-        if self.stopped():
-            raise RuntimeError("Optimization aborted.")
-
-        pybert = self.pybert
-        pybert.peak_mag_tune = peak_mag
-        return pybert.cost
-
-
-class CoOptThread(StoppableThread):
-    """Used to run co-optimization in its own thread, in order to preserve GUI responsiveness."""
-
-    def run(self):
-        """Run the Tx/Rx equalization co-optimization thread."""
-
-        pybert = self.pybert
-
-        pybert.status = "Co-optimizing..."
-        max_iter = pybert.max_iter
-
-        try:
-            if DEBUG_OPTIMIZE:
-                res = minimize_scalar(
-                    self.do_coopt,
-                    bounds=(0, MAX_CTLE_PEAK),
-                    method="Bounded",
-                    options={"disp": True, "maxiter": max_iter},
-                )
-            else:
-                res = minimize_scalar(
-                    self.do_coopt,
-                    bounds=(0, MAX_CTLE_PEAK),
-                    method="Bounded",
-                    options={"disp": False, "maxiter": max_iter},
-                )
-
-            if res["success"]:
-                pybert.status = "Optimization succeeded."
-            else:
-                pybert.status = "Optimization failed: {}".format(res["message"])
-
-        except Exception as err:
-            pybert.status = err
-
-    def do_coopt(self, peak_mag):
-        """Run the Tx and Rx Co-Optimization."""
-        sleep(0.001)  # Give the GUI a chance to acknowledge user clicking the Abort button.
-
-        if self.stopped():
-            raise RuntimeError("Optimization aborted.")
-
-        pybert = self.pybert
-        pybert.peak_mag_tune = peak_mag
-        if any([pybert.tx_tap_tuners[i].enabled for i in range(len(pybert.tx_tap_tuners))]):
-            while pybert.tx_opt_thread and pybert.tx_opt_thread.is_alive():
-                sleep(0.001)
-            pybert._do_opt_tx(update_status=False)
-            while pybert.tx_opt_thread and pybert.tx_opt_thread.is_alive():
-                sleep(0.001)
-        return pybert.cost
 
 
 @dataclass
@@ -252,9 +79,6 @@ class Equalization:
         self.use_dfe_tune = USE_DFE  #: EQ optimizer DFE select (Bool).
         self.n_taps_tune = NUM_TAPS  #: EQ optimizer # DFE taps.
         self.max_iter = 50  #: EQ optimizer max. # of optimization iterations.
-        self.tx_opt_thread = TxOptThread  #: Tx EQ optimization thread.
-        self.rx_opt_thread = RxOptThread  #: Rx EQ optimization thread.
-        self.coopt_thread = CoOptThread  #: EQ co-optimization thread.
 
         # - DFE
         self.use_dfe = USE_DFE  #: True = use a DFE (Bool).
@@ -326,40 +150,153 @@ class Equalization:
     def run_tx_optimization(self):
         """Kick off the tx optimization."""
         self.log.debug("Run Tx Opt")
-        if (
-            self.tx_opt_thread
-            and self.tx_opt_thread.is_alive()
-            or not any([self.tx_tap_tuners[i].enabled for i in range(len(self.tx_tap_tuners))])
-        ):
-            pass
-        else:
-            self._do_opt_tx()
+        if any([self.tx_tap_tuners[i].enabled for i in range(len(self.tx_tap_tuners))]):
+            # At least one tuner should be enabled.
+            if self.update_status:
+                self.status = "Optimizing Tx..."
 
-    def _do_opt_tx(self, update_status=True):
-        self.tx_opt_thread = TxOptThread()
-        self.tx_opt_thread.pybert = self
-        self.tx_opt_thread.update_status = update_status
-        self.tx_opt_thread.start()
+            max_iter = self.max_iter
+
+            old_taps = []
+            min_vals = []
+            max_vals = []
+            for tuner in pybert.tx_tap_tuners:
+                if tuner.enabled:
+                    old_taps.append(tuner.value)
+                    min_vals.append(tuner.min_val)
+                    max_vals.append(tuner.max_val)
+
+            cons = {"type": "ineq", "fun": lambda x: 0.7 - sum(abs(x))}
+
+            bounds = list(zip(min_vals, max_vals))
+
+            try:
+                if DEBUG_OPTIMIZE:
+                    res = minimize(
+                        self.do_opt_tx,
+                        old_taps,
+                        bounds=bounds,
+                        constraints=cons,
+                        options={"disp": True, "maxiter": max_iter},
+                    )
+                else:
+                    res = minimize(
+                        self.do_opt_tx,
+                        old_taps,
+                        bounds=bounds,
+                        constraints=cons,
+                        options={"disp": False, "maxiter": max_iter},
+                    )
+
+                if self.update_status:
+                    if res["success"]:
+                        self.status = "Optimization succeeded."
+                    else:
+                        self.status = "Optimization failed: {}".format(res["message"])
+
+            except Exception as err:
+                self.status = err
+
+    def do_opt_tx(self, taps):
+        """Run the Tx Optimization."""
+        sleep(0.001)  # Give the GUI a chance to acknowledge user clicking the Abort button.
+
+        if self.stopped():
+            raise RuntimeError("Optimization aborted.")
+
+        tuners = self.tx_tap_tuners
+        taps = list(taps)
+        for tuner in tuners:
+            if tuner.enabled:
+                tuner.value = taps.pop(0)
+        return self.cost
 
     def run_rx_optimization(self):
         """Kick off the rx optimization."""
         self.log.debug("Run Rx Opt")
-        if self.rx_opt_thread and self.rx_opt_thread.is_alive() or self.ctle_mode_tune == "Off":
-            pass
-        else:
-            self.rx_opt_thread = RxOptThread()
-            self.rx_opt_thread.pybert = self
-            self.rx_opt_thread.start()
+        if not self.ctle_mode_tune == "Off":
+            self.status = "Optimizing Rx..."
+            max_iter = self.max_iter
+
+            try:
+                if DEBUG_OPTIMIZE:
+                    res = minimize_scalar(
+                        self.do_opt_rx,
+                        bounds=(0, MAX_CTLE_PEAK),
+                        method="Bounded",
+                        options={"disp": True, "maxiter": max_iter},
+                    )
+                else:
+                    res = minimize_scalar(
+                        self.do_opt_rx,
+                        bounds=(0, MAX_CTLE_PEAK),
+                        method="Bounded",
+                        options={"disp": False, "maxiter": max_iter},
+                    )
+
+                if res["success"]:
+                    self.status = "Optimization succeeded."
+                else:
+                    self.status = "Optimization failed: {}".format(res["message"])
+
+            except Exception as err:
+                self.status = err
+
+    def do_opt_rx(self, peak_mag):
+        """Run the Rx Optimization."""
+        sleep(0.001)  # Give the GUI a chance to acknowledge user clicking the Abort button.
+
+        if self.stopped():
+            raise RuntimeError("Optimization aborted.")
+
+        self.peak_mag_tune = peak_mag
+        return self.cost
 
     def run_co_optimization(self):
         """Kick off the co-optimization between Tx and Rx."""
         self.log.debug("Run Co Opt")
-        if self.coopt_thread and self.coopt_thread.is_alive():
-            pass
-        else:
-            self.coopt_thread = CoOptThread()
-            self.coopt_thread.pybert = self
-            self.coopt_thread.start()
+        self.status = "Co-optimizing..."
+        max_iter = self.max_iter
+
+        try:
+            if DEBUG_OPTIMIZE:
+                res = minimize_scalar(
+                    self.do_coopt,
+                    bounds=(0, MAX_CTLE_PEAK),
+                    method="Bounded",
+                    options={"disp": True, "maxiter": max_iter},
+                )
+            else:
+                res = minimize_scalar(
+                    self.do_coopt,
+                    bounds=(0, MAX_CTLE_PEAK),
+                    method="Bounded",
+                    options={"disp": False, "maxiter": max_iter},
+                )
+
+            if res["success"]:
+                self.status = "Optimization succeeded."
+            else:
+                self.status = "Optimization failed: {}".format(res["message"])
+
+        except Exception as err:
+            self.status = err
+
+    def do_coopt(self, peak_mag):
+        """Run the Tx and Rx Co-Optimization."""
+        sleep(0.001)  # Give the GUI a chance to acknowledge user clicking the Abort button.
+
+        if self.stopped():
+            raise RuntimeError("Optimization aborted.")
+
+        self.peak_mag_tune = peak_mag
+        if any([self.tx_tap_tuners[i].enabled for i in range(len(self.tx_tap_tuners))]):
+            while self.tx_opt_thread and self.tx_opt_thread.is_alive():
+                sleep(0.001)
+            self._do_opt_tx(update_status=False)
+            while self.tx_opt_thread and self.tx_opt_thread.is_alive():
+                sleep(0.001)
+        return self.cost
 
     def abort_optimization(self):
         """Halt all optimization threads."""

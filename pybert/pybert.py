@@ -14,8 +14,6 @@ can be used to explore the concepts of serial communication link design.
 
 Copyright (c) 2014 by David Banas; All rights reserved World wide.
 """
-import logging
-import logging.handlers
 import platform
 import sys
 import traceback
@@ -28,8 +26,8 @@ from pybert.defaults import DEBUG, NUM_TAPS
 from pybert.logger import ThreadLogHandler, setup_logger
 from pybert.sim.simulation import Simulation
 from pybert.view.gui import PyBERT_GUI
+from PySide2.QtCore import QCoreApplication, QThread
 from PySide2.QtWidgets import QApplication
-from PySide2.QtCore import QThread
 
 # from pybert.waveform_data import WaveformData
 

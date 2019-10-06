@@ -2,7 +2,7 @@ from unittest.mock import patch
 
 import numpy as np
 import pytest
-from pybert.simulation import Simulation
+from pybert.sim.simulation import Simulation
 
 
 @pytest.fixture(scope="function")
@@ -14,7 +14,7 @@ def sim():
 @pytest.mark.usefixtures("sim")
 class Test_Simulation:
     def test_simulation_initialized(self, sim):
-        assert sim.status == "Ready."
+        assert sim.status == "Ready"
 
     def test_update_status(self, sim):
         sim.status = "Test Status"
@@ -60,14 +60,14 @@ class Test_Simulation:
     def test_unit_interval_for_eye_diagrams(self, sim):
         assert sim.eye_uis == 1600
 
-    @patch("pybert.simulation.randint")
+    @patch("pybert.sim.simulation.randint")
     def test_generate_bit_stream(self, mock_randint, sim):
         mock_randint.return_value = 8  # Have the same seed across test runs.
         sim.nbits = 10
         #  First four bits are the prequel alignment bits.
         np.testing.assert_array_equal(sim.bits, [0, 0, 1, 1, 0, 0, 1, 1, 0, 0])
 
-    @patch("pybert.simulation.randint")
+    @patch("pybert.sim.simulation.randint")
     def test_generate_symbol_stream(self, mock_randint, sim):
         mock_randint.return_value = 8  # Have the same seed across test runs.
         sim.nbits = 10

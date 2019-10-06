@@ -32,6 +32,8 @@ class ConfigWidget(QWidget):
 
 
 class DFEWidget(QWidget):
+    """DFE Tab in PyBERT"""
+
     def __init__(self):
         super().__init__()
         self.title = "DFE"
@@ -57,6 +59,8 @@ class DFEWidget(QWidget):
 
 
 class EQTuneWidget(QWidget):
+    """EQ Tab in PyBERT"""
+
     def __init__(self):
         super().__init__()
         self.title = "EQ Tune"
@@ -167,13 +171,15 @@ class EQTuneWidget(QWidget):
 
 TITLES = [
     "Channel",
-    "Channel + Tx Preemphasis",
-    "Channel + Tx Preemphasis + CTLE",
-    "Channel + Tx Preemphasis + CTLE + DFE",
+    "Channel + Tx Pre-emphasis",
+    "Channel + Tx Pre-emphasis + CTLE",
+    "Channel + Tx Pre-emphasis + CTLE + DFE",
 ]
 
 
 class ImpulseWidget(pg.GraphicsLayoutWidget):
+    """Impulse Response Tab in PyBERT"""
+
     def __init__(self, y_axis="Impulse Response (V/ns)", x_axis="Time (ns)"):
         super().__init__()
         self.title = "Impulses"
@@ -200,6 +206,8 @@ class ImpulseWidget(pg.GraphicsLayoutWidget):
 
 
 class StepWidget(pg.GraphicsLayoutWidget):
+    """Step Response Tab in PyBERT"""
+
     def __init__(self, y_axis="Step Response (V)", x_axis="Time (ns)"):
         super().__init__()
         self.title = "Steps"
@@ -226,6 +234,8 @@ class StepWidget(pg.GraphicsLayoutWidget):
 
 
 class PulsesWidget(pg.GraphicsLayoutWidget):
+    """Pulse Response Tab in PyBERT"""
+
     def __init__(self, y_axis="Pulse Response (V)", x_axis="Time (ns)"):
         super().__init__()
         self.title = "Pulses"
@@ -252,6 +262,8 @@ class PulsesWidget(pg.GraphicsLayoutWidget):
 
 
 class FrequencyWidget(pg.GraphicsLayoutWidget):
+    """Frequency Response Tab in PyBERT"""
+
     def __init__(self, y_axis="Frequency Response (dB)", x_axis="Frequency (GHz)"):
         super().__init__()
         self.title = "Frequency Responses"
@@ -271,6 +283,8 @@ class FrequencyWidget(pg.GraphicsLayoutWidget):
 
 
 class OutputWidget(pg.GraphicsLayoutWidget):
+    """Output Tab in PyBERT"""
+
     def __init__(self, y_axis="Output (V)", x_axis="Time (ns)"):
         super().__init__()
         self.title = "Outputs"
@@ -297,6 +311,8 @@ class OutputWidget(pg.GraphicsLayoutWidget):
 
 
 class EyeDiagramWidget(pg.GraphicsLayoutWidget):
+    """Eye Diagrams Tab in PyBERT"""
+
     def __init__(self, y_axis="Signal Level (V)", x_axis="Time (ps)"):
         super().__init__()
         self.title = "Eyes"
@@ -316,6 +332,8 @@ class EyeDiagramWidget(pg.GraphicsLayoutWidget):
 
 
 class JitterDistributionsWidget(pg.GraphicsLayoutWidget):
+    """Jitter Distribution Tab in PyBERT"""
+
     def __init__(self, y_axis="Count", x_axis="Time (ps)"):
         super().__init__()
         self.title = "Jitter Dist."
@@ -367,6 +385,8 @@ class JitterDistributionsWidget(pg.GraphicsLayoutWidget):
 
 
 class JitterSpectrumsWidget(pg.GraphicsLayoutWidget):
+    """Jitter Spectrum Tab in PyBERT"""
+
     def __init__(self, y_axis="|FFT(TIE)| (dBui)", x_axis="Frequency (MHz)"):
         super().__init__()
         self.title = "Jitter Spec."
@@ -386,6 +406,8 @@ class JitterSpectrumsWidget(pg.GraphicsLayoutWidget):
 
 
 class BathtubCurvesWidget(pg.GraphicsLayoutWidget):
+    """Bathtub Curves Tab in PyBERT"""
+
     def __init__(self, y_axis="Log10(P(Transition occurs inside.))", x_axis="Time (ps)"):
         super().__init__()
         self.title = "Bathtubs"
@@ -405,6 +427,8 @@ class BathtubCurvesWidget(pg.GraphicsLayoutWidget):
 
 
 class JitterInfoWidget(QWidget):
+    """Misc. Jitter Info Tab in PyBERT"""
+
     def __init__(self):
         super().__init__()
         self.title = "Jitter Info"

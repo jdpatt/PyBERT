@@ -3,10 +3,8 @@
 Copyright (c) 2019 David Patterson & David Banas; all rights reserved World wide.
 """
 
-import inspect
 import logging
 import platform
-import traceback
 import webbrowser
 
 import pybert.view.widgets as widgets
@@ -14,7 +12,6 @@ from pybert import __authors__ as AUTHORS
 from pybert import __copy__ as COPY
 from pybert import __date__ as DATE
 from pybert import __version__ as VERSION
-from pybert.defaults import DEBUG
 from pybert.view.static import help_menu
 from PySide2.QtCore import *
 from PySide2.QtWidgets import *
@@ -88,7 +85,7 @@ class PyBERT_GUI(QMainWindow):
         self.about_act.triggered.connect(self.about)
 
         self.doc_act = QAction(self.tr("&Documentation"), self)
-        self.doc_act.triggered.connect(self.open_docs)
+        self.doc_act.triggered.connect(open_docs)
 
         self.help_act = QAction(self.tr("&Help"), self)
         self.help_act.triggered.connect(self.help)
@@ -228,13 +225,14 @@ class PyBERT_GUI(QMainWindow):
         """Open the generic help menu."""
         QMessageBox.information(self, self.tr("Help"), self.tr(help_menu()))
 
-    def open_docs(self):
-        """Open the documentation on the wiki."""
-        # TODO: Redirect to wiki or add readthedoc links.
-        webbrowser.open("https://github.com/jdpatt/PyBERT/tree/remove-traits")
-
     def popup_alert(self, error):
         """Popup an alert with the given prompt, log the exception and if debug raise the exception."""
         # if DEBUG:
         #     raise error
         QMessageBox.warning(self, self.tr("PyBERT Error"), str(error))
+
+
+def open_docs():
+    """Open the documentation on the wiki."""
+    # TODO: Redirect to wiki or add readthedoc links.
+    webbrowser.open("https://github.com/jdpatt/PyBERT/tree/remove-traits")
