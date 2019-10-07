@@ -83,11 +83,8 @@ class PyBERT:
 
         # Slot/Signal Connections
         self.sim.status_update.connect(self.gui.update_statusbar)
-        self.sim.sim_done.connect(self.gui.update_plots)
-        self.gui.run_act.triggered.connect(self.sim.run_sweeps)
-        self.gui.tab_widget.widget(2).tune_buttons.buttonClicked[int].connect(
-            self.sim.eq.handler
-        )  # EQ Tab
+        # self.sim.sim_done.connect(self.gui.update_plots)
+        self.gui.actionRun.triggered.connect(self.sim.run_sweeps)
         app.aboutToQuit.connect(self.close_application)
 
         try:

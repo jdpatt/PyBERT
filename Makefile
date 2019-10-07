@@ -1,7 +1,11 @@
-.PHONY: tox clean test tests lint etags conda-build conda-skeleton chaco enable pyibis-ami pybert
+.PHONY: tox gui clean test tests lint etags conda-build conda-skeleton chaco enable pyibis-ami pybert
 
 tox:
 	tox --parallel all
+
+gui:
+	pyside2-uic pybert/view/pybert_gui.ui > ui_pybert.py
+	echo "Verify Output before running.  Normally, it appends some junk."
 
 lint:
 	tox -e lint
