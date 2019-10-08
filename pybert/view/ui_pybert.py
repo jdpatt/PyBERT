@@ -1,27 +1,22 @@
 # -*- coding: utf-8 -*-
 
-# Form implementation generated from reading ui file './pybert/view/pybert_gui.ui',
-# licensing of './pybert/view/pybert_gui.ui' applies.
+# Form implementation generated from reading ui file '.\pybert\view\pybert_gui.ui',
+# licensing of '.\pybert\view\pybert_gui.ui' applies.
 #
-# Created: Mon Oct  7 20:55:56 2019
+# Created: Tue Oct  8 08:37:01 2019
 #      by: pyside2-uic  running on PySide2 5.13.1
 #
 # WARNING! All changes made in this file will be lost!
 
-from pybert.view.widgets import QuadGraphicsLayout
-from pyqtgraph import GraphicsLayoutWidget
 from PySide2 import QtCore, QtGui, QtWidgets
-
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         MainWindow.setObjectName("MainWindow")
-        MainWindow.resize(1500, 1015)
+        MainWindow.resize(1440, 900)
         MainWindow.setDockNestingEnabled(False)
         self.centralwidget = QtWidgets.QWidget(MainWindow)
-        sizePolicy = QtWidgets.QSizePolicy(
-            QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding
-        )
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(4)
         sizePolicy.setHeightForWidth(self.centralwidget.sizePolicy().hasHeightForWidth())
@@ -32,9 +27,7 @@ class Ui_MainWindow(object):
         self.verticalLayout_2.setContentsMargins(0, 0, 0, 0)
         self.verticalLayout_2.setObjectName("verticalLayout_2")
         self.tabWidget = QtWidgets.QTabWidget(self.centralwidget)
-        sizePolicy = QtWidgets.QSizePolicy(
-            QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding
-        )
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.tabWidget.sizePolicy().hasHeightForWidth())
@@ -47,9 +40,7 @@ class Ui_MainWindow(object):
         self.gridLayout = QtWidgets.QGridLayout(self.config_tab)
         self.gridLayout.setObjectName("gridLayout")
         self.tx_equalization = QtWidgets.QGroupBox(self.config_tab)
-        sizePolicy = QtWidgets.QSizePolicy(
-            QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred
-        )
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(3)
         sizePolicy.setHeightForWidth(self.tx_equalization.sizePolicy().hasHeightForWidth())
@@ -58,9 +49,7 @@ class Ui_MainWindow(object):
         self.verticalLayout_17 = QtWidgets.QVBoxLayout(self.tx_equalization)
         self.verticalLayout_17.setObjectName("verticalLayout_17")
         self.groupBox_7 = QtWidgets.QGroupBox(self.tx_equalization)
-        sizePolicy = QtWidgets.QSizePolicy(
-            QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred
-        )
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(1)
         sizePolicy.setHeightForWidth(self.groupBox_7.sizePolicy().hasHeightForWidth())
@@ -68,42 +57,34 @@ class Ui_MainWindow(object):
         self.groupBox_7.setCheckable(True)
         self.groupBox_7.setChecked(False)
         self.groupBox_7.setObjectName("groupBox_7")
-        self.gridLayout_2 = QtWidgets.QGridLayout(self.groupBox_7)
-        self.gridLayout_2.setObjectName("gridLayout_2")
-        self.horizontalLayout_10 = QtWidgets.QHBoxLayout()
-        self.horizontalLayout_10.setObjectName("horizontalLayout_10")
+        self.horizontalLayout_2 = QtWidgets.QHBoxLayout(self.groupBox_7)
+        self.horizontalLayout_2.setObjectName("horizontalLayout_2")
         self.label_17 = QtWidgets.QLabel(self.groupBox_7)
         self.label_17.setObjectName("label_17")
-        self.horizontalLayout_10.addWidget(self.label_17)
+        self.horizontalLayout_2.addWidget(self.label_17)
         self.tx_ami_filename = QtWidgets.QLineEdit(self.groupBox_7)
         self.tx_ami_filename.setObjectName("tx_ami_filename")
-        self.horizontalLayout_10.addWidget(self.tx_ami_filename)
+        self.horizontalLayout_2.addWidget(self.tx_ami_filename)
         self.load_tx_ami_file = QtWidgets.QPushButton(self.groupBox_7)
         self.load_tx_ami_file.setText("")
         self.load_tx_ami_file.setObjectName("load_tx_ami_file")
-        self.horizontalLayout_10.addWidget(self.load_tx_ami_file)
-        self.gridLayout_2.addLayout(self.horizontalLayout_10, 0, 0, 1, 1)
-        self.horizontalLayout_11 = QtWidgets.QHBoxLayout()
-        self.horizontalLayout_11.setObjectName("horizontalLayout_11")
+        self.horizontalLayout_2.addWidget(self.load_tx_ami_file)
         self.label_22 = QtWidgets.QLabel(self.groupBox_7)
         self.label_22.setObjectName("label_22")
-        self.horizontalLayout_11.addWidget(self.label_22)
+        self.horizontalLayout_2.addWidget(self.label_22)
         self.tx_dll_filename = QtWidgets.QLineEdit(self.groupBox_7)
         self.tx_dll_filename.setObjectName("tx_dll_filename")
-        self.horizontalLayout_11.addWidget(self.tx_dll_filename)
+        self.horizontalLayout_2.addWidget(self.tx_dll_filename)
         self.load_tx_dll_file = QtWidgets.QPushButton(self.groupBox_7)
         self.load_tx_dll_file.setText("")
         self.load_tx_dll_file.setObjectName("load_tx_dll_file")
-        self.horizontalLayout_11.addWidget(self.load_tx_dll_file)
-        self.gridLayout_2.addLayout(self.horizontalLayout_11, 1, 0, 1, 1)
+        self.horizontalLayout_2.addWidget(self.load_tx_dll_file)
         self.configure_tx = QtWidgets.QPushButton(self.groupBox_7)
         self.configure_tx.setObjectName("configure_tx")
-        self.gridLayout_2.addWidget(self.configure_tx, 0, 1, 2, 1)
+        self.horizontalLayout_2.addWidget(self.configure_tx)
         self.verticalLayout_17.addWidget(self.groupBox_7)
         self.groupBox_8 = QtWidgets.QGroupBox(self.tx_equalization)
-        sizePolicy = QtWidgets.QSizePolicy(
-            QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred
-        )
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(2)
         sizePolicy.setHeightForWidth(self.groupBox_8.sizePolicy().hasHeightForWidth())
@@ -139,9 +120,7 @@ class Ui_MainWindow(object):
         self.verticalLayout_17.addWidget(self.groupBox_8)
         self.gridLayout.addWidget(self.tx_equalization, 1, 0, 1, 1)
         self.simulation_control = QtWidgets.QGroupBox(self.config_tab)
-        sizePolicy = QtWidgets.QSizePolicy(
-            QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred
-        )
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
         sizePolicy.setHorizontalStretch(1)
         sizePolicy.setVerticalStretch(2)
         sizePolicy.setHeightForWidth(self.simulation_control.sizePolicy().hasHeightForWidth())
@@ -183,9 +162,7 @@ class Ui_MainWindow(object):
         self.formLayout_18.setWidget(0, QtWidgets.QFormLayout.LabelRole, self.sweepSimulationLabel)
         self.sweepSimulationCheckBox = QtWidgets.QCheckBox(self.simulation_control)
         self.sweepSimulationCheckBox.setObjectName("sweepSimulationCheckBox")
-        self.formLayout_18.setWidget(
-            0, QtWidgets.QFormLayout.FieldRole, self.sweepSimulationCheckBox
-        )
+        self.formLayout_18.setWidget(0, QtWidgets.QFormLayout.FieldRole, self.sweepSimulationCheckBox)
         self.sweepAvesLabel_3 = QtWidgets.QLabel(self.simulation_control)
         self.sweepAvesLabel_3.setObjectName("sweepAvesLabel_3")
         self.formLayout_18.setWidget(1, QtWidgets.QFormLayout.LabelRole, self.sweepAvesLabel_3)
@@ -233,9 +210,7 @@ class Ui_MainWindow(object):
         self.formLayout_24.setWidget(3, QtWidgets.QFormLayout.FieldRole, self.f_pn)
         self.gridLayout_5.addLayout(self.formLayout_24, 0, 2, 1, 1)
         self.groupBox_20 = QtWidgets.QGroupBox(self.simulation_control)
-        sizePolicy = QtWidgets.QSizePolicy(
-            QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Maximum
-        )
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Maximum)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(1)
         sizePolicy.setHeightForWidth(self.groupBox_20.sizePolicy().hasHeightForWidth())
@@ -250,9 +225,7 @@ class Ui_MainWindow(object):
         self.pj_threshold.setObjectName("pj_threshold")
         self.horizontalLayout_23.addWidget(self.pj_threshold)
         self.label_36 = QtWidgets.QLabel(self.groupBox_20)
-        sizePolicy = QtWidgets.QSizePolicy(
-            QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Minimum
-        )
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Minimum)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.label_36.sizePolicy().hasHeightForWidth())
@@ -265,9 +238,7 @@ class Ui_MainWindow(object):
         self.gridLayout_5.addWidget(self.groupBox_20, 1, 0, 1, 3)
         self.gridLayout.addWidget(self.simulation_control, 0, 0, 1, 1)
         self.cdr_parameters = QtWidgets.QGroupBox(self.config_tab)
-        sizePolicy = QtWidgets.QSizePolicy(
-            QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred
-        )
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(1)
         sizePolicy.setHeightForWidth(self.cdr_parameters.sizePolicy().hasHeightForWidth())
@@ -313,9 +284,7 @@ class Ui_MainWindow(object):
         self.verticalLayout_16.addLayout(self.horizontalLayout_6)
         self.gridLayout.addWidget(self.cdr_parameters, 2, 0, 1, 1)
         self.dfe_parameters = QtWidgets.QGroupBox(self.config_tab)
-        sizePolicy = QtWidgets.QSizePolicy(
-            QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred
-        )
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(1)
         sizePolicy.setHeightForWidth(self.dfe_parameters.sizePolicy().hasHeightForWidth())
@@ -366,9 +335,7 @@ class Ui_MainWindow(object):
         self.verticalLayout_15.addLayout(self.horizontalLayout_4)
         self.gridLayout.addWidget(self.dfe_parameters, 2, 1, 1, 1)
         self.channel_parameters = QtWidgets.QGroupBox(self.config_tab)
-        sizePolicy = QtWidgets.QSizePolicy(
-            QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred
-        )
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
         sizePolicy.setHorizontalStretch(1)
         sizePolicy.setVerticalStretch(2)
         sizePolicy.setHeightForWidth(self.channel_parameters.sizePolicy().hasHeightForWidth())
@@ -443,9 +410,7 @@ class Ui_MainWindow(object):
         self.formLayout_14.setWidget(0, QtWidgets.QFormLayout.FieldRole, self.material)
         self.gridLayout_7.addLayout(self.formLayout_14, 0, 0, 1, 1)
         self.formLayout_15 = QtWidgets.QFormLayout()
-        self.formLayout_15.setFormAlignment(
-            QtCore.Qt.AlignLeading | QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter
-        )
+        self.formLayout_15.setFormAlignment(QtCore.Qt.AlignLeading|QtCore.Qt.AlignLeft|QtCore.Qt.AlignVCenter)
         self.formLayout_15.setObjectName("formLayout_15")
         self.lossTangentLabel = QtWidgets.QLabel(self.groupBox_12)
         self.lossTangentLabel.setObjectName("lossTangentLabel")
@@ -467,9 +432,7 @@ class Ui_MainWindow(object):
         self.formLayout_15.setWidget(2, QtWidgets.QFormLayout.FieldRole, self.v_rel)
         self.gridLayout_7.addLayout(self.formLayout_15, 0, 1, 1, 1)
         self.formLayout_16 = QtWidgets.QFormLayout()
-        self.formLayout_16.setFormAlignment(
-            QtCore.Qt.AlignLeading | QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter
-        )
+        self.formLayout_16.setFormAlignment(QtCore.Qt.AlignLeading|QtCore.Qt.AlignLeft|QtCore.Qt.AlignVCenter)
         self.formLayout_16.setObjectName("formLayout_16")
         self.rx_RinOhmsLabel_3 = QtWidgets.QLabel(self.groupBox_12)
         self.rx_RinOhmsLabel_3.setObjectName("rx_RinOhmsLabel_3")
@@ -493,9 +456,7 @@ class Ui_MainWindow(object):
         self.verticalLayout_19.addWidget(self.groupBox_12)
         self.gridLayout.addWidget(self.channel_parameters, 0, 1, 1, 1)
         self.rx_equalization = QtWidgets.QGroupBox(self.config_tab)
-        sizePolicy = QtWidgets.QSizePolicy(
-            QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred
-        )
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(3)
         sizePolicy.setHeightForWidth(self.rx_equalization.sizePolicy().hasHeightForWidth())
@@ -504,9 +465,7 @@ class Ui_MainWindow(object):
         self.verticalLayout_18 = QtWidgets.QVBoxLayout(self.rx_equalization)
         self.verticalLayout_18.setObjectName("verticalLayout_18")
         self.groupBox_9 = QtWidgets.QGroupBox(self.rx_equalization)
-        sizePolicy = QtWidgets.QSizePolicy(
-            QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred
-        )
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(1)
         sizePolicy.setHeightForWidth(self.groupBox_9.sizePolicy().hasHeightForWidth())
@@ -514,42 +473,34 @@ class Ui_MainWindow(object):
         self.groupBox_9.setCheckable(True)
         self.groupBox_9.setChecked(False)
         self.groupBox_9.setObjectName("groupBox_9")
-        self.gridLayout_6 = QtWidgets.QGridLayout(self.groupBox_9)
-        self.gridLayout_6.setObjectName("gridLayout_6")
-        self.horizontalLayout_19 = QtWidgets.QHBoxLayout()
-        self.horizontalLayout_19.setObjectName("horizontalLayout_19")
+        self.horizontalLayout_3 = QtWidgets.QHBoxLayout(self.groupBox_9)
+        self.horizontalLayout_3.setObjectName("horizontalLayout_3")
         self.label_24 = QtWidgets.QLabel(self.groupBox_9)
         self.label_24.setObjectName("label_24")
-        self.horizontalLayout_19.addWidget(self.label_24)
+        self.horizontalLayout_3.addWidget(self.label_24)
         self.rx_ami_filename = QtWidgets.QLineEdit(self.groupBox_9)
         self.rx_ami_filename.setObjectName("rx_ami_filename")
-        self.horizontalLayout_19.addWidget(self.rx_ami_filename)
+        self.horizontalLayout_3.addWidget(self.rx_ami_filename)
         self.load_rx_ami_file = QtWidgets.QPushButton(self.groupBox_9)
         self.load_rx_ami_file.setText("")
         self.load_rx_ami_file.setObjectName("load_rx_ami_file")
-        self.horizontalLayout_19.addWidget(self.load_rx_ami_file)
-        self.gridLayout_6.addLayout(self.horizontalLayout_19, 0, 0, 1, 1)
-        self.horizontalLayout_20 = QtWidgets.QHBoxLayout()
-        self.horizontalLayout_20.setObjectName("horizontalLayout_20")
+        self.horizontalLayout_3.addWidget(self.load_rx_ami_file)
         self.label_25 = QtWidgets.QLabel(self.groupBox_9)
         self.label_25.setObjectName("label_25")
-        self.horizontalLayout_20.addWidget(self.label_25)
+        self.horizontalLayout_3.addWidget(self.label_25)
         self.rx_dll_filename = QtWidgets.QLineEdit(self.groupBox_9)
         self.rx_dll_filename.setObjectName("rx_dll_filename")
-        self.horizontalLayout_20.addWidget(self.rx_dll_filename)
+        self.horizontalLayout_3.addWidget(self.rx_dll_filename)
         self.load_rx_dll_file = QtWidgets.QPushButton(self.groupBox_9)
         self.load_rx_dll_file.setText("")
         self.load_rx_dll_file.setObjectName("load_rx_dll_file")
-        self.horizontalLayout_20.addWidget(self.load_rx_dll_file)
-        self.gridLayout_6.addLayout(self.horizontalLayout_20, 1, 0, 1, 1)
+        self.horizontalLayout_3.addWidget(self.load_rx_dll_file)
         self.configure_rx = QtWidgets.QPushButton(self.groupBox_9)
         self.configure_rx.setObjectName("configure_rx")
-        self.gridLayout_6.addWidget(self.configure_rx, 0, 1, 2, 1)
+        self.horizontalLayout_3.addWidget(self.configure_rx)
         self.verticalLayout_18.addWidget(self.groupBox_9)
         self.groupBox_10 = QtWidgets.QGroupBox(self.rx_equalization)
-        sizePolicy = QtWidgets.QSizePolicy(
-            QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred
-        )
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(2)
         sizePolicy.setHeightForWidth(self.groupBox_10.sizePolicy().hasHeightForWidth())
@@ -624,9 +575,7 @@ class Ui_MainWindow(object):
         self.gridLayout_4.setContentsMargins(0, 0, 0, 0)
         self.gridLayout_4.setObjectName("gridLayout_4")
         self.eq_tx_equalization = QtWidgets.QGroupBox(self.eq_tab)
-        sizePolicy = QtWidgets.QSizePolicy(
-            QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred
-        )
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
         sizePolicy.setHorizontalStretch(1)
         sizePolicy.setVerticalStretch(1)
         sizePolicy.setHeightForWidth(self.eq_tx_equalization.sizePolicy().hasHeightForWidth())
@@ -659,9 +608,7 @@ class Ui_MainWindow(object):
         self.verticalLayout_21.addWidget(self.tableWidget_6)
         self.gridLayout_4.addWidget(self.eq_tx_equalization, 0, 0, 1, 1)
         self.eq_tuning_options = QtWidgets.QGroupBox(self.eq_tab)
-        sizePolicy = QtWidgets.QSizePolicy(
-            QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred
-        )
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
         sizePolicy.setHorizontalStretch(1)
         sizePolicy.setVerticalStretch(1)
         sizePolicy.setHeightForWidth(self.eq_tuning_options.sizePolicy().hasHeightForWidth())
@@ -691,9 +638,7 @@ class Ui_MainWindow(object):
         self.formLayout_10.setWidget(2, QtWidgets.QFormLayout.FieldRole, self.pRZFError)
         self.gridLayout_4.addWidget(self.eq_tuning_options, 0, 3, 1, 1)
         self.eq_rx_equalization = QtWidgets.QGroupBox(self.eq_tab)
-        sizePolicy = QtWidgets.QSizePolicy(
-            QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred
-        )
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
         sizePolicy.setHorizontalStretch(1)
         sizePolicy.setVerticalStretch(1)
         sizePolicy.setHeightForWidth(self.eq_rx_equalization.sizePolicy().hasHeightForWidth())
@@ -750,9 +695,7 @@ class Ui_MainWindow(object):
         self.verticalLayout_22.addLayout(self.horizontalLayout_15)
         self.verticalLayout_23.addLayout(self.verticalLayout_22)
         self.label_31 = QtWidgets.QLabel(self.eq_rx_equalization)
-        sizePolicy = QtWidgets.QSizePolicy(
-            QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Minimum
-        )
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Minimum)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.label_31.sizePolicy().hasHeightForWidth())
@@ -762,9 +705,7 @@ class Ui_MainWindow(object):
         self.verticalLayout_23.addWidget(self.label_31)
         self.gridLayout_4.addWidget(self.eq_rx_equalization, 0, 2, 1, 1)
         self.graphicsView = QtWidgets.QGraphicsView(self.eq_tab)
-        sizePolicy = QtWidgets.QSizePolicy(
-            QtWidgets.QSizePolicy.MinimumExpanding, QtWidgets.QSizePolicy.Expanding
-        )
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.MinimumExpanding, QtWidgets.QSizePolicy.Expanding)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(1)
         sizePolicy.setHeightForWidth(self.graphicsView.sizePolicy().hasHeightForWidth())
@@ -775,9 +716,7 @@ class Ui_MainWindow(object):
         self.horizontalLayout_16.setSpacing(0)
         self.horizontalLayout_16.setObjectName("horizontalLayout_16")
         self.reset_eq = QtWidgets.QPushButton(self.eq_tab)
-        sizePolicy = QtWidgets.QSizePolicy(
-            QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Fixed
-        )
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Fixed)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.reset_eq.sizePolicy().hasHeightForWidth())
@@ -791,9 +730,7 @@ class Ui_MainWindow(object):
         self.eq_buttons.addButton(self.reset_eq)
         self.horizontalLayout_16.addWidget(self.reset_eq)
         self.save_eq = QtWidgets.QPushButton(self.eq_tab)
-        sizePolicy = QtWidgets.QSizePolicy(
-            QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Fixed
-        )
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Fixed)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.save_eq.sizePolicy().hasHeightForWidth())
@@ -805,9 +742,7 @@ class Ui_MainWindow(object):
         self.eq_buttons.addButton(self.save_eq)
         self.horizontalLayout_16.addWidget(self.save_eq)
         self.opt_tx_eq = QtWidgets.QPushButton(self.eq_tab)
-        sizePolicy = QtWidgets.QSizePolicy(
-            QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Fixed
-        )
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Fixed)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.opt_tx_eq.sizePolicy().hasHeightForWidth())
@@ -819,9 +754,7 @@ class Ui_MainWindow(object):
         self.eq_buttons.addButton(self.opt_tx_eq)
         self.horizontalLayout_16.addWidget(self.opt_tx_eq)
         self.opt_rx_eq = QtWidgets.QPushButton(self.eq_tab)
-        sizePolicy = QtWidgets.QSizePolicy(
-            QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Fixed
-        )
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Fixed)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.opt_rx_eq.sizePolicy().hasHeightForWidth())
@@ -833,9 +766,7 @@ class Ui_MainWindow(object):
         self.eq_buttons.addButton(self.opt_rx_eq)
         self.horizontalLayout_16.addWidget(self.opt_rx_eq)
         self.coopt_eq = QtWidgets.QPushButton(self.eq_tab)
-        sizePolicy = QtWidgets.QSizePolicy(
-            QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Fixed
-        )
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Fixed)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.coopt_eq.sizePolicy().hasHeightForWidth())
@@ -847,9 +778,7 @@ class Ui_MainWindow(object):
         self.eq_buttons.addButton(self.coopt_eq)
         self.horizontalLayout_16.addWidget(self.coopt_eq)
         self.opt_abort = QtWidgets.QPushButton(self.eq_tab)
-        sizePolicy = QtWidgets.QSizePolicy(
-            QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Fixed
-        )
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Fixed)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.opt_abort.sizePolicy().hasHeightForWidth())
@@ -948,9 +877,7 @@ class Ui_MainWindow(object):
         self.gridLayout_3 = QtWidgets.QGridLayout(self.jitter_info_tab)
         self.gridLayout_3.setObjectName("gridLayout_3")
         self.label_20 = QtWidgets.QLabel(self.jitter_info_tab)
-        sizePolicy = QtWidgets.QSizePolicy(
-            QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Preferred
-        )
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Preferred)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.label_20.sizePolicy().hasHeightForWidth())
@@ -961,9 +888,7 @@ class Ui_MainWindow(object):
         self.label_20.setObjectName("label_20")
         self.gridLayout_3.addWidget(self.label_20, 2, 0, 1, 1)
         self.jitter_rejection_dfe = QtWidgets.QTableWidget(self.jitter_info_tab)
-        sizePolicy = QtWidgets.QSizePolicy(
-            QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Expanding
-        )
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Expanding)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.jitter_rejection_dfe.sizePolicy().hasHeightForWidth())
@@ -995,9 +920,7 @@ class Ui_MainWindow(object):
         self.jitter_rejection_dfe.verticalHeader().setStretchLastSection(False)
         self.gridLayout_3.addWidget(self.jitter_rejection_dfe, 5, 0, 1, 1)
         self.jitter_rejection_tx = QtWidgets.QTableWidget(self.jitter_info_tab)
-        sizePolicy = QtWidgets.QSizePolicy(
-            QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Expanding
-        )
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Expanding)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.jitter_rejection_tx.sizePolicy().hasHeightForWidth())
@@ -1035,9 +958,7 @@ class Ui_MainWindow(object):
         self.label_28.setObjectName("label_28")
         self.gridLayout_3.addWidget(self.label_28, 4, 1, 1, 1)
         self.label_26 = QtWidgets.QLabel(self.jitter_info_tab)
-        sizePolicy = QtWidgets.QSizePolicy(
-            QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred
-        )
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.label_26.sizePolicy().hasHeightForWidth())
@@ -1054,9 +975,7 @@ class Ui_MainWindow(object):
         self.label_27.setObjectName("label_27")
         self.gridLayout_3.addWidget(self.label_27, 4, 0, 1, 1)
         self.jitter_rejection_ctle = QtWidgets.QTableWidget(self.jitter_info_tab)
-        sizePolicy = QtWidgets.QSizePolicy(
-            QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Expanding
-        )
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Expanding)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.jitter_rejection_ctle.sizePolicy().hasHeightForWidth())
@@ -1090,9 +1009,7 @@ class Ui_MainWindow(object):
         self.jitter_rejection_ctle.verticalHeader().setStretchLastSection(False)
         self.gridLayout_3.addWidget(self.jitter_rejection_ctle, 3, 1, 1, 1)
         self.jitter_rejection_total = QtWidgets.QTableWidget(self.jitter_info_tab)
-        sizePolicy = QtWidgets.QSizePolicy(
-            QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Expanding
-        )
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Expanding)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.jitter_rejection_total.sizePolicy().hasHeightForWidth())
@@ -1124,9 +1041,7 @@ class Ui_MainWindow(object):
         self.jitter_rejection_total.verticalHeader().setStretchLastSection(False)
         self.gridLayout_3.addWidget(self.jitter_rejection_total, 5, 1, 1, 1)
         self.label_19 = QtWidgets.QLabel(self.jitter_info_tab)
-        sizePolicy = QtWidgets.QSizePolicy(
-            QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred
-        )
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.label_19.sizePolicy().hasHeightForWidth())
@@ -1140,11 +1055,9 @@ class Ui_MainWindow(object):
         self.tabWidget.addTab(self.jitter_info_tab, "")
         self.verticalLayout_2.addWidget(self.tabWidget)
         MainWindow.setCentralWidget(self.centralwidget)
-        self.menubar = QtWidgets.QMenuBar()
-        self.menubar.setGeometry(QtCore.QRect(0, 0, 1500, 22))
-        sizePolicy = QtWidgets.QSizePolicy(
-            QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred
-        )
+        self.menubar = QtWidgets.QMenuBar(MainWindow)
+        self.menubar.setGeometry(QtCore.QRect(0, 0, 1440, 26))
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.menubar.sizePolicy().hasHeightForWidth())
@@ -1163,9 +1076,7 @@ class Ui_MainWindow(object):
         self.statusbar.setObjectName("statusbar")
         MainWindow.setStatusBar(self.statusbar)
         self.console = QtWidgets.QDockWidget(MainWindow)
-        sizePolicy = QtWidgets.QSizePolicy(
-            QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred
-        )
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(1)
         sizePolicy.setHeightForWidth(self.console.sizePolicy().hasHeightForWidth())
@@ -1175,9 +1086,7 @@ class Ui_MainWindow(object):
         self.console.setAllowedAreas(QtCore.Qt.BottomDockWidgetArea)
         self.console.setObjectName("console")
         self.dockWidgetContents = QtWidgets.QWidget()
-        sizePolicy = QtWidgets.QSizePolicy(
-            QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred
-        )
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.dockWidgetContents.sizePolicy().hasHeightForWidth())
@@ -1188,9 +1097,7 @@ class Ui_MainWindow(object):
         self.gridLayout_8.setContentsMargins(0, 0, 0, 0)
         self.gridLayout_8.setObjectName("gridLayout_8")
         self.text_edit = QtWidgets.QPlainTextEdit(self.dockWidgetContents)
-        sizePolicy = QtWidgets.QSizePolicy(
-            QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred
-        )
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.text_edit.sizePolicy().hasHeightForWidth())
@@ -1254,477 +1161,182 @@ class Ui_MainWindow(object):
 
         self.retranslateUi(MainWindow)
         self.tabWidget.setCurrentIndex(0)
-        QtCore.QObject.connect(
-            self.actionToggleConsole, QtCore.SIGNAL("triggered(bool)"), self.console.setVisible
-        )
-        QtCore.QObject.connect(
-            self.console,
-            QtCore.SIGNAL("visibilityChanged(bool)"),
-            self.actionToggleConsole.setChecked,
-        )
+        QtCore.QObject.connect(self.actionToggleConsole, QtCore.SIGNAL("triggered(bool)"), self.console.setVisible)
+        QtCore.QObject.connect(self.console, QtCore.SIGNAL("visibilityChanged(bool)"), self.actionToggleConsole.setChecked)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
 
     def retranslateUi(self, MainWindow):
-        MainWindow.setWindowTitle(
-            QtWidgets.QApplication.translate("MainWindow", "MainWindow", None, -1)
-        )
-        self.tx_equalization.setTitle(
-            QtWidgets.QApplication.translate("MainWindow", "Tx Equalization", None, -1)
-        )
-        self.groupBox_7.setTitle(
-            QtWidgets.QApplication.translate("MainWindow", "Use AMI Model", None, -1)
-        )
+        MainWindow.setWindowTitle(QtWidgets.QApplication.translate("MainWindow", "MainWindow", None, -1))
+        self.tx_equalization.setTitle(QtWidgets.QApplication.translate("MainWindow", "Tx Equalization", None, -1))
+        self.groupBox_7.setTitle(QtWidgets.QApplication.translate("MainWindow", "Use AMI Model", None, -1))
         self.label_17.setText(QtWidgets.QApplication.translate("MainWindow", "AMI File", None, -1))
         self.label_22.setText(QtWidgets.QApplication.translate("MainWindow", "DLL File", None, -1))
-        self.configure_tx.setText(
-            QtWidgets.QApplication.translate("MainWindow", "Configure", None, -1)
-        )
-        self.groupBox_8.setTitle(
-            QtWidgets.QApplication.translate("MainWindow", "Native", None, -1)
-        )
-        self.tableWidget.verticalHeaderItem(0).setText(
-            QtWidgets.QApplication.translate("MainWindow", "Pre-Tap", None, -1)
-        )
-        self.tableWidget.verticalHeaderItem(1).setText(
-            QtWidgets.QApplication.translate("MainWindow", "Post-Tap 1", None, -1)
-        )
-        self.tableWidget.verticalHeaderItem(2).setText(
-            QtWidgets.QApplication.translate("MainWindow", "Post-Tap 2", None, -1)
-        )
-        self.tableWidget.verticalHeaderItem(3).setText(
-            QtWidgets.QApplication.translate("MainWindow", "Post-Tap 3", None, -1)
-        )
-        self.tableWidget.horizontalHeaderItem(0).setText(
-            QtWidgets.QApplication.translate("MainWindow", "Enabled", None, -1)
-        )
-        self.tableWidget.horizontalHeaderItem(1).setText(
-            QtWidgets.QApplication.translate("MainWindow", "Min Val", None, -1)
-        )
-        self.tableWidget.horizontalHeaderItem(2).setText(
-            QtWidgets.QApplication.translate("MainWindow", "Max Val", None, -1)
-        )
-        self.tableWidget.horizontalHeaderItem(3).setText(
-            QtWidgets.QApplication.translate("MainWindow", "Value", None, -1)
-        )
-        self.tableWidget.horizontalHeaderItem(4).setText(
-            QtWidgets.QApplication.translate("MainWindow", "Steps", None, -1)
-        )
-        self.simulation_control.setTitle(
-            QtWidgets.QApplication.translate("MainWindow", "Simulation Control", None, -1)
-        )
-        self.bitRateGbpsLabel_3.setText(
-            QtWidgets.QApplication.translate("MainWindow", "Bit Rate (Gbps)", None, -1)
-        )
-        self.nbitsLabel_3.setText(
-            QtWidgets.QApplication.translate("MainWindow", "Nbits", None, -1)
-        )
+        self.configure_tx.setText(QtWidgets.QApplication.translate("MainWindow", "Configure", None, -1))
+        self.groupBox_8.setTitle(QtWidgets.QApplication.translate("MainWindow", "Native", None, -1))
+        self.tableWidget.verticalHeaderItem(0).setText(QtWidgets.QApplication.translate("MainWindow", "Pre-Tap", None, -1))
+        self.tableWidget.verticalHeaderItem(1).setText(QtWidgets.QApplication.translate("MainWindow", "Post-Tap 1", None, -1))
+        self.tableWidget.verticalHeaderItem(2).setText(QtWidgets.QApplication.translate("MainWindow", "Post-Tap 2", None, -1))
+        self.tableWidget.verticalHeaderItem(3).setText(QtWidgets.QApplication.translate("MainWindow", "Post-Tap 3", None, -1))
+        self.tableWidget.horizontalHeaderItem(0).setText(QtWidgets.QApplication.translate("MainWindow", "Enabled", None, -1))
+        self.tableWidget.horizontalHeaderItem(1).setText(QtWidgets.QApplication.translate("MainWindow", "Min Val", None, -1))
+        self.tableWidget.horizontalHeaderItem(2).setText(QtWidgets.QApplication.translate("MainWindow", "Max Val", None, -1))
+        self.tableWidget.horizontalHeaderItem(3).setText(QtWidgets.QApplication.translate("MainWindow", "Value", None, -1))
+        self.tableWidget.horizontalHeaderItem(4).setText(QtWidgets.QApplication.translate("MainWindow", "Steps", None, -1))
+        self.simulation_control.setTitle(QtWidgets.QApplication.translate("MainWindow", "Simulation Control", None, -1))
+        self.bitRateGbpsLabel_3.setText(QtWidgets.QApplication.translate("MainWindow", "Bit Rate (Gbps)", None, -1))
+        self.nbitsLabel_3.setText(QtWidgets.QApplication.translate("MainWindow", "Nbits", None, -1))
         self.nspbLabel_3.setText(QtWidgets.QApplication.translate("MainWindow", "Nspb", None, -1))
-        self.modulationLabel_3.setText(
-            QtWidgets.QApplication.translate("MainWindow", "Modulation", None, -1)
-        )
-        self.sweepSimulationLabel.setText(
-            QtWidgets.QApplication.translate("MainWindow", "Sweep Simulation", None, -1)
-        )
-        self.sweepAvesLabel_3.setText(
-            QtWidgets.QApplication.translate("MainWindow", "Sweep Aves.", None, -1)
-        )
-        self.patternLengthLabel.setText(
-            QtWidgets.QApplication.translate("MainWindow", "Pattern Length", None, -1)
-        )
-        self.eyeBitsLabel_3.setText(
-            QtWidgets.QApplication.translate("MainWindow", "Eye Bits", None, -1)
-        )
-        self.vodVLabel_3.setText(
-            QtWidgets.QApplication.translate("MainWindow", "Vod (V)", None, -1)
-        )
+        self.modulationLabel_3.setText(QtWidgets.QApplication.translate("MainWindow", "Modulation", None, -1))
+        self.sweepSimulationLabel.setText(QtWidgets.QApplication.translate("MainWindow", "Sweep Simulation", None, -1))
+        self.sweepAvesLabel_3.setText(QtWidgets.QApplication.translate("MainWindow", "Sweep Aves.", None, -1))
+        self.patternLengthLabel.setText(QtWidgets.QApplication.translate("MainWindow", "Pattern Length", None, -1))
+        self.eyeBitsLabel_3.setText(QtWidgets.QApplication.translate("MainWindow", "Eye Bits", None, -1))
+        self.vodVLabel_3.setText(QtWidgets.QApplication.translate("MainWindow", "Vod (V)", None, -1))
         self.rnVLabel_3.setText(QtWidgets.QApplication.translate("MainWindow", "Rn (V)", None, -1))
         self.pnVLabel_3.setText(QtWidgets.QApplication.translate("MainWindow", "Pn (V)", None, -1))
-        self.fPnMHzLabel_3.setText(
-            QtWidgets.QApplication.translate("MainWindow", "f(Pn) (MHz)", None, -1)
-        )
-        self.groupBox_20.setTitle(
-            QtWidgets.QApplication.translate("MainWindow", "Analysis Parameters", None, -1)
-        )
-        self.label_35.setText(
-            QtWidgets.QApplication.translate("MainWindow", "Pj Threshold (sigma)", None, -1)
-        )
-        self.label_36.setText(
-            QtWidgets.QApplication.translate(
-                "MainWindow", "Impulse Response Length (ns)", None, -1
-            )
-        )
-        self.cdr_parameters.setTitle(
-            QtWidgets.QApplication.translate("MainWindow", "CDR Parameters", None, -1)
-        )
-        self.label_6.setText(
-            QtWidgets.QApplication.translate("MainWindow", "Delta-t (ps)", None, -1)
-        )
+        self.fPnMHzLabel_3.setText(QtWidgets.QApplication.translate("MainWindow", "f(Pn) (MHz)", None, -1))
+        self.groupBox_20.setTitle(QtWidgets.QApplication.translate("MainWindow", "Analysis Parameters", None, -1))
+        self.label_35.setText(QtWidgets.QApplication.translate("MainWindow", "Pj Threshold (sigma)", None, -1))
+        self.label_36.setText(QtWidgets.QApplication.translate("MainWindow", "Impulse Response Length (ns)", None, -1))
+        self.cdr_parameters.setTitle(QtWidgets.QApplication.translate("MainWindow", "CDR Parameters", None, -1))
+        self.label_6.setText(QtWidgets.QApplication.translate("MainWindow", "Delta-t (ps)", None, -1))
         self.label_7.setText(QtWidgets.QApplication.translate("MainWindow", "Alpha", None, -1))
-        self.label_8.setText(
-            QtWidgets.QApplication.translate("MainWindow", "Lock Nave.", None, -1)
-        )
+        self.label_8.setText(QtWidgets.QApplication.translate("MainWindow", "Lock Nave.", None, -1))
         self.label_9.setText(QtWidgets.QApplication.translate("MainWindow", "Lock Tol.", None, -1))
-        self.label_10.setText(
-            QtWidgets.QApplication.translate("MainWindow", "Lock Sus.", None, -1)
-        )
-        self.dfe_parameters.setTitle(
-            QtWidgets.QApplication.translate("MainWindow", "Use DFE", None, -1)
-        )
-        self.checkBox.setText(
-            QtWidgets.QApplication.translate("MainWindow", "Ideal DFE", None, -1)
-        )
+        self.label_10.setText(QtWidgets.QApplication.translate("MainWindow", "Lock Sus.", None, -1))
+        self.dfe_parameters.setTitle(QtWidgets.QApplication.translate("MainWindow", "Use DFE", None, -1))
+        self.checkBox.setText(QtWidgets.QApplication.translate("MainWindow", "Ideal DFE", None, -1))
         self.label.setText(QtWidgets.QApplication.translate("MainWindow", "Taps", None, -1))
         self.label_2.setText(QtWidgets.QApplication.translate("MainWindow", "Gain", None, -1))
         self.label_3.setText(QtWidgets.QApplication.translate("MainWindow", "Level", None, -1))
         self.label_4.setText(QtWidgets.QApplication.translate("MainWindow", "N ave.", None, -1))
         self.label_5.setText(QtWidgets.QApplication.translate("MainWindow", "BW (GHz)", None, -1))
-        self.channel_parameters.setTitle(
-            QtWidgets.QApplication.translate("MainWindow", "Channel Parameters", None, -1)
-        )
-        self.groupBox_11.setTitle(
-            QtWidgets.QApplication.translate("MainWindow", "From File", None, -1)
-        )
+        self.channel_parameters.setTitle(QtWidgets.QApplication.translate("MainWindow", "Channel Parameters", None, -1))
+        self.groupBox_11.setTitle(QtWidgets.QApplication.translate("MainWindow", "From File", None, -1))
         self.label_32.setText(QtWidgets.QApplication.translate("MainWindow", "File", None, -1))
-        self.zero_padded.setText(
-            QtWidgets.QApplication.translate("MainWindow", "Zero-Padded", None, -1)
-        )
+        self.zero_padded.setText(QtWidgets.QApplication.translate("MainWindow", "Zero-Padded", None, -1))
         self.windowed.setText(QtWidgets.QApplication.translate("MainWindow", "Windowed", None, -1))
         self.label_33.setText(QtWidgets.QApplication.translate("MainWindow", "f_step", None, -1))
         self.label_34.setText(QtWidgets.QApplication.translate("MainWindow", "MHz", None, -1))
-        self.groupBox_12.setTitle(
-            QtWidgets.QApplication.translate("MainWindow", "Native", None, -1)
-        )
-        self.tx_RsOhmsLabel_3.setText(
-            QtWidgets.QApplication.translate("MainWindow", "Tx_Rs (Ohms)", None, -1)
-        )
-        self.tx_CoutPFLabel_3.setText(
-            QtWidgets.QApplication.translate("MainWindow", "Tx_Cout (pF)", None, -1)
-        )
-        self.lengthMLabel_3.setText(
-            QtWidgets.QApplication.translate("MainWindow", "Length (m)", None, -1)
-        )
-        self.materialLabel.setText(
-            QtWidgets.QApplication.translate("MainWindow", "Material", None, -1)
-        )
-        self.lossTangentLabel.setText(
-            QtWidgets.QApplication.translate("MainWindow", "Loss Tangent", None, -1)
-        )
-        self.z0OhmsLabel_3.setText(
-            QtWidgets.QApplication.translate("MainWindow", "Z0 (Ohms)", None, -1)
-        )
-        self.v_relCLabel_3.setText(
-            QtWidgets.QApplication.translate("MainWindow", "v_rel (c)", None, -1)
-        )
-        self.rx_RinOhmsLabel_3.setText(
-            QtWidgets.QApplication.translate("MainWindow", "Rx_Rin (Ohms)", None, -1)
-        )
-        self.rx_CinPFLabel_3.setText(
-            QtWidgets.QApplication.translate("MainWindow", "Rx_Cin (pF)", None, -1)
-        )
-        self.rx_CacUFLabel_3.setText(
-            QtWidgets.QApplication.translate("MainWindow", "Rx_Cac (uF)", None, -1)
-        )
-        self.rx_equalization.setTitle(
-            QtWidgets.QApplication.translate("MainWindow", "Rx Equalization", None, -1)
-        )
-        self.groupBox_9.setTitle(
-            QtWidgets.QApplication.translate("MainWindow", "Use AMI Model", None, -1)
-        )
+        self.groupBox_12.setTitle(QtWidgets.QApplication.translate("MainWindow", "Native", None, -1))
+        self.tx_RsOhmsLabel_3.setText(QtWidgets.QApplication.translate("MainWindow", "Tx_Rs (Ohms)", None, -1))
+        self.tx_CoutPFLabel_3.setText(QtWidgets.QApplication.translate("MainWindow", "Tx_Cout (pF)", None, -1))
+        self.lengthMLabel_3.setText(QtWidgets.QApplication.translate("MainWindow", "Length (m)", None, -1))
+        self.materialLabel.setText(QtWidgets.QApplication.translate("MainWindow", "Material", None, -1))
+        self.lossTangentLabel.setText(QtWidgets.QApplication.translate("MainWindow", "Loss Tangent", None, -1))
+        self.z0OhmsLabel_3.setText(QtWidgets.QApplication.translate("MainWindow", "Z0 (Ohms)", None, -1))
+        self.v_relCLabel_3.setText(QtWidgets.QApplication.translate("MainWindow", "v_rel (c)", None, -1))
+        self.rx_RinOhmsLabel_3.setText(QtWidgets.QApplication.translate("MainWindow", "Rx_Rin (Ohms)", None, -1))
+        self.rx_CinPFLabel_3.setText(QtWidgets.QApplication.translate("MainWindow", "Rx_Cin (pF)", None, -1))
+        self.rx_CacUFLabel_3.setText(QtWidgets.QApplication.translate("MainWindow", "Rx_Cac (uF)", None, -1))
+        self.rx_equalization.setTitle(QtWidgets.QApplication.translate("MainWindow", "Rx Equalization", None, -1))
+        self.groupBox_9.setTitle(QtWidgets.QApplication.translate("MainWindow", "Use AMI Model", None, -1))
         self.label_24.setText(QtWidgets.QApplication.translate("MainWindow", "AMI File", None, -1))
         self.label_25.setText(QtWidgets.QApplication.translate("MainWindow", "DLL File", None, -1))
-        self.configure_rx.setText(
-            QtWidgets.QApplication.translate("MainWindow", "Configure", None, -1)
-        )
-        self.groupBox_10.setTitle(
-            QtWidgets.QApplication.translate("MainWindow", "Native", None, -1)
-        )
-        self.use_ctle_from_file.setText(
-            QtWidgets.QApplication.translate("MainWindow", "From File", None, -1)
-        )
+        self.configure_rx.setText(QtWidgets.QApplication.translate("MainWindow", "Configure", None, -1))
+        self.groupBox_10.setTitle(QtWidgets.QApplication.translate("MainWindow", "Native", None, -1))
+        self.use_ctle_from_file.setText(QtWidgets.QApplication.translate("MainWindow", "From File", None, -1))
         self.label_37.setText(QtWidgets.QApplication.translate("MainWindow", "File", None, -1))
-        self.label_38.setText(
-            QtWidgets.QApplication.translate("MainWindow", "CTLE fp (GHz)", None, -1)
-        )
-        self.label_39.setText(
-            QtWidgets.QApplication.translate("MainWindow", "Bandwidth (GHz)", None, -1)
-        )
-        self.label_40.setText(
-            QtWidgets.QApplication.translate("MainWindow", "CTLE Boost (dB)", None, -1)
-        )
-        self.label_41.setText(
-            QtWidgets.QApplication.translate("MainWindow", "CTLE Mode", None, -1)
-        )
-        self.tabWidget.setTabText(
-            self.tabWidget.indexOf(self.config_tab),
-            QtWidgets.QApplication.translate("MainWindow", "Configuration", None, -1),
-        )
-        self.tabWidget.setTabText(
-            self.tabWidget.indexOf(self.dfe_tab),
-            QtWidgets.QApplication.translate("MainWindow", "DFE", None, -1),
-        )
-        self.eq_tx_equalization.setTitle(
-            QtWidgets.QApplication.translate("MainWindow", "Tx Equalization", None, -1)
-        )
-        self.tableWidget_6.horizontalHeaderItem(0).setText(
-            QtWidgets.QApplication.translate("MainWindow", "Name", None, -1)
-        )
-        self.tableWidget_6.horizontalHeaderItem(1).setText(
-            QtWidgets.QApplication.translate("MainWindow", "Enabled", None, -1)
-        )
-        self.tableWidget_6.horizontalHeaderItem(2).setText(
-            QtWidgets.QApplication.translate("MainWindow", "Min Val", None, -1)
-        )
-        self.tableWidget_6.horizontalHeaderItem(3).setText(
-            QtWidgets.QApplication.translate("MainWindow", "Max Val", None, -1)
-        )
-        self.tableWidget_6.horizontalHeaderItem(4).setText(
-            QtWidgets.QApplication.translate("MainWindow", "Value", None, -1)
-        )
-        self.eq_tuning_options.setTitle(
-            QtWidgets.QApplication.translate("MainWindow", "Tuning Options", None, -1)
-        )
-        self.maxIterationsLabel.setText(
-            QtWidgets.QApplication.translate("MainWindow", "Max Iterations", None, -1)
-        )
-        self.relativeOptLabel.setText(
-            QtWidgets.QApplication.translate("MainWindow", "Relative Opt.", None, -1)
-        )
-        self.pRZFErrorLabel.setText(
-            QtWidgets.QApplication.translate("MainWindow", "PRZF Error", None, -1)
-        )
-        self.eq_rx_equalization.setTitle(
-            QtWidgets.QApplication.translate("MainWindow", "Rx Equalization", None, -1)
-        )
-        self.cTLEFpGHzLabel.setText(
-            QtWidgets.QApplication.translate("MainWindow", "CTLE fp (GHz)", None, -1)
-        )
-        self.bandwidthGHzLabel.setText(
-            QtWidgets.QApplication.translate("MainWindow", "Bandwidth (GHz)", None, -1)
-        )
-        self.cTLEBoostDBLabel.setText(
-            QtWidgets.QApplication.translate("MainWindow", "CTLE Boost (dB)", None, -1)
-        )
-        self.label_29.setText(
-            QtWidgets.QApplication.translate("MainWindow", "CTLE Mode", None, -1)
-        )
-        self.ctle_dc_offset.setToolTip(
-            QtWidgets.QApplication.translate("MainWindow", "CTLE D.C. offset (dB)", None, -1)
-        )
-        self.eq_use_dfe.setText(
-            QtWidgets.QApplication.translate("MainWindow", "Use DFE", None, -1)
-        )
+        self.label_38.setText(QtWidgets.QApplication.translate("MainWindow", "CTLE fp (GHz)", None, -1))
+        self.label_39.setText(QtWidgets.QApplication.translate("MainWindow", "Bandwidth (GHz)", None, -1))
+        self.label_40.setText(QtWidgets.QApplication.translate("MainWindow", "CTLE Boost (dB)", None, -1))
+        self.label_41.setText(QtWidgets.QApplication.translate("MainWindow", "CTLE Mode", None, -1))
+        self.tabWidget.setTabText(self.tabWidget.indexOf(self.config_tab), QtWidgets.QApplication.translate("MainWindow", "Configuration", None, -1))
+        self.tabWidget.setTabText(self.tabWidget.indexOf(self.dfe_tab), QtWidgets.QApplication.translate("MainWindow", "DFE", None, -1))
+        self.eq_tx_equalization.setTitle(QtWidgets.QApplication.translate("MainWindow", "Tx Equalization", None, -1))
+        self.tableWidget_6.horizontalHeaderItem(0).setText(QtWidgets.QApplication.translate("MainWindow", "Name", None, -1))
+        self.tableWidget_6.horizontalHeaderItem(1).setText(QtWidgets.QApplication.translate("MainWindow", "Enabled", None, -1))
+        self.tableWidget_6.horizontalHeaderItem(2).setText(QtWidgets.QApplication.translate("MainWindow", "Min Val", None, -1))
+        self.tableWidget_6.horizontalHeaderItem(3).setText(QtWidgets.QApplication.translate("MainWindow", "Max Val", None, -1))
+        self.tableWidget_6.horizontalHeaderItem(4).setText(QtWidgets.QApplication.translate("MainWindow", "Value", None, -1))
+        self.eq_tuning_options.setTitle(QtWidgets.QApplication.translate("MainWindow", "Tuning Options", None, -1))
+        self.maxIterationsLabel.setText(QtWidgets.QApplication.translate("MainWindow", "Max Iterations", None, -1))
+        self.relativeOptLabel.setText(QtWidgets.QApplication.translate("MainWindow", "Relative Opt.", None, -1))
+        self.pRZFErrorLabel.setText(QtWidgets.QApplication.translate("MainWindow", "PRZF Error", None, -1))
+        self.eq_rx_equalization.setTitle(QtWidgets.QApplication.translate("MainWindow", "Rx Equalization", None, -1))
+        self.cTLEFpGHzLabel.setText(QtWidgets.QApplication.translate("MainWindow", "CTLE fp (GHz)", None, -1))
+        self.bandwidthGHzLabel.setText(QtWidgets.QApplication.translate("MainWindow", "Bandwidth (GHz)", None, -1))
+        self.cTLEBoostDBLabel.setText(QtWidgets.QApplication.translate("MainWindow", "CTLE Boost (dB)", None, -1))
+        self.label_29.setText(QtWidgets.QApplication.translate("MainWindow", "CTLE Mode", None, -1))
+        self.ctle_dc_offset.setToolTip(QtWidgets.QApplication.translate("MainWindow", "CTLE D.C. offset (dB)", None, -1))
+        self.eq_use_dfe.setText(QtWidgets.QApplication.translate("MainWindow", "Use DFE", None, -1))
         self.label_30.setText(QtWidgets.QApplication.translate("MainWindow", "Taps", None, -1))
-        self.label_31.setText(
-            QtWidgets.QApplication.translate(
-                "MainWindow",
-                "Note: Only peaking magnitude will be optimized; please set peak fequency, bandwidth and mode appropriately.",
-                None,
-                -1,
-            )
-        )
+        self.label_31.setText(QtWidgets.QApplication.translate("MainWindow", "Note: Only peaking magnitude will be optimized; please set peak fequency, bandwidth and mode appropriately.", None, -1))
         self.reset_eq.setText(QtWidgets.QApplication.translate("MainWindow", "Reset EQ", None, -1))
         self.save_eq.setText(QtWidgets.QApplication.translate("MainWindow", "Save EQ", None, -1))
         self.opt_tx_eq.setText(QtWidgets.QApplication.translate("MainWindow", "Opt Tx", None, -1))
         self.opt_rx_eq.setText(QtWidgets.QApplication.translate("MainWindow", "Opt Rx", None, -1))
         self.coopt_eq.setText(QtWidgets.QApplication.translate("MainWindow", "Co Opt", None, -1))
         self.opt_abort.setText(QtWidgets.QApplication.translate("MainWindow", "Abort", None, -1))
-        self.tabWidget.setTabText(
-            self.tabWidget.indexOf(self.eq_tab),
-            QtWidgets.QApplication.translate("MainWindow", "EQ Tune", None, -1),
-        )
-        self.tabWidget.setTabText(
-            self.tabWidget.indexOf(self.impulse_tab),
-            QtWidgets.QApplication.translate("MainWindow", "Impulses", None, -1),
-        )
-        self.tabWidget.setTabText(
-            self.tabWidget.indexOf(self.step_tab),
-            QtWidgets.QApplication.translate("MainWindow", "Steps", None, -1),
-        )
-        self.tabWidget.setTabText(
-            self.tabWidget.indexOf(self.pulse_tab),
-            QtWidgets.QApplication.translate("MainWindow", "Pulses", None, -1),
-        )
-        self.tabWidget.setTabText(
-            self.tabWidget.indexOf(self.freq_tab),
-            QtWidgets.QApplication.translate("MainWindow", "Frequency Resp.", None, -1),
-        )
-        self.tabWidget.setTabText(
-            self.tabWidget.indexOf(self.output_tab),
-            QtWidgets.QApplication.translate("MainWindow", "Outputs", None, -1),
-        )
-        self.tabWidget.setTabText(
-            self.tabWidget.indexOf(self.eye_tab),
-            QtWidgets.QApplication.translate("MainWindow", "Eyes", None, -1),
-        )
-        self.tabWidget.setTabText(
-            self.tabWidget.indexOf(self.jitter_dist_tab),
-            QtWidgets.QApplication.translate("MainWindow", "Jitter Dist.", None, -1),
-        )
-        self.tabWidget.setTabText(
-            self.tabWidget.indexOf(self.jitter_spect_tab),
-            QtWidgets.QApplication.translate("MainWindow", "Jitter Spec.", None, -1),
-        )
-        self.tabWidget.setTabText(
-            self.tabWidget.indexOf(self.bathtub_tab),
-            QtWidgets.QApplication.translate("MainWindow", "Bathtubs", None, -1),
-        )
-        self.label_20.setText(
-            QtWidgets.QApplication.translate("MainWindow", "Tx Pre-Emphasis", None, -1)
-        )
-        self.jitter_rejection_dfe.verticalHeaderItem(0).setText(
-            QtWidgets.QApplication.translate("MainWindow", "ISI", None, -1)
-        )
-        self.jitter_rejection_dfe.verticalHeaderItem(1).setText(
-            QtWidgets.QApplication.translate("MainWindow", "DCD", None, -1)
-        )
-        self.jitter_rejection_dfe.verticalHeaderItem(2).setText(
-            QtWidgets.QApplication.translate("MainWindow", "Pj", None, -1)
-        )
-        self.jitter_rejection_dfe.verticalHeaderItem(3).setText(
-            QtWidgets.QApplication.translate("MainWindow", "Rj", None, -1)
-        )
-        self.jitter_rejection_dfe.horizontalHeaderItem(0).setText(
-            QtWidgets.QApplication.translate("MainWindow", "Input (ps)", None, -1)
-        )
-        self.jitter_rejection_dfe.horizontalHeaderItem(1).setText(
-            QtWidgets.QApplication.translate("MainWindow", "Output (ps)", None, -1)
-        )
-        self.jitter_rejection_dfe.horizontalHeaderItem(2).setText(
-            QtWidgets.QApplication.translate("MainWindow", "Rejection (dB)", None, -1)
-        )
-        self.jitter_rejection_tx.verticalHeaderItem(0).setText(
-            QtWidgets.QApplication.translate("MainWindow", "ISI", None, -1)
-        )
-        self.jitter_rejection_tx.verticalHeaderItem(1).setText(
-            QtWidgets.QApplication.translate("MainWindow", "DCD", None, -1)
-        )
-        self.jitter_rejection_tx.verticalHeaderItem(2).setText(
-            QtWidgets.QApplication.translate("MainWindow", "Pj", None, -1)
-        )
-        self.jitter_rejection_tx.verticalHeaderItem(3).setText(
-            QtWidgets.QApplication.translate("MainWindow", "Rj", None, -1)
-        )
-        self.jitter_rejection_tx.horizontalHeaderItem(0).setText(
-            QtWidgets.QApplication.translate("MainWindow", "Input (ps)", None, -1)
-        )
-        self.jitter_rejection_tx.horizontalHeaderItem(1).setText(
-            QtWidgets.QApplication.translate("MainWindow", "Output (ps)", None, -1)
-        )
-        self.jitter_rejection_tx.horizontalHeaderItem(2).setText(
-            QtWidgets.QApplication.translate("MainWindow", "Rejection (dB)", None, -1)
-        )
+        self.tabWidget.setTabText(self.tabWidget.indexOf(self.eq_tab), QtWidgets.QApplication.translate("MainWindow", "EQ Tune", None, -1))
+        self.tabWidget.setTabText(self.tabWidget.indexOf(self.impulse_tab), QtWidgets.QApplication.translate("MainWindow", "Impulses", None, -1))
+        self.tabWidget.setTabText(self.tabWidget.indexOf(self.step_tab), QtWidgets.QApplication.translate("MainWindow", "Steps", None, -1))
+        self.tabWidget.setTabText(self.tabWidget.indexOf(self.pulse_tab), QtWidgets.QApplication.translate("MainWindow", "Pulses", None, -1))
+        self.tabWidget.setTabText(self.tabWidget.indexOf(self.freq_tab), QtWidgets.QApplication.translate("MainWindow", "Frequency Resp.", None, -1))
+        self.tabWidget.setTabText(self.tabWidget.indexOf(self.output_tab), QtWidgets.QApplication.translate("MainWindow", "Outputs", None, -1))
+        self.tabWidget.setTabText(self.tabWidget.indexOf(self.eye_tab), QtWidgets.QApplication.translate("MainWindow", "Eyes", None, -1))
+        self.tabWidget.setTabText(self.tabWidget.indexOf(self.jitter_dist_tab), QtWidgets.QApplication.translate("MainWindow", "Jitter Dist.", None, -1))
+        self.tabWidget.setTabText(self.tabWidget.indexOf(self.jitter_spect_tab), QtWidgets.QApplication.translate("MainWindow", "Jitter Spec.", None, -1))
+        self.tabWidget.setTabText(self.tabWidget.indexOf(self.bathtub_tab), QtWidgets.QApplication.translate("MainWindow", "Bathtubs", None, -1))
+        self.label_20.setText(QtWidgets.QApplication.translate("MainWindow", "Tx Pre-Emphasis", None, -1))
+        self.jitter_rejection_dfe.verticalHeaderItem(0).setText(QtWidgets.QApplication.translate("MainWindow", "ISI", None, -1))
+        self.jitter_rejection_dfe.verticalHeaderItem(1).setText(QtWidgets.QApplication.translate("MainWindow", "DCD", None, -1))
+        self.jitter_rejection_dfe.verticalHeaderItem(2).setText(QtWidgets.QApplication.translate("MainWindow", "Pj", None, -1))
+        self.jitter_rejection_dfe.verticalHeaderItem(3).setText(QtWidgets.QApplication.translate("MainWindow", "Rj", None, -1))
+        self.jitter_rejection_dfe.horizontalHeaderItem(0).setText(QtWidgets.QApplication.translate("MainWindow", "Input (ps)", None, -1))
+        self.jitter_rejection_dfe.horizontalHeaderItem(1).setText(QtWidgets.QApplication.translate("MainWindow", "Output (ps)", None, -1))
+        self.jitter_rejection_dfe.horizontalHeaderItem(2).setText(QtWidgets.QApplication.translate("MainWindow", "Rejection (dB)", None, -1))
+        self.jitter_rejection_tx.verticalHeaderItem(0).setText(QtWidgets.QApplication.translate("MainWindow", "ISI", None, -1))
+        self.jitter_rejection_tx.verticalHeaderItem(1).setText(QtWidgets.QApplication.translate("MainWindow", "DCD", None, -1))
+        self.jitter_rejection_tx.verticalHeaderItem(2).setText(QtWidgets.QApplication.translate("MainWindow", "Pj", None, -1))
+        self.jitter_rejection_tx.verticalHeaderItem(3).setText(QtWidgets.QApplication.translate("MainWindow", "Rj", None, -1))
+        self.jitter_rejection_tx.horizontalHeaderItem(0).setText(QtWidgets.QApplication.translate("MainWindow", "Input (ps)", None, -1))
+        self.jitter_rejection_tx.horizontalHeaderItem(1).setText(QtWidgets.QApplication.translate("MainWindow", "Output (ps)", None, -1))
+        self.jitter_rejection_tx.horizontalHeaderItem(2).setText(QtWidgets.QApplication.translate("MainWindow", "Rejection (dB)", None, -1))
         self.label_28.setText(QtWidgets.QApplication.translate("MainWindow", "Total", None, -1))
         self.label_26.setText(QtWidgets.QApplication.translate("MainWindow", "CTLE", None, -1))
         self.label_27.setText(QtWidgets.QApplication.translate("MainWindow", "DFE", None, -1))
-        self.jitter_rejection_ctle.verticalHeaderItem(0).setText(
-            QtWidgets.QApplication.translate("MainWindow", "ISI", None, -1)
-        )
-        self.jitter_rejection_ctle.verticalHeaderItem(1).setText(
-            QtWidgets.QApplication.translate("MainWindow", "DCD", None, -1)
-        )
-        self.jitter_rejection_ctle.verticalHeaderItem(2).setText(
-            QtWidgets.QApplication.translate("MainWindow", "Pj", None, -1)
-        )
-        self.jitter_rejection_ctle.verticalHeaderItem(3).setText(
-            QtWidgets.QApplication.translate("MainWindow", "Rj", None, -1)
-        )
-        self.jitter_rejection_ctle.horizontalHeaderItem(0).setText(
-            QtWidgets.QApplication.translate("MainWindow", "Input (ps)", None, -1)
-        )
-        self.jitter_rejection_ctle.horizontalHeaderItem(1).setText(
-            QtWidgets.QApplication.translate("MainWindow", "Output (ps)", None, -1)
-        )
-        self.jitter_rejection_ctle.horizontalHeaderItem(2).setText(
-            QtWidgets.QApplication.translate("MainWindow", "Rejection (dB)", None, -1)
-        )
-        self.jitter_rejection_total.verticalHeaderItem(0).setText(
-            QtWidgets.QApplication.translate("MainWindow", "ISI", None, -1)
-        )
-        self.jitter_rejection_total.verticalHeaderItem(1).setText(
-            QtWidgets.QApplication.translate("MainWindow", "DCD", None, -1)
-        )
-        self.jitter_rejection_total.verticalHeaderItem(2).setText(
-            QtWidgets.QApplication.translate("MainWindow", "Pj", None, -1)
-        )
-        self.jitter_rejection_total.verticalHeaderItem(3).setText(
-            QtWidgets.QApplication.translate("MainWindow", "Rj", None, -1)
-        )
-        self.jitter_rejection_total.horizontalHeaderItem(0).setText(
-            QtWidgets.QApplication.translate("MainWindow", "Input (ps)", None, -1)
-        )
-        self.jitter_rejection_total.horizontalHeaderItem(1).setText(
-            QtWidgets.QApplication.translate("MainWindow", "Output (ps)", None, -1)
-        )
-        self.jitter_rejection_total.horizontalHeaderItem(2).setText(
-            QtWidgets.QApplication.translate("MainWindow", "Rejection (dB)", None, -1)
-        )
-        self.label_19.setText(
-            QtWidgets.QApplication.translate(
-                "MainWindow", "Jitter Rejection by Equalization Component", None, -1
-            )
-        )
-        self.tabWidget.setTabText(
-            self.tabWidget.indexOf(self.jitter_info_tab),
-            QtWidgets.QApplication.translate("MainWindow", "Jitter Info", None, -1),
-        )
+        self.jitter_rejection_ctle.verticalHeaderItem(0).setText(QtWidgets.QApplication.translate("MainWindow", "ISI", None, -1))
+        self.jitter_rejection_ctle.verticalHeaderItem(1).setText(QtWidgets.QApplication.translate("MainWindow", "DCD", None, -1))
+        self.jitter_rejection_ctle.verticalHeaderItem(2).setText(QtWidgets.QApplication.translate("MainWindow", "Pj", None, -1))
+        self.jitter_rejection_ctle.verticalHeaderItem(3).setText(QtWidgets.QApplication.translate("MainWindow", "Rj", None, -1))
+        self.jitter_rejection_ctle.horizontalHeaderItem(0).setText(QtWidgets.QApplication.translate("MainWindow", "Input (ps)", None, -1))
+        self.jitter_rejection_ctle.horizontalHeaderItem(1).setText(QtWidgets.QApplication.translate("MainWindow", "Output (ps)", None, -1))
+        self.jitter_rejection_ctle.horizontalHeaderItem(2).setText(QtWidgets.QApplication.translate("MainWindow", "Rejection (dB)", None, -1))
+        self.jitter_rejection_total.verticalHeaderItem(0).setText(QtWidgets.QApplication.translate("MainWindow", "ISI", None, -1))
+        self.jitter_rejection_total.verticalHeaderItem(1).setText(QtWidgets.QApplication.translate("MainWindow", "DCD", None, -1))
+        self.jitter_rejection_total.verticalHeaderItem(2).setText(QtWidgets.QApplication.translate("MainWindow", "Pj", None, -1))
+        self.jitter_rejection_total.verticalHeaderItem(3).setText(QtWidgets.QApplication.translate("MainWindow", "Rj", None, -1))
+        self.jitter_rejection_total.horizontalHeaderItem(0).setText(QtWidgets.QApplication.translate("MainWindow", "Input (ps)", None, -1))
+        self.jitter_rejection_total.horizontalHeaderItem(1).setText(QtWidgets.QApplication.translate("MainWindow", "Output (ps)", None, -1))
+        self.jitter_rejection_total.horizontalHeaderItem(2).setText(QtWidgets.QApplication.translate("MainWindow", "Rejection (dB)", None, -1))
+        self.label_19.setText(QtWidgets.QApplication.translate("MainWindow", "Jitter Rejection by Equalization Component", None, -1))
+        self.tabWidget.setTabText(self.tabWidget.indexOf(self.jitter_info_tab), QtWidgets.QApplication.translate("MainWindow", "Jitter Info", None, -1))
         self.menuFile.setTitle(QtWidgets.QApplication.translate("MainWindow", "&File", None, -1))
         self.menu_View.setTitle(QtWidgets.QApplication.translate("MainWindow", "&View", None, -1))
-        self.menu_Simulation.setTitle(
-            QtWidgets.QApplication.translate("MainWindow", "&Simulation", None, -1)
-        )
+        self.menu_Simulation.setTitle(QtWidgets.QApplication.translate("MainWindow", "&Simulation", None, -1))
         self.menu_Help.setTitle(QtWidgets.QApplication.translate("MainWindow", "&Help", None, -1))
-        self.console.setWindowTitle(
-            QtWidgets.QApplication.translate("MainWindow", "Console", None, -1)
-        )
+        self.console.setWindowTitle(QtWidgets.QApplication.translate("MainWindow", "Console", None, -1))
         self.actionAbout.setText(QtWidgets.QApplication.translate("MainWindow", "About", None, -1))
-        self.actionDocumentation.setText(
-            QtWidgets.QApplication.translate("MainWindow", "Documentation", None, -1)
-        )
+        self.actionDocumentation.setText(QtWidgets.QApplication.translate("MainWindow", "Documentation", None, -1))
         self.actionHelp.setText(QtWidgets.QApplication.translate("MainWindow", "Help", None, -1))
         self.actionRun.setText(QtWidgets.QApplication.translate("MainWindow", "Run", None, -1))
-        self.actionRun.setShortcut(
-            QtWidgets.QApplication.translate("MainWindow", "Ctrl+R", None, -1)
-        )
-        self.actionToggleConsole.setText(
-            QtWidgets.QApplication.translate("MainWindow", "Console", None, -1)
-        )
-        self.actionToggleConsole.setShortcut(
-            QtWidgets.QApplication.translate("MainWindow", "Ctrl+`", None, -1)
-        )
-        self.actionSave_Configuration.setText(
-            QtWidgets.QApplication.translate("MainWindow", "Save Configuration", None, -1)
-        )
-        self.actionSave_Configuration.setShortcut(
-            QtWidgets.QApplication.translate("MainWindow", "Ctrl+S", None, -1)
-        )
-        self.actionLoad_Configuration.setText(
-            QtWidgets.QApplication.translate("MainWindow", "Load Configuration", None, -1)
-        )
-        self.actionLoad_Configuration.setShortcut(
-            QtWidgets.QApplication.translate("MainWindow", "Ctrl+N", None, -1)
-        )
-        self.actionSave_Waveforms.setText(
-            QtWidgets.QApplication.translate("MainWindow", "Save Waveforms", None, -1)
-        )
-        self.actionSave_Waveforms.setShortcut(
-            QtWidgets.QApplication.translate("MainWindow", "Ctrl+W", None, -1)
-        )
-        self.actionLoad_Waveforms.setText(
-            QtWidgets.QApplication.translate("MainWindow", "Load Waveforms", None, -1)
-        )
-        self.actionLoad_Waveforms.setShortcut(
-            QtWidgets.QApplication.translate("MainWindow", "Ctrl+M", None, -1)
-        )
-        self.actionPreferences.setText(
-            QtWidgets.QApplication.translate("MainWindow", "Preferences", None, -1)
-        )
-        self.actionPreferences.setShortcut(
-            QtWidgets.QApplication.translate("MainWindow", "Ctrl+,", None, -1)
-        )
+        self.actionRun.setShortcut(QtWidgets.QApplication.translate("MainWindow", "Ctrl+R", None, -1))
+        self.actionToggleConsole.setText(QtWidgets.QApplication.translate("MainWindow", "Console", None, -1))
+        self.actionToggleConsole.setShortcut(QtWidgets.QApplication.translate("MainWindow", "Ctrl+`", None, -1))
+        self.actionSave_Configuration.setText(QtWidgets.QApplication.translate("MainWindow", "Save Configuration", None, -1))
+        self.actionSave_Configuration.setShortcut(QtWidgets.QApplication.translate("MainWindow", "Ctrl+S", None, -1))
+        self.actionLoad_Configuration.setText(QtWidgets.QApplication.translate("MainWindow", "Load Configuration", None, -1))
+        self.actionLoad_Configuration.setShortcut(QtWidgets.QApplication.translate("MainWindow", "Ctrl+N", None, -1))
+        self.actionSave_Waveforms.setText(QtWidgets.QApplication.translate("MainWindow", "Save Waveforms", None, -1))
+        self.actionSave_Waveforms.setShortcut(QtWidgets.QApplication.translate("MainWindow", "Ctrl+W", None, -1))
+        self.actionLoad_Waveforms.setText(QtWidgets.QApplication.translate("MainWindow", "Load Waveforms", None, -1))
+        self.actionLoad_Waveforms.setShortcut(QtWidgets.QApplication.translate("MainWindow", "Ctrl+M", None, -1))
+        self.actionPreferences.setText(QtWidgets.QApplication.translate("MainWindow", "Preferences", None, -1))
+        self.actionPreferences.setShortcut(QtWidgets.QApplication.translate("MainWindow", "Ctrl+,", None, -1))
         self.actionE_xit.setText(QtWidgets.QApplication.translate("MainWindow", "E&xit", None, -1))
-        self.actionE_xit.setShortcut(
-            QtWidgets.QApplication.translate("MainWindow", "Ctrl+Q", None, -1)
-        )
-        self.actionDebug_Mode.setText(
-            QtWidgets.QApplication.translate("MainWindow", "Debug Mode", None, -1)
-        )
+        self.actionE_xit.setShortcut(QtWidgets.QApplication.translate("MainWindow", "Ctrl+Q", None, -1))
+        self.actionDebug_Mode.setText(QtWidgets.QApplication.translate("MainWindow", "Debug Mode", None, -1))
+
+from pybert.view.widgets import QuadGraphicsLayout
+from pyqtgraph import GraphicsLayoutWidget
