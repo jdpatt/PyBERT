@@ -51,7 +51,7 @@
        <enum>QTabWidget::Triangular</enum>
       </property>
       <property name="currentIndex">
-       <number>12</number>
+       <number>0</number>
       </property>
       <property name="documentMode">
        <bool>false</bool>
@@ -1429,7 +1429,7 @@
          <number>0</number>
         </property>
         <item>
-         <widget class="GraphicsLayoutWidget" name="plot_impulse"/>
+         <widget class="QuadGraphicsLayout" name="plot_impulse"/>
         </item>
        </layout>
       </widget>
@@ -1451,7 +1451,7 @@
          <number>0</number>
         </property>
         <item>
-         <widget class="GraphicsLayoutWidget" name="plot_step"/>
+         <widget class="QuadGraphicsLayout" name="plot_step"/>
         </item>
        </layout>
       </widget>
@@ -1473,7 +1473,7 @@
          <number>0</number>
         </property>
         <item>
-         <widget class="GraphicsLayoutWidget" name="plot_pulse"/>
+         <widget class="QuadGraphicsLayout" name="plot_pulse"/>
         </item>
        </layout>
       </widget>
@@ -1495,7 +1495,7 @@
          <number>0</number>
         </property>
         <item>
-         <widget class="GraphicsLayoutWidget" name="plot_freq"/>
+         <widget class="QuadGraphicsLayout" name="plot_freq"/>
         </item>
        </layout>
       </widget>
@@ -1517,7 +1517,7 @@
          <number>0</number>
         </property>
         <item>
-         <widget class="GraphicsLayoutWidget" name="plot_output"/>
+         <widget class="QuadGraphicsLayout" name="plot_output"/>
         </item>
        </layout>
       </widget>
@@ -1539,7 +1539,7 @@
          <number>0</number>
         </property>
         <item>
-         <widget class="GraphicsLayoutWidget" name="plot_eye"/>
+         <widget class="QuadGraphicsLayout" name="plot_eye"/>
         </item>
        </layout>
       </widget>
@@ -1561,7 +1561,7 @@
          <number>0</number>
         </property>
         <item>
-         <widget class="GraphicsLayoutWidget" name="plot_jitter_dist"/>
+         <widget class="QuadGraphicsLayout" name="plot_jitter_dist"/>
         </item>
        </layout>
       </widget>
@@ -1583,7 +1583,7 @@
          <number>0</number>
         </property>
         <item>
-         <widget class="GraphicsLayoutWidget" name="plot_jitter_spect"/>
+         <widget class="QuadGraphicsLayout" name="plot_jitter_spect"/>
         </item>
        </layout>
       </widget>
@@ -1605,7 +1605,7 @@
          <number>0</number>
         </property>
         <item>
-         <widget class="GraphicsLayoutWidget" name="plot_bathtub"/>
+         <widget class="QuadGraphicsLayout" name="plot_bathtub"/>
         </item>
        </layout>
       </widget>
@@ -2001,7 +2001,7 @@
      <x>0</x>
      <y>0</y>
      <width>1500</width>
-     <height>26</height>
+     <height>22</height>
     </rect>
    </property>
    <property name="sizePolicy">
@@ -2020,7 +2020,6 @@
     <addaction name="actionSave_Waveforms"/>
     <addaction name="actionLoad_Waveforms"/>
     <addaction name="separator"/>
-    <addaction name="actionPreferences"/>
     <addaction name="actionE_xit"/>
    </widget>
    <widget class="QMenu" name="menu_View">
@@ -2028,6 +2027,7 @@
      <string>&amp;View</string>
     </property>
     <addaction name="actionToggleConsole"/>
+    <addaction name="actionDebug_Mode"/>
    </widget>
    <widget class="QMenu" name="menu_Simulation">
     <property name="title">
@@ -2219,12 +2219,28 @@
     <string>Ctrl+Q</string>
    </property>
   </action>
+  <action name="actionDebug_Mode">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Debug Mode</string>
+   </property>
+  </action>
  </widget>
  <customwidgets>
   <customwidget>
    <class>GraphicsLayoutWidget</class>
    <extends>QGraphicsView</extends>
    <header>pyqtgraph</header>
+  </customwidget>
+  <customwidget>
+   <class>QuadGraphicsLayout</class>
+   <extends>QGraphicsView</extends>
+   <header>pybert.view.widgets</header>
   </customwidget>
  </customwidgets>
  <resources/>

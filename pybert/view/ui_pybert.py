@@ -1,13 +1,14 @@
 # -*- coding: utf-8 -*-
 
-# Form implementation generated from reading ui file '.\pybert\view\pybert_gui.ui',
-# licensing of '.\pybert\view\pybert_gui.ui' applies.
+# Form implementation generated from reading ui file './pybert/view/pybert_gui.ui',
+# licensing of './pybert/view/pybert_gui.ui' applies.
 #
-# Created: Mon Oct  7 16:07:58 2019
+# Created: Mon Oct  7 20:55:56 2019
 #      by: pyside2-uic  running on PySide2 5.13.1
 #
 # WARNING! All changes made in this file will be lost!
 
+from pybert.view.widgets import QuadGraphicsLayout
 from pyqtgraph import GraphicsLayoutWidget
 from PySide2 import QtCore, QtGui, QtWidgets
 
@@ -866,7 +867,7 @@ class Ui_MainWindow(object):
         self.verticalLayout_4 = QtWidgets.QVBoxLayout(self.impulse_tab)
         self.verticalLayout_4.setContentsMargins(0, 0, 0, 0)
         self.verticalLayout_4.setObjectName("verticalLayout_4")
-        self.plot_impulse = GraphicsLayoutWidget(self.impulse_tab)
+        self.plot_impulse = QuadGraphicsLayout(self.impulse_tab)
         self.plot_impulse.setObjectName("plot_impulse")
         self.verticalLayout_4.addWidget(self.plot_impulse)
         self.tabWidget.addTab(self.impulse_tab, "")
@@ -875,7 +876,7 @@ class Ui_MainWindow(object):
         self.verticalLayout_5 = QtWidgets.QVBoxLayout(self.step_tab)
         self.verticalLayout_5.setContentsMargins(0, 0, 0, 0)
         self.verticalLayout_5.setObjectName("verticalLayout_5")
-        self.plot_step = GraphicsLayoutWidget(self.step_tab)
+        self.plot_step = QuadGraphicsLayout(self.step_tab)
         self.plot_step.setObjectName("plot_step")
         self.verticalLayout_5.addWidget(self.plot_step)
         self.tabWidget.addTab(self.step_tab, "")
@@ -884,7 +885,7 @@ class Ui_MainWindow(object):
         self.verticalLayout_6 = QtWidgets.QVBoxLayout(self.pulse_tab)
         self.verticalLayout_6.setContentsMargins(0, 0, 0, 0)
         self.verticalLayout_6.setObjectName("verticalLayout_6")
-        self.plot_pulse = GraphicsLayoutWidget(self.pulse_tab)
+        self.plot_pulse = QuadGraphicsLayout(self.pulse_tab)
         self.plot_pulse.setObjectName("plot_pulse")
         self.verticalLayout_6.addWidget(self.plot_pulse)
         self.tabWidget.addTab(self.pulse_tab, "")
@@ -893,7 +894,7 @@ class Ui_MainWindow(object):
         self.verticalLayout_7 = QtWidgets.QVBoxLayout(self.freq_tab)
         self.verticalLayout_7.setContentsMargins(0, 0, 0, 0)
         self.verticalLayout_7.setObjectName("verticalLayout_7")
-        self.plot_freq = GraphicsLayoutWidget(self.freq_tab)
+        self.plot_freq = QuadGraphicsLayout(self.freq_tab)
         self.plot_freq.setObjectName("plot_freq")
         self.verticalLayout_7.addWidget(self.plot_freq)
         self.tabWidget.addTab(self.freq_tab, "")
@@ -902,7 +903,7 @@ class Ui_MainWindow(object):
         self.verticalLayout_8 = QtWidgets.QVBoxLayout(self.output_tab)
         self.verticalLayout_8.setContentsMargins(0, 0, 0, 0)
         self.verticalLayout_8.setObjectName("verticalLayout_8")
-        self.plot_output = GraphicsLayoutWidget(self.output_tab)
+        self.plot_output = QuadGraphicsLayout(self.output_tab)
         self.plot_output.setObjectName("plot_output")
         self.verticalLayout_8.addWidget(self.plot_output)
         self.tabWidget.addTab(self.output_tab, "")
@@ -911,7 +912,7 @@ class Ui_MainWindow(object):
         self.verticalLayout_9 = QtWidgets.QVBoxLayout(self.eye_tab)
         self.verticalLayout_9.setContentsMargins(0, 0, 0, 0)
         self.verticalLayout_9.setObjectName("verticalLayout_9")
-        self.plot_eye = GraphicsLayoutWidget(self.eye_tab)
+        self.plot_eye = QuadGraphicsLayout(self.eye_tab)
         self.plot_eye.setObjectName("plot_eye")
         self.verticalLayout_9.addWidget(self.plot_eye)
         self.tabWidget.addTab(self.eye_tab, "")
@@ -920,7 +921,7 @@ class Ui_MainWindow(object):
         self.verticalLayout_10 = QtWidgets.QVBoxLayout(self.jitter_dist_tab)
         self.verticalLayout_10.setContentsMargins(0, 0, 0, 0)
         self.verticalLayout_10.setObjectName("verticalLayout_10")
-        self.plot_jitter_dist = GraphicsLayoutWidget(self.jitter_dist_tab)
+        self.plot_jitter_dist = QuadGraphicsLayout(self.jitter_dist_tab)
         self.plot_jitter_dist.setObjectName("plot_jitter_dist")
         self.verticalLayout_10.addWidget(self.plot_jitter_dist)
         self.tabWidget.addTab(self.jitter_dist_tab, "")
@@ -929,7 +930,7 @@ class Ui_MainWindow(object):
         self.verticalLayout_11 = QtWidgets.QVBoxLayout(self.jitter_spect_tab)
         self.verticalLayout_11.setContentsMargins(0, 0, 0, 0)
         self.verticalLayout_11.setObjectName("verticalLayout_11")
-        self.plot_jitter_spect = GraphicsLayoutWidget(self.jitter_spect_tab)
+        self.plot_jitter_spect = QuadGraphicsLayout(self.jitter_spect_tab)
         self.plot_jitter_spect.setObjectName("plot_jitter_spect")
         self.verticalLayout_11.addWidget(self.plot_jitter_spect)
         self.tabWidget.addTab(self.jitter_spect_tab, "")
@@ -938,7 +939,7 @@ class Ui_MainWindow(object):
         self.verticalLayout_12 = QtWidgets.QVBoxLayout(self.bathtub_tab)
         self.verticalLayout_12.setContentsMargins(0, 0, 0, 0)
         self.verticalLayout_12.setObjectName("verticalLayout_12")
-        self.plot_bathtub = GraphicsLayoutWidget(self.bathtub_tab)
+        self.plot_bathtub = QuadGraphicsLayout(self.bathtub_tab)
         self.plot_bathtub.setObjectName("plot_bathtub")
         self.verticalLayout_12.addWidget(self.plot_bathtub)
         self.tabWidget.addTab(self.bathtub_tab, "")
@@ -1139,8 +1140,8 @@ class Ui_MainWindow(object):
         self.tabWidget.addTab(self.jitter_info_tab, "")
         self.verticalLayout_2.addWidget(self.tabWidget)
         MainWindow.setCentralWidget(self.centralwidget)
-        self.menubar = QtWidgets.QMenuBar(MainWindow)
-        self.menubar.setGeometry(QtCore.QRect(0, 0, 1500, 26))
+        self.menubar = QtWidgets.QMenuBar()
+        self.menubar.setGeometry(QtCore.QRect(0, 0, 1500, 22))
         sizePolicy = QtWidgets.QSizePolicy(
             QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred
         )
@@ -1229,15 +1230,19 @@ class Ui_MainWindow(object):
         self.actionPreferences.setObjectName("actionPreferences")
         self.actionE_xit = QtWidgets.QAction(MainWindow)
         self.actionE_xit.setObjectName("actionE_xit")
+        self.actionDebug_Mode = QtWidgets.QAction(MainWindow)
+        self.actionDebug_Mode.setCheckable(True)
+        self.actionDebug_Mode.setChecked(True)
+        self.actionDebug_Mode.setObjectName("actionDebug_Mode")
         self.menuFile.addAction(self.actionSave_Configuration)
         self.menuFile.addAction(self.actionLoad_Configuration)
         self.menuFile.addSeparator()
         self.menuFile.addAction(self.actionSave_Waveforms)
         self.menuFile.addAction(self.actionLoad_Waveforms)
         self.menuFile.addSeparator()
-        self.menuFile.addAction(self.actionPreferences)
         self.menuFile.addAction(self.actionE_xit)
         self.menu_View.addAction(self.actionToggleConsole)
+        self.menu_View.addAction(self.actionDebug_Mode)
         self.menu_Simulation.addAction(self.actionRun)
         self.menu_Help.addAction(self.actionAbout)
         self.menu_Help.addAction(self.actionDocumentation)
@@ -1248,7 +1253,7 @@ class Ui_MainWindow(object):
         self.menubar.addAction(self.menu_Help.menuAction())
 
         self.retranslateUi(MainWindow)
-        self.tabWidget.setCurrentIndex(12)
+        self.tabWidget.setCurrentIndex(0)
         QtCore.QObject.connect(
             self.actionToggleConsole, QtCore.SIGNAL("triggered(bool)"), self.console.setVisible
         )
@@ -1719,4 +1724,7 @@ class Ui_MainWindow(object):
         self.actionE_xit.setText(QtWidgets.QApplication.translate("MainWindow", "E&xit", None, -1))
         self.actionE_xit.setShortcut(
             QtWidgets.QApplication.translate("MainWindow", "Ctrl+Q", None, -1)
+        )
+        self.actionDebug_Mode.setText(
+            QtWidgets.QApplication.translate("MainWindow", "Debug Mode", None, -1)
         )

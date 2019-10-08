@@ -14,22 +14,19 @@ can be used to explore the concepts of serial communication link design.
 
 Copyright (c) 2014 by David Banas; All rights reserved World wide.
 """
+import logging
 import platform
 import sys
 import traceback
 from pathlib import Path
 
 from pybert import __version__ as VERSION
-
-# from pybert.configuration import ConfigurationData
 from pybert.defaults import DEBUG, NUM_TAPS
 from pybert.logger import ThreadLogHandler, setup_logger
 from pybert.sim.simulation import Simulation
 from pybert.view.gui import PyBERT_GUI
 from PySide2.QtCore import QCoreApplication, QThread
 from PySide2.QtWidgets import QApplication
-
-# from pybert.waveform_data import WaveformData
 
 
 class PyBERT:
@@ -77,15 +74,7 @@ class PyBERT:
         self.log.info("PyBERT Version: %s", VERSION)
         self.log.info("Starting PyBERT...")
 
-        # config = ConfigurationData(self)
-        # data = WaveformData(self)
         self.sim = Simulation()
-
-        # Slot/Signal Connections
-        self.sim.status_update.connect(self.gui.update_statusbar)
-        # self.sim.sim_done.connect(self.gui.update_plots)
-        self.gui.actionRun.triggered.connect(self.sim.run_sweeps)
-        app.aboutToQuit.connect(self.close_application)
 
         try:
             if run_simulation:
@@ -97,6 +86,14 @@ class PyBERT:
         except Exception as error:
             self.log.error(traceback.format_exc())
             self.gui.popup_alert(error)
+
+        # Slot/Signal Connections between the GUI and PyBERT
+        # ----------------------------------------------------------------------------------------
+        self.sim.status_update.connect(self.gui.update_statusbar)
+        # self.sim.sim_done.connect(self.gui.update_plots)
+        self.gui.actionRun.triggered.connect(self.sim.run_sweeps)
+        self.gui.actionDebug_Mode.triggered.connect(self.toggle_debug_mode)
+        app.aboutToQuit.connect(self.close_application)
 
         # Move the simulation to its own thread from the GUI.
         self.sim_thread = QThread(self.gui)
@@ -110,6 +107,13 @@ class PyBERT:
         self.sim_thread.quit()
         self.sim_thread.wait()  # Wait until its done.
         QCoreApplication.instance().quit()
+
+    def toggle_debug_mode(self, state):
+        """Turn on or off debug throughout pybert."""
+        if state:
+            self.log.setLevel(logging.DEBUG)
+        else:
+            self.log.setLevel(logging.INFO)
 
 
 def main():

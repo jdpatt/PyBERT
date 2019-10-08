@@ -101,6 +101,37 @@ class PyBERT_GUI(QMainWindow, Ui_MainWindow):
         #     raise error
         QMessageBox.warning(self, self.tr("PyBERT Error"), str(error))
 
+    def init_plots(self):
+        self.cdr_adapt = self.plot_dfe.addPlot(
+            row=0, col=0, title="CDR Adaptation", labels={"left": "UI (ps)", "bottom": "Time (ns)"}
+        )
+        self.dfe_adapt = self.plot_dfe.addPlot(row=0, col=1, title="DFE Adaptation")
+        self.cdr_histo = self.plot_dfe.addPlot(
+            row=1,
+            col=0,
+            title="CDR Clock Period Histogram",
+            labels={"left": "Bin Count", "bottom": "Clock Period (ps)"},
+        )
+        self.cdr_spect = self.plot_dfe.addPlot(
+            row=1,
+            col=1,
+            title="CDR Adaptation",
+            labels={"left": "|H(f)| (dB mean)", "bottom": "Frequency (bit rate)"},
+        )
+        self.plot_impulse.set_axis_labels(y_axis="Impulse Response (V/ns)", x_axis="Time (ns)")
+        self.plot_step.set_axis_labels(y_axis="Step Response (V)", x_axis="Time (ns)")
+        self.plot_pulse.set_axis_labels(y_axis="Pulse Response (V)", x_axis="Time (ns)")
+        self.plot_freq.set_axis_labels(y_axis="Frequency Response (dB)", x_axis="Frequency (GHz)")
+        self.plot_output.set_axis_labels(y_axis="Output (V)", x_axis="Time (ns)")
+        self.plot_eye.set_axis_labels(y_axis="Signal Level (V)", x_axis="Time (ps)")
+        self.plot_jitter_dist.set_axis_labels(y_axis="Count", x_axis="Time (ps)")
+        self.plot_jitter_spect.set_axis_labels(
+            y_axis="|FFT(TIE)| (dBui)", x_axis="Frequency (MHz)"
+        )
+        self.plot_bathtub.set_axis_labels(
+            y_axis="Log10(P(Transition occurs inside.))", x_axis="Time (ps)"
+        )
+
 
 def open_docs():
     """Open the documentation on the wiki."""
