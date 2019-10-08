@@ -106,18 +106,16 @@ class Equalization:
 
     def handler(self, button_id):
         """Given which button is pressed, run one of the actions."""
-        if button_id == 0:  # Reset EQ
+        if button_id == -2:  # Reset EQ
             self.reset_equalization()
-        elif button_id == 1:  # Save EQ
+        elif button_id == -3:  # Save EQ
             self.save_equalization()
-        elif button_id == 2:  # Start Tx Opt
+        elif button_id == -4:  # Start Tx Opt
             self.run_tx_optimization()
-        elif button_id == 3:  # Start Rx Opt
+        elif button_id == -5:  # Start Rx Opt
             self.run_rx_optimization()
-        elif button_id == 4:  # Start Co Opt
+        elif button_id == -6:  # Start Co Opt
             self.run_co_optimization()
-        elif button_id == 5:  # Abort Opt
-            self.abort_optimization()
 
     def reset_equalization(self):
         """Reset the equalization to the last set values."""
@@ -147,12 +145,12 @@ class Equalization:
         self.use_dfe = self.use_dfe_tune
         self.n_taps = self.n_taps_tune
 
-    def run_tx_optimization(self):
+    def run_tx_optimization(self, update_status=True):
         """Kick off the tx optimization."""
         self.log.debug("Run Tx Opt")
         if any([self.tx_tap_tuners[i].enabled for i in range(len(self.tx_tap_tuners))]):
             # At least one tuner should be enabled.
-            if self.update_status:
+            if update_status:
                 self.status = "Optimizing Tx..."
 
             max_iter = self.max_iter
@@ -160,7 +158,7 @@ class Equalization:
             old_taps = []
             min_vals = []
             max_vals = []
-            for tuner in pybert.tx_tap_tuners:
+            for tuner in self.tx_tap_tuners:
                 if tuner.enabled:
                     old_taps.append(tuner.value)
                     min_vals.append(tuner.min_val)
@@ -188,7 +186,7 @@ class Equalization:
                         options={"disp": False, "maxiter": max_iter},
                     )
 
-                if self.update_status:
+                if update_status:
                     if res["success"]:
                         self.status = "Optimization succeeded."
                     else:
@@ -199,11 +197,6 @@ class Equalization:
 
     def do_opt_tx(self, taps):
         """Run the Tx Optimization."""
-        sleep(0.001)  # Give the GUI a chance to acknowledge user clicking the Abort button.
-
-        if self.stopped():
-            raise RuntimeError("Optimization aborted.")
-
         tuners = self.tx_tap_tuners
         taps = list(taps)
         for tuner in tuners:
@@ -284,11 +277,6 @@ class Equalization:
 
     def do_coopt(self, peak_mag):
         """Run the Tx and Rx Co-Optimization."""
-        sleep(0.001)  # Give the GUI a chance to acknowledge user clicking the Abort button.
-
-        if self.stopped():
-            raise RuntimeError("Optimization aborted.")
-
         self.peak_mag_tune = peak_mag
         if any([self.tx_tap_tuners[i].enabled for i in range(len(self.tx_tap_tuners))]):
             while self.tx_opt_thread and self.tx_opt_thread.is_alive():
@@ -297,19 +285,6 @@ class Equalization:
             while self.tx_opt_thread and self.tx_opt_thread.is_alive():
                 sleep(0.001)
         return self.cost
-
-    def abort_optimization(self):
-        """Halt all optimization threads."""
-        self.log.debug("Abort Opt")
-        if self.coopt_thread and self.coopt_thread.is_alive():
-            self.coopt_thread.stop()
-            self.coopt_thread.join(10)
-        if self.tx_opt_thread and self.tx_opt_thread.is_alive():
-            self.tx_opt_thread.stop()
-            self.tx_opt_thread.join(10)
-        if self.rx_opt_thread and self.rx_opt_thread.is_alive():
-            self.rx_opt_thread.stop()
-            self.rx_opt_thread.join(10)
 
     def toggle_dfe(self, new_value):
         """ Turn on/off the DFE."""

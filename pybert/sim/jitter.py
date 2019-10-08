@@ -3,12 +3,8 @@ from logging import getLogger
 
 import numpy as np
 from numpy.fft import fft, ifft
-from pybert.sim.utility import moving_average
+from pybert.sim.utility import calc_reject, moving_average
 from scipy.stats import norm
-
-# TODO: I'm not happy with the new jitter container.  Maybe a dict in a dict instead of a class?
-#  Would update calc_jitter to return a dict instead of a class?
-#  This would allow use of dict comprehensions when calculating the jitter info strings.
 
 log = getLogger("pybert.jitter")
 
@@ -333,3 +329,43 @@ def make_uniform(t, jitter, ui, nbits):
         jitter = jitter[:nbits]
 
     return jitter, valid_ix
+
+
+def calculate_jitter_rejection(jitter):
+    """Return the content for the jitter rejection tab of the GUI.  We need to calculate the
+    jitter rejection ratios as well."""
+    rejection = {}
+
+    isi_chnl = jitter["channel"].isi * 1.0e12
+    dcd_chnl = jitter["channel"].dcd * 1.0e12
+    pj_chnl = jitter["channel"].pj * 1.0e12
+    rj_chnl = jitter["channel"].rj * 1.0e12
+    isi_tx = jitter["tx"].isi * 1.0e12
+    dcd_tx = jitter["tx"].dcd * 1.0e12
+    pj_tx = jitter["tx"].pj * 1.0e12
+    rj_tx = jitter["tx"].rj * 1.0e12
+    isi_ctle = jitter["ctle"].isi * 1.0e12
+    dcd_ctle = jitter["ctle"].dcd * 1.0e12
+    pj_ctle = jitter["ctle"].pj * 1.0e12
+    rj_ctle = jitter["ctle"].rj * 1.0e12
+    isi_dfe = jitter["dfe"].isi * 1.0e12
+    dcd_dfe = jitter["dfe"].dcd * 1.0e12
+    pj_dfe = jitter["dfe"].pj * 1.0e12
+    rj_dfe = jitter["dfe"].rj * 1.0e12
+
+    rejection["isi_rej_tx"] = calc_reject(isi_chnl, isi_tx)
+    rejection["dcd_rej_tx"] = calc_reject(dcd_chnl, dcd_tx)
+    rejection["isi_rej_ctle"] = calc_reject(isi_tx, isi_ctle)
+    rejection["dcd_rej_ctle"] = calc_reject(dcd_tx, dcd_ctle)
+    rejection["pj_rej_ctle"] = calc_reject(pj_tx, pj_ctle)
+    rejection["rj_rej_ctle"] = calc_reject(rj_tx, rj_ctle)
+    rejection["isi_rej_dfe"] = calc_reject(isi_ctle, isi_dfe)
+    rejection["dcd_rej_dfe"] = calc_reject(dcd_ctle, dcd_dfe)
+    rejection["pj_rej_dfe"] = calc_reject(pj_ctle, pj_dfe)
+    rejection["rj_rej_dfe"] = calc_reject(rj_ctle, rj_dfe)
+    rejection["isi_rej_total"] = calc_reject(isi_chnl, isi_dfe)
+    rejection["dcd_rej_total"] = calc_reject(dcd_chnl, dcd_dfe)
+    rejection["pj_rej_total"] = calc_reject(pj_tx, pj_dfe)
+    rejection["rj_rej_total"] = calc_reject(rj_tx, rj_dfe)
+
+    return rejection

@@ -76,31 +76,43 @@ class PyBERT:
 
         self.sim = Simulation()
 
+        # Slot/Signal Connections between the GUI and PyBERT
+        # ----------------------------------------------------------------------------------------
+        self.sim.status_update.connect(self.gui.update_statusbar)  # Status Bar Updates
+        self.gui.sim_start.connect(self.sim.run_sweeps)  # Simulation Start
+        self.sim.sim_done.connect(self.gui.update_gui_with_results)  # Simulation Done
+        self.gui.action_Abort.triggered.connect(self.abort_simulation)  # Simulation Abort
+        self.gui.eq_buttons.buttonClicked[int].connect(
+            self.sim.eq.handler
+        )  # EQ Tuning and Control
+        self.gui.actionDebug_Mode.triggered.connect(self.toggle_debug_mode)  # Enable Debug Logging
+        app.aboutToQuit.connect(self.close_application)  # Clean up threads before Quit.
+        # ----------------------------------------------------------------------------------------
+
+        # Run the builtin simulation so that the plots have information.
         try:
             if run_simulation:
-                # Running the simulation will fill in the required data structure.
-                self.sim.run_simulation(initial_run=True)
-                # Once the required data structure is filled in, we can create the plots.
-                # self.sim.plots.init_plots(self, NUM_TAPS)
-                # self.sim.plots.update_eyes()
+                self.sim.run_simulation()
         except Exception as error:
             self.log.error(traceback.format_exc())
             self.gui.popup_alert(error)
 
-        # Slot/Signal Connections between the GUI and PyBERT
-        # ----------------------------------------------------------------------------------------
-        self.sim.status_update.connect(self.gui.update_statusbar)
-        # self.sim.sim_done.connect(self.gui.update_plots)
-        self.gui.actionRun.triggered.connect(self.sim.run_sweeps)
-        self.gui.actionDebug_Mode.triggered.connect(self.toggle_debug_mode)
-        app.aboutToQuit.connect(self.close_application)
-
-        # Move the simulation to its own thread from the GUI.
+        # Move the simulation to its own thread from the GUI.  This allows EQ Tuning and Simulation to run
+        # and the GUI not freeze up.
         self.sim_thread = QThread(self.gui)
         self.sim.moveToThread(self.sim_thread)
         self.sim_thread.start()
 
         sys.exit(app.exec_())
+
+    def abort_simulation(self):
+        """Kill the thread."""
+        self.log.debug("Aborting Simulation")
+        if self.sim_thread.isRunning():
+            self.sim_thread.quit()
+            self.sim_thread.wait()
+            self.sim.status = "Aborted"
+            self.sim_thread.start()
 
     def close_application(self):
         """Close any threads and then kill the application."""

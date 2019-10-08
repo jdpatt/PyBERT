@@ -10,13 +10,14 @@ simulation configuration data of a PyBERT instance.
 
 Copyright (c) 2017 by David Banas; All rights reserved World wide.
 """
-# pylint: skip-file
-
+from pathlib import Path
 
 import yaml
+from PySide2.QtCore import QObject
+from PySide2.QtWidgets import QFileDialog
 
 
-class ConfigurationData:
+class Configuration(QObject):
     """
     PyBERT simulation configuration data encapsulation class.
 
@@ -25,114 +26,136 @@ class ConfigurationData:
     clicks the "Save Config." button.
     """
 
-    def __init__(self, the_PyBERT):
+    def __init__(self, parent):
         """
         Copy just that subset of the supplied PyBERT instance's
         __dict__, which should be saved.
         """
-        self.cfg_file = File("", entries=5, filter=["*.pybert_cfg"])
+        super(Configuration, self).__init__()
+        self.cfg_file = None
+        self.parent = parent
 
         # Simulation Control
-        self.bit_rate = the_PyBERT.bit_rate
-        self.nbits = the_PyBERT.nbits
-        self.pattern_len = the_PyBERT.pattern_len
-        self.nspb = the_PyBERT.nspb
-        self.eye_bits = the_PyBERT.eye_bits
-        self.mod_type = the_PyBERT.mod_type
-        self.num_sweeps = the_PyBERT.num_sweeps
-        self.sweep_num = the_PyBERT.sweep_num
-        self.sweep_aves = the_PyBERT.sweep_aves
-        self.do_sweep = the_PyBERT.do_sweep
+        # self.bit_rate = simulation.bit_rate
+        # self.nbits = simulation.nbits
+        # self.pattern_len = simulation.pattern_len
+        # self.nspb = simulation.nspb
+        # self.eye_bits = simulation.eye_bits
+        # self.mod_type = simulation.mod_type
+        # self.num_sweeps = simulation.num_sweeps
+        # self.sweep_num = simulation.sweep_num
+        # self.sweep_aves = simulation.sweep_aves
+        # self.do_sweep = simulation.do_sweep
 
-        # Channel Control
-        self.use_ch_file = the_PyBERT.use_ch_file
-        self.ch_file = the_PyBERT.ch_file
-        self.impulse_length = the_PyBERT.impulse_length
-        self.f_step = the_PyBERT.f_step
-        self.Rdc = the_PyBERT.Rdc
-        self.w0 = the_PyBERT.w0
-        self.R0 = the_PyBERT.R0
-        self.Theta0 = the_PyBERT.Theta0
-        self.Z0 = the_PyBERT.Z0
-        self.v0 = the_PyBERT.v0
-        self.l_ch = the_PyBERT.l_ch
+        # # Channel Control
+        # self.use_ch_file = simulation.channel.use_ch_file
+        # self.ch_file = simulation.channel.ch_file
+        # self.impulse_length = simulation.channel.impulse_length
+        # self.f_step = simulation.channel.f_step
+        # self.Rdc = simulation.channel.material.Rdc
+        # self.w0 = simulation.channel.material.w0
+        # self.R0 = simulation.channel.material.R0
+        # self.Theta0 = simulation.channel.material.Theta0
+        # self.Z0 = simulation.channel.material.Z0
+        # self.v0 = simulation.channel.material.v0
+        # self.l_ch = simulation.channel.material.l_ch
 
-        # Tx
-        self.vod = the_PyBERT.vod
-        self.rs = the_PyBERT.rs
-        self.cout = the_PyBERT.cout
-        self.pn_mag = the_PyBERT.pn_mag
-        self.pn_freq = the_PyBERT.pn_freq
-        self.rn = the_PyBERT.rn
-        tx_taps = []
-        for tap in the_PyBERT.tx_taps:
-            tx_taps.append((tap.enabled, tap.value))
-        self.tx_taps = tx_taps
-        self.tx_tap_tuners = []
-        for tap in the_PyBERT.tx_tap_tuners:
-            self.tx_tap_tuners.append((tap.enabled, tap.value))
-        self.tx_use_ami = the_PyBERT.tx_use_ami
-        self.tx_use_getwave = the_PyBERT.tx_use_getwave
-        self.tx_ami_file = the_PyBERT.tx_ami_file
-        self.tx_dll_file = the_PyBERT.tx_dll_file
+        # # Tx
+        # self.vod = simulation.tx.vod
+        # self.output_impedance = simulation.tx.output_impedance
+        # self.output_capacitance = simulation.tx.output_capacitance
+        # self.pn_mag = simulation.tx.pn_mag
+        # self.pn_freq = simulation.tx.pn_freq
+        # self.random_noise = simulation.tx.random_noise
+        # self.tx_use_ami = simulation.tx.use_ami
+        # self.tx_use_getwave = simulation.tx.use_getwave
+        # self.tx_ami_file = simulation.tx.ami_file
+        # self.tx_dll_file = simulation.tx.dll_file
 
-        # Rx
-        self.rin = the_PyBERT.rin
-        self.cin = the_PyBERT.cin
-        self.cac = the_PyBERT.cac
-        self.use_ctle_file = the_PyBERT.use_ctle_file
-        self.ctle_file = the_PyBERT.ctle_file
-        self.rx_bw = the_PyBERT.rx_bw
-        self.peak_freq = the_PyBERT.peak_freq
-        self.peak_mag = the_PyBERT.peak_mag
-        self.ctle_offset = the_PyBERT.ctle_offset
-        self.ctle_mode = the_PyBERT.ctle_mode
-        self.ctle_mode_tune = the_PyBERT.ctle_mode_tune
-        self.ctle_offset_tune = the_PyBERT.ctle_offset_tune
-        self.rx_use_ami = the_PyBERT.rx_use_ami
-        self.rx_use_getwave = the_PyBERT.rx_use_getwave
-        self.rx_ami_file = the_PyBERT.rx_ami_file
-        self.rx_dll_file = the_PyBERT.rx_dll_file
+        # # Rx
+        # self.input_impedance = simulation.rx.input_impedance
+        # self.input_capacitance = simulation.rx.input_capacitance
+        # self.cac = simulation.rx.cac
+        # self.rx_use_ami = simulation.rx.use_ami
+        # self.rx_use_getwave = simulation.rx.use_getwave
+        # self.rx_ami_file = simulation.rx.ami_file
+        # self.rx_dll_file = simulation.rx.dll_file
 
-        # DFE
-        self.use_dfe = the_PyBERT.use_dfe
-        self.use_dfe_tune = the_PyBERT.use_dfe_tune
-        self.sum_ideal = the_PyBERT.sum_ideal
-        self.decision_scaler = the_PyBERT.decision_scaler
-        self.gain = the_PyBERT.gain
-        self.n_ave = the_PyBERT.n_ave
-        self.n_taps = the_PyBERT.n_taps
-        self.sum_bw = the_PyBERT.sum_bw
+        # # EQ
+        # tx_taps = []
+        # for tap in simulation.tx_taps:
+        #     tx_taps.append((tap.enabled, tap.value))
+        # self.tx_taps = tx_taps
+        # self.tx_tap_tuners = []
+        # for tap in simulation.tx_tap_tuners:
+        #     self.tx_tap_tuners.append((tap.enabled, tap.value))
+        # self.use_ctle_file = simulation.use_ctle_file
+        # self.ctle_file = simulation.ctle_file
+        # self.rx_bw = simulation.rx_bw
+        # self.peak_freq = simulation.peak_freq
+        # self.peak_mag = simulation.peak_mag
+        # self.ctle_offset = simulation.ctle_offset
+        # self.ctle_mode = simulation.ctle_mode
+        # self.ctle_mode_tune = simulation.ctle_mode_tune
+        # self.ctle_offset_tune = simulation.ctle_offset_tune
 
-        # CDR
-        self.delta_t = the_PyBERT.delta_t
-        self.alpha = the_PyBERT.alpha
-        self.n_lock_ave = the_PyBERT.n_lock_ave
-        self.rel_lock_tol = the_PyBERT.rel_lock_tol
-        self.lock_sustain = the_PyBERT.lock_sustain
+        # # DFE
+        # self.use_dfe = simulation.use_dfe
+        # self.use_dfe_tune = simulation.use_dfe_tune
+        # self.sum_ideal = simulation.sum_ideal
+        # self.decision_scaler = simulation.decision_scaler
+        # self.gain = simulation.gain
+        # self.n_ave = simulation.n_ave
+        # self.n_taps = simulation.n_taps
+        # self.sum_bw = simulation.sum_bw
 
-        # Analysis
-        self.thresh = the_PyBERT.thresh
+        # # CDR
+        # self.delta_t = simulation.delta_t
+        # self.alpha = simulation.alpha
+        # self.n_lock_ave = simulation.n_lock_ave
+        # self.rel_lock_tol = simulation.rel_lock_tol
+        # self.lock_sustain = simulation.lock_sustain
 
-    def save(self):
-        """Pickle out the current configuration."""
-        dlg = FileDialog(action="save as", wildcard="*.pybert_cfg", default_path=self.cfg_file)
-        if dlg.open() == OK:
-            pybert_configuration = PyBertCfg(self)
-            with open(dlg.path, "w") as the_file:
-                yaml.dump(pybert_configuration, the_file)
-            self.cfg_file = dlg.path
+        # # Analysis
+        # self.thresh = simulation.thresh
 
-    def load(self):
+    def save_to_file(self, filename):
+        """Yaml out the current configuration."""
+        if self.cfg_file:
+            directory = self.cfg_file
+        else:
+            directory = ""
+        filename, _ = QFileDialog.getSaveFileName(
+            self.parent,
+            self.parent.tr("Save Configuration"),
+            directory,
+            self.parent.tr("PyBERT Config Files (*.cfg.yaml)"),
+        )
+        if filename:
+            filename = Path(filename)
+            with open(filename, "w") as config_file:
+                yaml.dump(conf, config_file)
+            self.cfg_file = filename
+
+    def load_from_file(self, filename):
         """Read in the YAML configuration."""
-        the_pybert = info.object
-        dlg = FileDialog(action="open", wildcard="*.pybert_cfg", default_path=the_pybert.cfg_file)
-        if dlg.open() == OK:
-            with open(dlg.path, "r") as the_file:
-                pybert_configuration = yaml.full_load(the_file)
-            if not isinstance(pybert_configuration, PyBertCfg):
-                raise Exception("The data structure read in is NOT of type: PyBertCfg!")
-            for prop, value in vars(pybert_configuration).items():
+        if self.cfg_file:
+            directory = self.cfg_file
+        else:
+            directory = ""
+        filename, _ = QFileDialog.getOpenFileName(
+            self.parent,
+            self.parent.tr("Load Configuration"),
+            directory,
+            self.parent.tr("PyBERT Config Files (*.cfg.yaml)"),
+        )
+        if filename:
+            filename = Path(filename)
+            with open(filename, "r") as in_file:
+                config = yaml.full_load(in_file)
+            if not isinstance(config, Configuration):
+                raise Exception("The data structure read in is NOT of type: Configuration!")
+            for prop, value in vars(config).items():
                 if prop == "tx_taps":
                     for count, (enabled, val) in enumerate(value):
                         setattr(self.channel.eq.tx_taps[count], "enabled", enabled)
@@ -143,4 +166,4 @@ class ConfigurationData:
                         setattr(self.channel.eq.tx_tap_tuners[count], "value", val)
                 else:
                     setattr(self, prop, value)
-            self.cfg_file = dlg.path
+                self.cfg_file = filename

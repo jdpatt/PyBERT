@@ -20,7 +20,7 @@ from pybert.sim.buffer import Receiver, Transmitter
 from pybert.sim.channel import Channel
 from pybert.sim.dfe import DFE
 from pybert.sim.equalization import Equalization
-from pybert.sim.jitter import Jitter
+from pybert.sim.jitter import Jitter, calculate_jitter_rejection
 from pybert.sim.utility import (
     StoppableThread,
     calc_G,
@@ -30,10 +30,10 @@ from pybert.sim.utility import (
     lfsr_bits,
     make_ctle,
     pulse_center,
+    status_string,
     trim_impulse,
 )
 from pybert.view.plot import Plots
-from pybert.view.static import status_string
 from PySide2.QtCore import QObject, Signal, Slot
 from scipy.signal import iirfilter, lfilter
 from scipy.signal.windows import hann
@@ -42,7 +42,6 @@ from scipy.signal.windows import hann
 class Simulation(QObject):
     """The main object in pybert containing the simulator."""
 
-    eq_results = Signal(object, object)
     sweep_results = Signal()
     status_update = Signal(str)
     sim_done = Signal(dict, dict, object)
@@ -75,7 +74,6 @@ class Simulation(QObject):
         self.rx = Receiver()
         self.eq = Equalization()
 
-        self.jitter = {}
         self.results = {
             "bit_errors": 0,  #: Number of bit errors observed in last run.
             "t_ns_chnl": np.array([]),
@@ -116,6 +114,7 @@ class Simulation(QObject):
                 "out": np.array([]),
                 "out_H": np.array([]),
             },
+            "jitter": {},
         }
         # Variables that got defined randomly throughout the simulation.  TODO: Clean up data structure.
         self.x = np.array([])
@@ -511,9 +510,9 @@ class Simulation(QObject):
         self.chnl_dly = chnl_dly
         self.start_ix = start_ix
         self.results["t_ns_chnl"] = t_ns_chnl
-        self.results["chnl_H"] = chnl_H
-        self.results["chnl_s"] = chnl_s
-        self.results["chnl_p"] = chnl_p
+        self.results["channel"]["chnl_H"] = chnl_H
+        self.results["channel"]["chnl_s"] = chnl_s
+        self.results["channel"]["chnl_p"] = chnl_p
         self.len_h = len_h
 
     def run_sweeps(self):
@@ -575,14 +574,12 @@ class Simulation(QObject):
         else:
             self.run_simulation()
 
-    def run_simulation(self, initial_run=False, update_plots=True):
+    def run_simulation(self, update_plots: bool = True):
         """
         Runs the simulation.
 
         Args:
             self(PyBERT): Reference to an instance of the *PyBERT* class.
-            initial_run(Bool): If True, don't update the eye diagrams, since
-                they haven't been created, yet. (Optional; default = False.)
             update_plots(Bool): If True, update the plots, after simulation
                 completes. This option can be used by larger scripts, which
                 import *pybert*, in order to avoid graphical back-end
@@ -976,20 +973,22 @@ class Simulation(QObject):
 
             # - channel output
             actual_xings = find_crossings(t, chnl_out, decision_scaler, mod_type=self.mod_type)
-            self.jitter["channel"] = Jitter.calc_jitter(
+            self.results["jitter"]["channel"] = Jitter.calc_jitter(
                 ui, nui, pattern_len, ideal_xings, actual_xings, rel_thresh
             )
-            self.jitter["f_MHz"] = np.array(self.jitter["channel"].spectrum_freqs) * 1.0e-6
+            self.results["jitter"]["f_MHz"] = (
+                np.array(self.results["jitter"]["channel"].spectrum_freqs) * 1.0e-6
+            )
 
             # - Tx output
             actual_xings = find_crossings(t, rx_in, decision_scaler, mod_type=self.mod_type)
-            self.jitter["tx"] = Jitter.calc_jitter(
+            self.results["jitter"]["tx"] = Jitter.calc_jitter(
                 ui, nui, pattern_len, ideal_xings, actual_xings, rel_thresh
             )
 
             # - CTLE output
             actual_xings = find_crossings(t, ctle_out, decision_scaler, mod_type=self.mod_type)
-            self.jitter["ctle"] = Jitter.calc_jitter(
+            self.results["jitter"]["ctle"] = Jitter.calc_jitter(
                 ui, nui, pattern_len, ideal_xings, actual_xings, rel_thresh
             )
 
@@ -1007,11 +1006,15 @@ class Simulation(QObject):
                 mod_type=self.mod_type,
                 rising_first=False,
             )
-            self.jitter["dfe"] = Jitter.calc_jitter(
+            self.results["jitter"]["dfe"] = Jitter.calc_jitter(
                 ui, eye_uis, pattern_len, ideal_xings, actual_xings, rel_thresh
             )
-            self.jitter["f_MHz_dfe"] = np.array(self.jitter["dfe"].spectrum_freqs) * 1.0e-6
-            self.jitter["rejection_ratio"] = np.zeros(len(self.jitter["dfe"].jitter_spectrum))
+            self.results["jitter"]["f_MHz_dfe"] = (
+                np.array(self.results["jitter"]["dfe"].spectrum_freqs) * 1.0e-6
+            )
+            self.results["jitter"]["rejection_ratio"] = np.zeros(
+                len(self.results["jitter"]["dfe"].jitter_spectrum)
+            )
 
             self.performance["jitter"] = nbits * nspb / (clock() - split_time)
             self.performance["total"] = nbits * nspb / (clock() - start_time)
@@ -1026,10 +1029,11 @@ class Simulation(QObject):
             if update_plots:
                 self.status = f"Updating plots...(sweep {sweep_num} of {num_sweeps})"
                 # Signal the GUI that there is new data to plot
-                self.sim_done.emit(self.jitter, self.results, self.t_ns)
+                self.sim_done.emit(self.results, self.results["jitter"], self.t_ns)
             # Plot performance is not really valid since it just has to send a message now.
             self.performance["plot"] = nbits * nspb / (clock() - split_time)
             self.metrics.emit(self.performance)
+            self.log.debug("Performance: %s", self._get_perf_info())
             self.status = "Ready"
         except Exception as error:
             self.status = "Exception: plotting"
@@ -1038,28 +1042,27 @@ class Simulation(QObject):
     def get_status_str(self):
         return status_string(
             self.status,
-            self.performance.get("total", 0.0),
+            self.performance.get("total", 0.0) * 60.0e-6,
             self.channel.chnl_dly,
             self.results.get("bit_errors", 0),
             self.tx.rel_power,
-            self.jitter.get("dfe", None),
+            self.results["jitter"].get("dfe", None),
         )
-
-    @lru_cache(maxsize=None)
-    def _get_sweep_info(self):
-        return sweep_results_menu(self.sweep_results)
 
     @lru_cache(maxsize=None)
     def _get_perf_info(self):
-        return performance_menu(
-            {key: value * 60.0e-6 for (key, value) in self.performance.items()}
-        )
+        return {key: value * 60.0e-6 for (key, value) in self.performance.items()}
 
+    @property
     @lru_cache(maxsize=None)
-    def _get_jitter_info(self):
-        try:
-            jitter_info = jitter_rejection_menu(self.jitter)
-        except Exception as error:
-            jitter_info = "<H1>Jitter Rejection by Equalization Component</H1>\n"
-            # popup_alert("Jitter Calculation Failed", error)
-        return jitter_info
+    def przf_err(self):
+        p = self.results["dfe"]["out_p"]
+        nspui = self.nspui
+        n_taps = self.eq.n_taps
+
+        (clock_pos, _) = pulse_center(p, nspui)
+        err = 0
+        for i in range(n_taps):
+            err += p[clock_pos + (i + 1) * nspui] ** 2
+
+        return err / p[clock_pos] ** 2

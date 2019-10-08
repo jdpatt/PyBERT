@@ -83,3 +83,14 @@ class Test_Utility:
             0,
             1,
         ]
+
+    def test_calc_reject(self):
+        assert utility.calc_reject(1 * 1.0e12, 1 * 1.0e12) == 0.0
+        assert utility.calc_reject(10 * 1.0e12, 1 * 1.0e12) == 10.0
+
+    def test_safe_log10(self):
+        assert utility.safe_log10(0) == -20.0
+        assert utility.safe_log10(10) == 1
+        np.testing.assert_array_equal(
+            utility.safe_log10(np.array([0.0, 1, 10, 0])), np.array([-20.0, 0.0, 1.0, -20.0])
+        )

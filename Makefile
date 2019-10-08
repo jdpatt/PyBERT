@@ -4,8 +4,7 @@ tox:
 	tox --parallel all
 
 gui:
-	pyside2-uic pybert/view/pybert_gui.ui > ui_pybert.py
-	echo "Verify Output before running.  Normally, it appends some junk."
+	pyside2-uic pybert/view/pybert_gui.ui -o pybert/view/ui_pybert.py
 
 lint:
 	tox -e lint

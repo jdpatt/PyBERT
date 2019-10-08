@@ -723,3 +723,43 @@ def fir_numerator(tap_tuners: Sequence) -> List:
     taps.insert(1, 1.0 - sum(map(abs, taps)))  # Assume one pre-tap.
 
     return taps
+
+
+def safe_log10(value):
+    """Guards against pesky 'Divide by 0' error messages.
+
+    If an array is passed to 'safe_log10' it will log10 each element in the array.
+    """
+
+    if hasattr(value, "__len__"):
+        value = np.where(value == 0, 1.0e-20 * np.ones(len(value)), value)
+    elif value == 0:
+        value = 1.0e-20
+    return np.log10(value)
+
+
+def calc_reject(num, dem):
+    """Calculate rejection ratio or return 1.0e20."""
+    return 10.0 * safe_log10(num / dem if dem else 1.0e20)
+
+
+def status_string(status, total_perf, channel_delay, bit_errors, relative_power, jitter):
+    """Return the status string across the bottom of the GUI."""
+    status = (
+        f"{status} | Perf. (Ms/m):    {total_perf:4.1}"
+        f"         | ChnlDly (ns):    {channel_delay:5.3f}"
+        f"         | BitErrs: {bit_errors}"
+        f"         | TxPwr (W): {relative_power:4.2}"
+    )
+    try:
+        jitter_status = (
+            f"         | Jitter (ps):    "
+            f"ISI={jitter.isi * 1.0e12:6.3f}    "
+            f"DCD={jitter.dcd * 1.0e12:6.3f}    "
+            f"Pj={jitter.pj * 1.0e12:6.3f}    "
+            f"Rj={jitter.rj * 1.0e12:6.3f}"
+        )
+    except Exception:
+        jitter_status = "         | (Jitter not available.)"
+
+    return status + jitter_status

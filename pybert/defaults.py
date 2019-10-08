@@ -2,7 +2,7 @@
 
 These are used to both populate the simulation and the GUI.
 """
-from enum import Enum, auto
+from enum import Enum
 
 DEBUG = True
 DEBUG_OPTIMIZE = False
@@ -67,15 +67,15 @@ THRESHOLD = 6  # threshold for identifying periodic jitter spectral elements (si
 class CTLE_MODE(Enum):
     """The different CTLE (Continuous Time Linear Equalizer) modes supported by PyBERT."""
 
-    OFF = auto()
-    PASSIVE = auto()
-    AGC = auto()
-    MANUAL = auto()
+    OFF = 0
+    PASSIVE = 1
+    AGC = 2
+    MANUAL = 3
 
 
 class MODULATION(Enum):
     """The different modulation types supported by PyBERT."""
 
-    NRZ = auto()
-    DUO = auto()
-    PAM4 = auto()
+    NRZ = 0
+    DUO = 1
+    PAM4 = 2
