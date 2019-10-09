@@ -21,10 +21,12 @@ import traceback
 from pathlib import Path
 
 from pybert import __version__ as VERSION
-from pybert.defaults import DEBUG, NUM_TAPS
+from pybert.configuration import Configuration
+from pybert.defaults import DEBUG
 from pybert.logger import ThreadLogHandler, setup_logger
 from pybert.sim.simulation import Simulation
 from pybert.view.gui import PyBERT_GUI
+from pybert.waveforms import Waveforms
 from PySide2.QtCore import QCoreApplication, QThread
 from PySide2.QtWidgets import QApplication
 
@@ -60,6 +62,8 @@ class PyBERT:
 
         app = QApplication([])
         self.gui = PyBERT_GUI()
+        self.waveforms = Waveforms(self.gui)
+        self.config = Configuration(self.gui)
 
         thread_log = ThreadLogHandler()
         thread_log.new_record.connect(self.gui.log_message)
@@ -81,11 +85,16 @@ class PyBERT:
         self.sim.status_update.connect(self.gui.update_statusbar)  # Status Bar Updates
         self.gui.sim_start.connect(self.sim.run_sweeps)  # Simulation Start
         self.sim.sim_done.connect(self.gui.update_gui_with_results)  # Simulation Done
+        self.sim.eq_results.connect(self.gui.update_eq_plots)  # Eq Plots
         self.gui.action_Abort.triggered.connect(self.abort_simulation)  # Simulation Abort
         self.gui.eq_buttons.buttonClicked[int].connect(
             self.sim.eq.handler
         )  # EQ Tuning and Control
         self.gui.actionDebug_Mode.triggered.connect(self.toggle_debug_mode)  # Enable Debug Logging
+        self.gui.actionSave_Configuration.triggered.connect(self.save_configuration)
+        self.gui.actionLoad_Configuration.triggered.connect(self.load_configuration)
+        self.gui.actionSave_Waveforms.triggered.connect(self.save_results)
+        self.gui.actionLoad_Waveforms.triggered.connect(self.load_results)
         app.aboutToQuit.connect(self.close_application)  # Clean up threads before Quit.
         # ----------------------------------------------------------------------------------------
 
@@ -95,7 +104,8 @@ class PyBERT:
                 self.sim.run_simulation()
         except Exception as error:
             self.log.error(traceback.format_exc())
-            self.gui.popup_alert(error)
+            raise
+            # self.gui.popup_alert(error)
 
         # Move the simulation to its own thread from the GUI.  This allows EQ Tuning and Simulation to run
         # and the GUI not freeze up.
@@ -126,6 +136,25 @@ class PyBERT:
             self.log.setLevel(logging.DEBUG)
         else:
             self.log.setLevel(logging.INFO)
+
+    def save_configuration(self):
+        """Save out the current Configuration."""
+        raise NotImplementedError
+
+    def load_configuration(self):
+        """Load a configuration into the simulation."""
+        raise NotImplementedError
+
+    def save_results(self):
+        """Save out the current results."""
+
+        # This is SLOWWWWW, different file format or maybe another thread?
+        self.waveforms.save_to_file(self.sim.results)
+
+    def load_results(self):
+        """Load previous results into the GUI."""
+        waves = self.waveforms.load_from_file()
+        self.gui.update_gui_with_results(waves)
 
 
 def main():

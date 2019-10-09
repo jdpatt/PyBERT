@@ -119,7 +119,7 @@ class Configuration(QObject):
         # # Analysis
         # self.thresh = simulation.thresh
 
-    def save_to_file(self, filename):
+    def save_to_file(self, config):
         """Yaml out the current configuration."""
         if self.cfg_file:
             directory = self.cfg_file
@@ -134,10 +134,10 @@ class Configuration(QObject):
         if filename:
             filename = Path(filename)
             with open(filename, "w") as config_file:
-                yaml.dump(conf, config_file)
+                yaml.dump(config, config_file)
             self.cfg_file = filename
 
-    def load_from_file(self, filename):
+    def load_from_file(self):
         """Read in the YAML configuration."""
         if self.cfg_file:
             directory = self.cfg_file
@@ -154,16 +154,6 @@ class Configuration(QObject):
             with open(filename, "r") as in_file:
                 config = yaml.full_load(in_file)
             if not isinstance(config, Configuration):
-                raise Exception("The data structure read in is NOT of type: Configuration!")
-            for prop, value in vars(config).items():
-                if prop == "tx_taps":
-                    for count, (enabled, val) in enumerate(value):
-                        setattr(self.channel.eq.tx_taps[count], "enabled", enabled)
-                        setattr(self.channel.eq.tx_taps[count], "value", val)
-                elif prop == "tx_tap_tuners":
-                    for count, (enabled, val) in enumerate(value):
-                        setattr(self.channel.eq.tx_tap_tuners[count], "enabled", enabled)
-                        setattr(self.channel.eq.tx_tap_tuners[count], "value", val)
-                else:
-                    setattr(self, prop, value)
+                raise Exception("The data structure is NOT a PyBERT Configuration!")
                 self.cfg_file = filename
+                return config

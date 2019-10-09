@@ -7,14 +7,12 @@ import logging
 import platform
 import webbrowser
 
+import pyqtgraph as pg
 from pybert import __authors__ as AUTHORS
 from pybert import __copy__ as COPY
 from pybert import __date__ as DATE
 from pybert import __version__ as VERSION
-from pybert.configuration import Configuration
 from pybert.view.ui_pybert import Ui_MainWindow
-from pybert.waveforms import Waveforms
-import pyqtgraph as pg
 from PySide2.QtCore import *
 from PySide2.QtWidgets import *
 
@@ -52,8 +50,6 @@ class PyBERT_GUI(QMainWindow, Ui_MainWindow):
         self.create_statusbar()
         self.console.setVisible(True)
         self.init_plots()
-        self.config = Configuration(self)
-        self.waveform = Waveforms(self)
         self.connect_actions()
         self.showMaximized()
 
@@ -63,10 +59,6 @@ class PyBERT_GUI(QMainWindow, Ui_MainWindow):
         self.actionDocumentation.triggered.connect(open_docs)
         self.actionHelp.triggered.connect(self.help)
         self.actionRun.triggered.connect(self.start_simulation)
-        self.actionSave_Configuration.triggered.connect(self.config.save_to_file)
-        self.actionLoad_Configuration.triggered.connect(self.config.load_from_file)
-        self.actionSave_Waveforms.triggered.connect(self.waveform.save_to_file)
-        self.actionLoad_Waveforms.triggered.connect(self.waveform.load_from_file)
 
     def create_statusbar(self):
         """Create a bar across the bottom for messages.
@@ -118,6 +110,7 @@ class PyBERT_GUI(QMainWindow, Ui_MainWindow):
             row=0, col=0, title="CDR Adaptation", labels={"left": "UI (ps)", "bottom": "Time (ns)"}
         )
         self.dfe_adapt = self.plot_dfe.addPlot(row=0, col=1, title="DFE Adaptation")
+        self.dfe_adapt.addLegend()
         self.cdr_histo = self.plot_dfe.addPlot(
             row=1,
             col=0,
@@ -130,16 +123,27 @@ class PyBERT_GUI(QMainWindow, Ui_MainWindow):
             title="CDR Adaptation",
             labels={"left": "|H(f)| (dB mean)", "bottom": "Frequency (bit rate)"},
         )
-        self.plot_eq.setLabels(title= "Channel + Tx Pre-emphasis + CTLE + DFE", left="Post-CTLE Pulse Response (V)", bottom="Time (ns)")
+        self.plot_eq.setLabels(
+            title="Channel + Tx Pre-emphasis + CTLE + DFE",
+            left="Post-CTLE Pulse Response (V)",
+            bottom="Time (ns)",
+        )
         self.plot_impulse.set_axis_labels(y_axis="Impulse Response (V/ns)", x_axis="Time (ns)")
         self.plot_impulse.enable_legends()
+        self.plot_impulse.link_x_axes()
         self.plot_step.set_axis_labels(y_axis="Step Response (V)", x_axis="Time (ns)")
         self.plot_step.enable_legends()
+        self.plot_step.link_x_axes()
         self.plot_pulse.set_axis_labels(y_axis="Pulse Response (V)", x_axis="Time (ns)")
         self.plot_pulse.enable_legends()
+        self.plot_pulse.link_x_axes()
         self.plot_freq.set_axis_labels(y_axis="Frequency Response (dB)", x_axis="Frequency (GHz)")
         self.plot_freq.enable_legends()
+        self.plot_freq.set_x_range(0.01, 1.602)
+        self.plot_freq.enable_log_scale(x=True)
+        self.plot_freq.set_y_range(-40, 2)
         self.plot_output.set_axis_labels(y_axis="Output (V)", x_axis="Time (ns)")
+        self.plot_output.link_x_axes()
         self.plot_eye.set_axis_labels(y_axis="Signal Level (V)", x_axis="Time (ps)")
         self.plot_jitter_dist.set_axis_labels(y_axis="Count", x_axis="Time (ps)")
         self.plot_jitter_dist.enable_legends()
@@ -147,52 +151,279 @@ class PyBERT_GUI(QMainWindow, Ui_MainWindow):
             y_axis="|FFT(TIE)| (dBui)", x_axis="Frequency (MHz)"
         )
         self.plot_jitter_spect.enable_legends()
+        self.plot_jitter_spect.link_x_axes()
         self.plot_bathtub.set_axis_labels(
             y_axis="Log10(P(Transition occurs inside.))", x_axis="Time (ps)"
         )
+        self.plot_bathtub.set_y_range(-18, 0)
 
-    @Slot(dict, dict, object)
-    def update_gui_with_results(self, results, jitter, t_ns):
+    @Slot(object, object, object)
+    def update_eq_plots(self, t_ns_chnl, ctle_out_h_tune, clocks_tune):
+        """Update the EQ Plots during tuning."""
+        self.log.debug("Updating EQ Plots")
+        self.plot_eq.plot(t_ns_chnl, ctle_out_h_tune, pen="b", clear=True)
+        self.plot_eq.plot(t_ns_chnl, clocks_tune)  # Gray by default.
+
+    @Slot(dict, object, object)
+    def update_gui_with_results(self, results):
         """Update all the tabs that need updating."""
-        self.update_plots(results, jitter, t_ns)
+        self.update_plots(results)
+        # self.update_eyes(results)
 
-
-    def update_plots(self, results, jitter, t_ns):
+    def update_plots(self, results):
         """Update the plots within the GUI."""
-        self.plot_pulse.channel.plot(results["t_ns_chnl"], results["channel"]["chnl_p"], pen="b", clear=True)
+        self.cdr_adapt.plot(results["t_ns"], results["ui_ests"], pen="b", clear=True)
+        self.dfe_adapt.clearPlots()
+        COLORS = ["r", "m", "y", "g", "b"]
+        for index in range(1, results["n_dfe_taps"] + 1):
+            self.dfe_adapt.plot(
+                results["tap_weight_index"],
+                results[f"tap{index}_weights"],
+                name=f"tap{index}",
+                pen=COLORS[index - 1],
+            )
+        self.cdr_histo.plot(
+            results["clk_per_hist_bins"], results["clk_per_hist_vals"], pen="b", clear=True
+        )
+        self.cdr_spect.plot(results["clk_freqs"], results["clk_spec"], pen="b", clear=True)
+        self.plot_impulse.channel.plot(
+            results["t_ns_chnl"],
+            results["channel"]["chnl_h"],
+            pen="b",
+            name="Incremental",
+            clear=True,
+        )
+        self.plot_impulse.channel_tx.plot(
+            results["t_ns_chnl"], results["tx"]["out_h"], pen="r", name="Cumulative", clear=True
+        )
+        self.plot_impulse.channel_ctle.plot(
+            results["t_ns_chnl"], results["ctle"]["out_h"], pen="r", name="Cumulative", clear=True
+        )
+        self.plot_impulse.channel_dfe.plot(
+            results["t_ns_chnl"], results["dfe"]["out_h"], pen="r", name="Cumulative", clear=True
+        )
+        self.plot_step.channel.plot(
+            results["t_ns_chnl"],
+            results["channel"]["chnl_s"],
+            pen="b",
+            name="Incremental",
+            clear=True,
+        )
+        self.plot_step.channel_tx.plot(
+            results["t_ns_chnl"], results["tx"]["s"], pen="b", name="Incremental", clear=True
+        )
+        self.plot_step.channel_tx.plot(
+            results["t_ns_chnl"], results["tx"]["out_s"], pen="r", name="Cumulative"
+        )
+        self.plot_step.channel_ctle.plot(
+            results["t_ns_chnl"], results["ctle"]["s"], pen="b", name="Incremental", clear=True
+        )
+        self.plot_step.channel_ctle.plot(
+            results["t_ns_chnl"], results["ctle"]["out_s"], pen="r", name="Cumulative"
+        )
+        self.plot_step.channel_dfe.plot(
+            results["t_ns_chnl"], results["dfe"]["s"], pen="b", name="Incremental", clear=True
+        )
+        self.plot_step.channel_dfe.plot(
+            results["t_ns_chnl"], results["dfe"]["out_s"], pen="r", name="Cumulative"
+        )
+        self.plot_pulse.channel.plot(
+            results["t_ns_chnl"], results["channel"]["chnl_p"], pen="b", clear=True
+        )
         # self.plot_pulse.channel_tx.plot(results["t_ns_chnl"], results["tx"]["out_p"], pen="b", clear=True)
         # self.plot_pulse.channel_ctle.plot(results["t_ns_chnl"], results["ctle"]["out_p"], pen="b", clear=True)
         # self.plot_pulse.channel_dfe.plot(results["t_ns_chnl"], results["dfe"]["out_p"], pen="b", clear=True)
-        self.plot_output.channel.plot(t_ns, results["channel"]["out"], pen="b", clear=True)
-        self.plot_output.channel_tx.plot(t_ns, results["tx"]["out"], pen="b", clear=True)
-        self.plot_output.channel_ctle.plot(t_ns, results["ctle"]["out"], pen="b", clear=True)
-        self.plot_output.channel_dfe.plot(t_ns, results["dfe"]["out"], pen="b", clear=True)
+        self.plot_freq.channel.plot(
+            results["f_GHz"],
+            results["channel"]["chnl_H"],
+            pen="b",
+            name="Original Impulse",
+            clear=True,
+        )
+        self.plot_freq.channel.plot(
+            results["f_GHz"], results["channel"]["chnl_trimmed_H"], pen="r", name="Trimmed Impulse"
+        )
+        self.plot_freq.channel_tx.plot(
+            results["f_GHz"], results["tx"]["H"], pen="b", name="Incremental", clear=True
+        )
+        self.plot_freq.channel_tx.plot(
+            results["f_GHz"], results["tx"]["out_H"], pen="r", name="Cumulative"
+        )
+        self.plot_freq.channel_ctle.plot(
+            results["f_GHz"], results["ctle"]["H"], pen="b", name="Incremental", clear=True
+        )
+        self.plot_freq.channel_ctle.plot(
+            results["f_GHz"], results["ctle"]["out_H"], pen="r", name="Cumulative"
+        )
+        self.plot_freq.channel_dfe.plot(
+            results["f_GHz"], results["dfe"]["H"], pen="b", name="Incremental", clear=True
+        )
+        self.plot_freq.channel_dfe.plot(
+            results["f_GHz"], results["dfe"]["out_H"], pen="r", name="Cumulative"
+        )
+        self.plot_output.channel.plot(
+            results["t_ns"], results["channel"]["out"], pen="b", clear=True
+        )
+        self.plot_output.channel_tx.plot(
+            results["t_ns"], results["tx"]["out"], pen="b", clear=True
+        )
+        self.plot_output.channel_ctle.plot(
+            results["t_ns"], results["ctle"]["out"], pen="b", clear=True
+        )
+        self.plot_output.channel_dfe.plot(
+            results["t_ns"], results["dfe"]["out"], pen="b", clear=True
+        )
         # Only clear the first plotItem in that view to remove old data.
         self.plot_jitter_dist.channel.plot(
-            jitter["channel"].bin_centers, jitter["channel"].hist, pen="b", clear=True, name="Measured"
+            results["jitter"]["channel"].bin_centers,
+            results["jitter"]["channel"].hist,
+            pen="b",
+            clear=True,
+            name="Measured",
         )
         self.plot_jitter_dist.channel.plot(
-            jitter["channel"].bin_centers,
-            jitter["channel"].hist_synth,
+            results["jitter"]["channel"].bin_centers,
+            results["jitter"]["channel"].hist_synth,
             pen="r",
             name="Extrapolated",
         )
-        self.plot_jitter_dist.channel_tx.plot(jitter["tx"].bin_centers, jitter["tx"].hist, pen="b", clear=True, name="Measured")
         self.plot_jitter_dist.channel_tx.plot(
-            jitter["tx"].bin_centers, jitter["tx"].hist_synth, pen="r", name="Extrapolated"
+            results["jitter"]["tx"].bin_centers,
+            results["jitter"]["tx"].hist,
+            pen="b",
+            clear=True,
+            name="Measured",
+        )
+        self.plot_jitter_dist.channel_tx.plot(
+            results["jitter"]["tx"].bin_centers,
+            results["jitter"]["tx"].hist_synth,
+            pen="r",
+            name="Extrapolated",
         )
         self.plot_jitter_dist.channel_ctle.plot(
-            jitter["ctle"].bin_centers, jitter["ctle"].hist, pen="b", clear=True, name="Measured"
+            results["jitter"]["ctle"].bin_centers,
+            results["jitter"]["ctle"].hist,
+            pen="b",
+            clear=True,
+            name="Measured",
         )
         self.plot_jitter_dist.channel_ctle.plot(
-            jitter["ctle"].bin_centers, jitter["ctle"].hist_synth, pen="r", name="Extrapolated"
+            results["jitter"]["ctle"].bin_centers,
+            results["jitter"]["ctle"].hist_synth,
+            pen="r",
+            name="Extrapolated",
         )
         self.plot_jitter_dist.channel_dfe.plot(
-            jitter["dfe"].bin_centers, jitter["dfe"].hist, pen="b", clear=True, name="Measured"
+            results["jitter"]["dfe"].bin_centers,
+            results["jitter"]["dfe"].hist,
+            pen="b",
+            clear=True,
+            name="Measured",
         )
         self.plot_jitter_dist.channel_dfe.plot(
-            jitter["dfe"].bin_centers, jitter["dfe"].hist_synth, pen="r", name="Extrapolated"
+            results["jitter"]["dfe"].bin_centers,
+            results["jitter"]["dfe"].hist_synth,
+            pen="r",
+            name="Extrapolated",
         )
+        self.plot_jitter_spect.channel.plot(
+            results["jitter"]["f_MHz"],
+            results["jitter"]["channel"].jitter_spectrum,
+            pen="b",
+            clear=True,
+            name="Total",
+        )
+        self.plot_jitter_spect.channel.plot(
+            results["jitter"]["f_MHz"],
+            results["jitter"]["channel"].tie_ind_spectrum,
+            pen="r",
+            name="Data Independent",
+        )
+        self.plot_jitter_spect.channel.plot(
+            results["jitter"]["f_MHz"],
+            results["jitter"]["channel"].thresh,
+            pen="m",
+            name="Pj Threshold",
+        )
+
+        self.plot_jitter_spect.channel_tx.plot(
+            results["jitter"]["f_MHz"],
+            results["jitter"]["tx"].jitter_spectrum,
+            pen="b",
+            clear=True,
+            name="Total",
+        )
+        self.plot_jitter_spect.channel_tx.plot(
+            results["jitter"]["f_MHz"],
+            results["jitter"]["tx"].tie_ind_spectrum,
+            pen="r",
+            name="Data Independent",
+        )
+        self.plot_jitter_spect.channel_tx.plot(
+            results["jitter"]["f_MHz"],
+            results["jitter"]["tx"].thresh,
+            pen="m",
+            name="Pj Threshold",
+        )
+
+        self.plot_jitter_spect.channel_ctle.plot(
+            results["jitter"]["f_MHz"],
+            results["jitter"]["ctle"].jitter_spectrum,
+            pen="b",
+            clear=True,
+            name="Total",
+        )
+        self.plot_jitter_spect.channel_ctle.plot(
+            results["jitter"]["f_MHz"],
+            results["jitter"]["ctle"].tie_ind_spectrum,
+            pen="r",
+            name="Data Independent",
+        )
+        self.plot_jitter_spect.channel_ctle.plot(
+            results["jitter"]["f_MHz"],
+            results["jitter"]["ctle"].thresh,
+            pen="m",
+            name="Pj Threshold",
+        )
+
+        self.plot_jitter_spect.channel_dfe.plot(
+            results["jitter"]["f_MHz_dfe"],
+            results["jitter"]["dfe"].jitter_spectrum,
+            pen="b",
+            clear=True,
+            name="Total",
+        )
+        self.plot_jitter_spect.channel_dfe.plot(
+            results["jitter"]["f_MHz_dfe"],
+            results["jitter"]["dfe"].tie_ind_spectrum,
+            pen="r",
+            name="Data Independent",
+        )
+        self.plot_jitter_spect.channel_dfe.plot(
+            results["jitter"]["f_MHz_dfe"],
+            results["jitter"]["dfe"].thresh,
+            pen="m",
+            name="Pj Threshold",
+        )
+        self.plot_bathtub.channel.plot(
+            results["jitter"]["channel"].bin_centers, results["bathtub_chnl"], pen="b", clear=True
+        )
+        self.plot_bathtub.channel_tx.plot(
+            results["jitter"]["channel"].bin_centers, results["bathtub_tx"], pen="b", clear=True
+        )
+        self.plot_bathtub.channel_ctle.plot(
+            results["jitter"]["channel"].bin_centers, results["bathtub_ctle"], pen="b", clear=True
+        )
+        self.plot_bathtub.channel_dfe.plot(
+            results["jitter"]["channel"].bin_centers, results["bathtub_dfe"], pen="b", clear=True
+        )
+
+    def update_eyes(self, results):
+        """Update the heat plots representing the eye diagrams."""
+        self.plot_eye.channel.plot(results["eye_index"], results["eye_chnl"])
+        self.plot_eye.channel_tx.plot(results["eye_index"], results["eye_tx"])
+        self.plot_eye.channel_ctle.plot(results["eye_index"], results["eye_ctle"])
+        self.plot_eye.channel_dfe.plot(results["eye_index"], results["eye_dfe"])
 
     def start_simulation(self):
         """Get the parameters and kick off the simulation."""

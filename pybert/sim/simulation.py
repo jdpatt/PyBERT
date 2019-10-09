@@ -1,4 +1,5 @@
 """Where all the magic happens."""
+from collections import defaultdict
 from functools import lru_cache
 from logging import getLogger
 from time import clock
@@ -9,9 +10,11 @@ from numpy.random import normal, randint
 from pybert.defaults import (
     BIT_RATE,
     HPF_CORNER_COUPLING,
+    MIN_BATHTUB_VAL,
     MODULATION,
     NUM_AVG,
     NUM_BITS,
+    NUM_TAPS,
     PATTERN_LEN,
     SAMPLES_PER_BIT,
     THRESHOLD,
@@ -22,7 +25,7 @@ from pybert.sim.dfe import DFE
 from pybert.sim.equalization import Equalization
 from pybert.sim.jitter import Jitter, calculate_jitter_rejection
 from pybert.sim.utility import (
-    StoppableThread,
+    calc_eye,
     calc_G,
     calc_gamma,
     find_crossings,
@@ -33,7 +36,6 @@ from pybert.sim.utility import (
     status_string,
     trim_impulse,
 )
-from pybert.view.plot import Plots
 from PySide2.QtCore import QObject, Signal, Slot
 from scipy.signal import iirfilter, lfilter
 from scipy.signal.windows import hann
@@ -42,9 +44,10 @@ from scipy.signal.windows import hann
 class Simulation(QObject):
     """The main object in pybert containing the simulator."""
 
+    eq_results = Signal(object, object, object)
     sweep_results = Signal()
     status_update = Signal(str)
-    sim_done = Signal(dict, dict, object)
+    sim_done = Signal(dict)
     metrics = Signal(dict)
 
     def __init__(self):
@@ -64,8 +67,6 @@ class Simulation(QObject):
         self.sweep_aves = NUM_AVG
         self.do_sweep = False  #: Run sweeps? (Default = False)
 
-        self.performance = {}
-        self.sweep_results = []
         self.run_count = 0  # Used as a mechanism to force bit stream regeneration.
         self.thresh = THRESHOLD
 
@@ -74,48 +75,11 @@ class Simulation(QObject):
         self.rx = Receiver()
         self.eq = Equalization()
 
-        self.results = {
-            "bit_errors": 0,  #: Number of bit errors observed in last run.
-            "t_ns_chnl": np.array([]),
-            "tx": {
-                "s": np.array([]),
-                "out": np.array([]),
-                "out_s": np.array([]),
-                "out_p": np.array([]),
-                "H": np.array([]),
-                "h": np.array([]),
-                "out_H": np.array([]),
-                "out_h": np.array([]),
-            },
-            "ctle": {
-                "s": np.array([]),
-                "out": np.array([]),
-                "out_s": np.array([]),
-                "out_p": np.array([]),
-                "H": np.array([]),
-                "h": np.array([]),
-                "out_H": np.array([]),
-                "out_h": np.array([]),
-            },
-            "dfe": {
-                "s": np.array([]),
-                "out": np.array([]),
-                "out_s": np.array([]),
-                "out_p": np.array([]),
-                "H": np.array([]),
-                "h": np.array([]),
-                "out_H": np.array([]),
-                "out_h": np.array([]),
-            },
-            "channel": {
-                "chnl_H": np.array([]),
-                "chnl_s": np.array([]),
-                "chnl_p": np.array([]),
-                "out": np.array([]),
-                "out_H": np.array([]),
-            },
-            "jitter": {},
-        }
+        # The outputs of the simulation
+        self.performance = {}
+        self.results = defaultdict(dict)
+        self.sweep_results = []
+
         # Variables that got defined randomly throughout the simulation.  TODO: Clean up data structure.
         self.x = np.array([])
         self.rx_in = np.array([])
@@ -152,7 +116,6 @@ class Simulation(QObject):
         self._nui: int = 0
         self._nspui: int = 0
         self._eye_uis: int = 0
-        self._dfe_out_p = []
         self._przf_err: float = 0.0
 
         self.chnl_dly = np.array([])
@@ -386,7 +349,7 @@ class Simulation(QObject):
                     p[int(clock_pos + nspui * (0.5 + i)) :] -= p[clock_pos + nspui * (1 + i)]
 
         # Signal the GUI that there is new data to plot
-        self.eq_results.emit(p, clocks)
+        self.eq_results.emit(self.results["t_ns_chnl"], p, clocks)
 
         if self.mod_type == MODULATION.DUO:
             return (
@@ -502,18 +465,47 @@ class Simulation(QObject):
         chnl_s = chnl_h.cumsum()
         chnl_p = chnl_s - np.pad(chnl_s[:-nspui], (nspui, 0), "constant", constant_values=(0, 0))
 
-        self.chnl_h = chnl_h
         len_h = len(chnl_h)
-        self.chnl_trimmed_H = chnl_trimmed_H
         t_ns_chnl = np.array(t[start_ix : start_ix + len(chnl_h)]) * 1.0e9
 
         self.chnl_dly = chnl_dly
         self.start_ix = start_ix
+        self.results["channel"]["chnl_trimmed_H"] = chnl_trimmed_H
         self.results["t_ns_chnl"] = t_ns_chnl
+        self.results["channel"]["chnl_h"] = chnl_h
         self.results["channel"]["chnl_H"] = chnl_H
         self.results["channel"]["chnl_s"] = chnl_s
         self.results["channel"]["chnl_p"] = chnl_p
         self.len_h = len_h
+        return chnl_h
+
+    def get_status_str(self):
+        return status_string(
+            self.status,
+            self.performance.get("total", 0.0) * 60.0e-6,
+            self.channel.chnl_dly,
+            self.results.get("bit_errors", 0),
+            self.tx.rel_power,
+            self.results["jitter"].get("dfe", None),
+        )
+
+    @lru_cache(maxsize=None)
+    def _get_perf_info(self):
+        return {key: value * 60.0e-6 for (key, value) in self.performance.items()}
+
+    @property
+    @lru_cache(maxsize=None)
+    def przf_err(self):
+        p = self.results["dfe"]["out_p"]
+        nspui = self.nspui
+        n_taps = self.eq.n_taps
+
+        (clock_pos, _) = pulse_center(p, nspui)
+        err = 0
+        for i in range(n_taps):
+            err += p[clock_pos + (i + 1) * nspui] ** 2
+
+        return err / p[clock_pos] ** 2
 
     def run_sweeps(self):
         """
@@ -658,9 +650,9 @@ class Simulation(QObject):
             # Note: We're not using 'self.ideal_signal', because we rely on the system response to
             #       create the duobinary waveform. We only create it explicitly, above,
             #       so that we'll have an ideal reference for comparison.
-            self.calc_chnl_h()
-            self.log.debug("Channel impulse response is %d samples long.", len(self.chnl_h))
-            chnl_out = np.convolve(self.x, self.chnl_h)[: len(t)]
+            chnl_h = self.calc_chnl_h()
+            self.log.debug("Channel impulse response is %d samples long.", len(chnl_h))
+            chnl_out = np.convolve(self.x, chnl_h)[: len(t)]
 
             self.performance["channel"] = nbits * nspb / (clock() - start_time)
             split_time = clock()
@@ -681,7 +673,7 @@ class Simulation(QObject):
 
                     self.log.info("Tx IBIS-AMI Model Initializing...")
                     tx_model = self.tx.initialize_model(
-                        ts, [1.0 / ts] + [0.0] * (len(self.chnl_h) - 1), ui
+                        ts, [1.0 / ts] + [0.0] * (len(chnl_h) - 1), ui
                     )
                     tx_h = np.array(tx_model.initOut) * ts
                 except ValueError:
@@ -695,7 +687,7 @@ class Simulation(QObject):
                     # Position the input edge at the center of the vector, in
                     # order to minimize high frequency artifactual energy
                     # introduced by frequency domain processing in some models.
-                    half_len = len(self.chnl_h) // 2
+                    half_len = len(chnl_h) // 2
                     tx_s = tx_model.getWave(np.array([0.0] * half_len + [1.0] * half_len))
                     # Shift the result back to the correct location, extending the last sample.
                     tx_s = np.pad(tx_s[half_len:], (0, half_len), "edge")
@@ -722,7 +714,7 @@ class Simulation(QObject):
                 tx_h = np.array(
                     sum([[x] + list(np.zeros(nspui - 1)) for x in ffe], [])
                 )  # Using sum to concatenate.
-                tx_h.resize(len(self.chnl_h))
+                tx_h.resize(len(chnl_h))
                 tx_s = tx_h.cumsum()
             tx_out.resize(len(t))
             temp = tx_h.copy()
@@ -746,11 +738,11 @@ class Simulation(QObject):
             tx_out += normal(scale=rn, size=(len(tx_out),))
 
             # - Convolve w/ channel.
-            tx_out_h = np.convolve(tx_h, self.chnl_h)[: len(self.chnl_h)]
+            tx_out_h = np.convolve(tx_h, chnl_h)[: len(chnl_h)]
             temp = tx_out_h.copy()
             temp.resize(len(w))
             tx_out_H = fft(temp)
-            rx_in = np.convolve(tx_out, self.chnl_h)[: len(tx_out)]
+            rx_in = np.convolve(tx_out, chnl_h)[: len(tx_out)]
 
             self.results["tx"]["s"] = tx_s
             self.results["tx"]["out"] = tx_out
@@ -790,8 +782,8 @@ class Simulation(QObject):
                     self.log.info(rx_model.ami_params_out)
 
                     ctle_H = fft(ctle_out * hann(len(ctle_out))) / fft(rx_in * hann(len(rx_in)))
-                    ctle_h = np.real(ifft(ctle_H)[: len(self.chnl_h)])
-                    ctle_out_h = np.convolve(ctle_h, tx_out_h)[: len(self.chnl_h)]
+                    ctle_h = np.real(ifft(ctle_H)[: len(chnl_h)])
+                    ctle_out_h = np.convolve(ctle_h, tx_out_h)[: len(chnl_h)]
                 else:  # Init() only.
                     ctle_out_h_padded = np.pad(
                         ctle_out_h,
@@ -806,7 +798,7 @@ class Simulation(QObject):
                         end_values=(0.0, 0.0),
                     )
                     ctle_H = fft(ctle_out_h_padded) / fft(tx_out_h_padded)
-                    ctle_h = np.real(ifft(ctle_H)[: len(self.chnl_h)])
+                    ctle_h = np.real(ifft(ctle_H)[: len(chnl_h)])
                     ctle_out = np.convolve(rx_in, ctle_h)
                 ctle_s = ctle_h.cumsum()
             else:
@@ -823,7 +815,7 @@ class Simulation(QObject):
                     ctle_H *= sum(ctle_h) / ctle_H[0]
                 else:
                     _, ctle_H = make_ctle(rx_bw, peak_freq, peak_mag, w, ctle_mode, ctle_offset)
-                    ctle_h = np.real(ifft(ctle_H))[: len(self.chnl_h)]
+                    ctle_h = np.real(ifft(ctle_H))[: len(chnl_h)]
                     ctle_h *= abs(ctle_H[0]) / sum(ctle_h)
                 ctle_out = np.convolve(rx_in, ctle_h)
                 ctle_out -= np.mean(ctle_out)  # Force zero mean.
@@ -949,7 +941,7 @@ class Simulation(QObject):
 
             self.performance["dfe"] = nbits * nspb / (clock() - split_time)
             split_time = clock()
-            self.status = f"Analyzing jitter...(sweep {sweep_num} of {num_sweeps})"
+            self.status = f"Analyzing Jitter...(sweep {sweep_num} of {num_sweeps})"
         except Exception as error:
             self.status = "Exception: DFE"
             raise
@@ -1020,17 +1012,21 @@ class Simulation(QObject):
             self.performance["total"] = nbits * nspb / (clock() - start_time)
             split_time = clock()
         except Exception as error:
-            self.status = "Exception: jitter"
+            self.status = "Exception: Jitter"
             raise
 
-        # Tell the GUI that the simulation is done and to update everything.
+        # Analyze the results.
+        # -----------------------------------------------------------------------------------------
+        self.status = f"Cleaning Results...(sweep {sweep_num} of {num_sweeps})"
+        self.parse_and_clean_results()
+
+        # Simulation Done
         # -----------------------------------------------------------------------------------------
         try:
             if update_plots:
                 self.status = f"Updating plots...(sweep {sweep_num} of {num_sweeps})"
-                # Signal the GUI that there is new data to plot
-                self.sim_done.emit(self.results, self.results["jitter"], self.t_ns)
-            # Plot performance is not really valid since it just has to send a message now.
+                # Tell the GUI that the simulation is done and to update everything.
+                self.sim_done.emit(self.results)
             self.performance["plot"] = nbits * nspb / (clock() - split_time)
             self.metrics.emit(self.performance)
             self.log.debug("Performance: %s", self._get_perf_info())
@@ -1039,30 +1035,226 @@ class Simulation(QObject):
             self.status = "Exception: plotting"
             raise
 
-    def get_status_str(self):
-        return status_string(
-            self.status,
-            self.performance.get("total", 0.0) * 60.0e-6,
-            self.channel.chnl_dly,
-            self.results.get("bit_errors", 0),
-            self.tx.rel_power,
-            self.results["jitter"].get("dfe", None),
-        )
+    def parse_and_clean_results(self):
+        """Transform, prune or clean any results from the simulation to pass to the GUI."""
 
-    @lru_cache(maxsize=None)
-    def _get_perf_info(self):
-        return {key: value * 60.0e-6 for (key, value) in self.performance.items()}
-
-    @property
-    @lru_cache(maxsize=None)
-    def przf_err(self):
-        p = self.results["dfe"]["out_p"]
-        nspui = self.nspui
+        ui = self.ui
+        samps_per_ui = self.nspui
+        eye_uis = self.eye_uis
+        num_ui = self.nui
+        clock_times = self.clock_times
+        f = self.f
+        t = self.t
         n_taps = self.eq.n_taps
 
-        (clock_pos, _) = pulse_center(p, nspui)
-        err = 0
-        for i in range(n_taps):
-            err += p[clock_pos + (i + 1) * nspui] ** 2
+        Ts = t[1]
+        ignore_until = (num_ui - eye_uis) * ui
+        ignore_samps = (num_ui - eye_uis) * samps_per_ui
 
-        return err / p[clock_pos] ** 2
+        # Misc.
+        f_GHz = f[: len(f) // 2] / 1.0e9
+        len_f_GHz = len(f_GHz)
+        self.results["f_GHz"] = f_GHz[1:]
+        self.results["t_ns"] = self.t_ns
+
+        # DFE.
+        self.results["n_dfe_taps"] = NUM_TAPS
+        tap_weights = np.transpose(np.array(self.adaptation))
+        for index, tap_weight in enumerate(tap_weights, 1):
+            self.results[f"tap{index}_weights"] = tap_weight
+        self.results["tap_weight_index"] = list(range(len(tap_weight)))
+        if self.eq._old_n_taps != n_taps:
+            results["n_dfe_taps"] = self.eq.n_taps
+            self.eq._old_n_taps = n_taps
+
+        clock_pers = np.diff(clock_times)
+        start_t = t[np.where(self.lockeds)[0][0]]
+        start_ix = np.where(clock_times > start_t)[0][0]
+        (bin_counts, bin_edges) = np.histogram(clock_pers[start_ix:], bins=100)
+        bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2.0
+        clock_spec = fft(clock_pers[start_ix:])
+        clock_spec = abs(clock_spec[: len(clock_spec) // 2])
+        spec_freqs = np.arange(len(clock_spec)) / (
+            2.0 * len(clock_spec)
+        )  # In this case, fNyquist = half the bit rate.
+        clock_spec /= clock_spec[1:].mean()  # Normalize the mean non-d.c. value to 0 dB.
+        self.results["clk_per_hist_bins"] = bin_centers * 1.0e12  # (ps)
+        self.results["clk_per_hist_vals"] = bin_counts
+        self.results["clk_spec"] = 10.0 * np.log10(clock_spec[1:])  # Omit the d.c. value.
+        self.results["clk_freqs"] = spec_freqs[1:]
+        self.results["ui_ests"] = self.ui_ests
+        self.results["clocks"] = self.clocks
+        self.results["lockeds"] = self.lockeds
+
+        # Impulse responses
+        # Re-normalize to (V/ns), for plotting.
+        self.results["channel"]["chnl_h"] = self.results["channel"]["chnl_h"] * 1.0e-9 / Ts
+        self.results["tx"]["h"] = self.results["tx"]["h"] * 1.0e-9 / Ts
+        self.results["tx"]["out_h"] = self.results["tx"]["out_h"] * 1.0e-9 / Ts
+        self.results["ctle"]["h"] = self.results["ctle"]["h"] * 1.0e-9 / Ts
+        self.results["ctle"]["out_h"] = self.results["ctle"]["out_h"] * 1.0e-9 / Ts
+        self.results["dfe"]["h"] = self.results["dfe"]["h"] * 1.0e-9 / Ts
+        self.results["dfe"]["out_h"] = self.results["dfe"]["out_h"] * 1.0e-9 / Ts
+
+        # Frequency responses
+        self.results["channel"]["chnl_H"] = 20.0 * np.log10(
+            abs(self.results["channel"]["chnl_H"][1:len_f_GHz])
+        )
+        self.results["channel"]["chnl_trimmed_H"] = 20.0 * np.log10(
+            abs(self.results["channel"]["chnl_trimmed_H"][1:len_f_GHz])
+        )
+        self.results["tx"]["H"] = 20.0 * np.log10(abs(self.results["tx"]["H"][1:len_f_GHz]))
+        self.results["tx"]["out_H"] = 20.0 * np.log10(
+            abs(self.results["tx"]["out_H"][1:len_f_GHz])
+        )
+        self.results["ctle"]["H"] = 20.0 * np.log10(abs(self.results["ctle"]["H"][1:len_f_GHz]))
+        self.results["ctle"]["out_H"] = 20.0 * np.log10(
+            abs(self.results["ctle"]["out_H"][1:len_f_GHz])
+        )
+        self.results["dfe"]["H"] = 20.0 * np.log10(abs(self.results["dfe"]["H"][1:len_f_GHz]))
+        self.results["dfe"]["out_H"] = 20.0 * np.log10(
+            abs(self.results["dfe"]["out_H"][1:len_f_GHz])
+        )
+
+        self.results["jitter"]["channel"].bin_centers = (
+            np.array(self.results["jitter"]["channel"].bin_centers) * 1.0e12
+        )
+        self.results["jitter_chnl"] = self.results["jitter"]["channel"].hist
+        self.results["jitter_ext_chnl"] = self.results["jitter"]["channel"].hist_synth
+        self.results["jitter_tx"] = self.results["jitter"]["tx"].hist
+        self.results["jitter_ext_tx"] = self.results["jitter"]["tx"].hist_synth
+        self.results["jitter_ctle"] = self.results["jitter"]["ctle"].hist
+        self.results["jitter_ext_ctle"] = self.results["jitter"]["ctle"].hist_synth
+        self.results["jitter_dfe"] = self.results["jitter"]["dfe"].hist
+        self.results["jitter_ext_dfe"] = self.results["jitter"]["dfe"].hist_synth
+
+        # Jitter spectrums
+        log10_ui = np.log10(ui)
+        self.results["jitter"]["f_MHz"] = self.results["jitter"]["f_MHz"][1:]
+        self.results["jitter"]["f_MHz_dfe"] = self.results["jitter"]["f_MHz_dfe"][1:]
+        self.results["jitter"]["channel"].jitter_spectrum = 10.0 * (
+            np.log10(self.results["jitter"]["channel"].jitter_spectrum[1:]) - log10_ui
+        )
+        self.results["jitter"]["channel"].tie_ind_spectrum = 10.0 * (
+            np.log10(self.results["jitter"]["channel"].tie_ind_spectrum[1:]) - log10_ui
+        )
+        self.results["jitter"]["channel"].thresh = 10.0 * (
+            np.log10(self.results["jitter"]["channel"].thresh[1:]) - log10_ui
+        )
+        self.results["jitter"]["tx"].jitter_spectrum = 10.0 * (
+            np.log10(self.results["jitter"]["tx"].jitter_spectrum[1:]) - log10_ui
+        )
+        self.results["jitter"]["tx"].tie_ind_spectrum = 10.0 * (
+            np.log10(self.results["jitter"]["tx"].tie_ind_spectrum[1:]) - log10_ui
+        )
+        self.results["jitter"]["tx"].thresh = 10.0 * (
+            np.log10(self.results["jitter"]["tx"].thresh[1:]) - log10_ui
+        )
+        self.results["jitter"]["ctle"].jitter_spectrum = 10.0 * (
+            np.log10(self.results["jitter"]["ctle"].jitter_spectrum[1:]) - log10_ui
+        )
+        self.results["jitter"]["ctle"].tie_ind_spectrum = 10.0 * (
+            np.log10(self.results["jitter"]["ctle"].tie_ind_spectrum[1:]) - log10_ui
+        )
+        self.results["jitter"]["ctle"].thresh = 10.0 * (
+            np.log10(self.results["jitter"]["ctle"].thresh[1:]) - log10_ui
+        )
+        self.results["jitter"]["dfe"].jitter_spectrum = 10.0 * (
+            np.log10(self.results["jitter"]["dfe"].jitter_spectrum[1:]) - log10_ui
+        )
+        self.results["jitter"]["dfe"].tie_ind_spectrum = 10.0 * (
+            np.log10(self.results["jitter"]["dfe"].tie_ind_spectrum[1:]) - log10_ui
+        )
+        self.results["jitter"]["dfe"].thresh = 10.0 * (
+            np.log10(self.results["jitter"]["dfe"].thresh[1:]) - log10_ui
+        )
+        self.results["jitter_rejection_ratio"] = self.results["jitter"]["rejection_ratio"][1:]
+
+        # Bathtubs
+        half_len = len(self.results["jitter"]["channel"].hist_synth) // 2
+        #  - Channel
+        bathtub_chnl = list(
+            np.cumsum(self.results["jitter"]["channel"].hist_synth[-1 : -(half_len + 1) : -1])
+        )
+        bathtub_chnl.reverse()
+        bathtub_chnl = np.array(
+            bathtub_chnl
+            + list(np.cumsum(self.results["jitter"]["channel"].hist_synth[: half_len + 1]))
+        )
+        bathtub_chnl = np.where(
+            bathtub_chnl < MIN_BATHTUB_VAL,
+            0.1 * MIN_BATHTUB_VAL * np.ones(len(bathtub_chnl)),
+            bathtub_chnl,
+        )  # To avoid Chaco log scale plot wierdness.
+        self.results["bathtub_chnl"] = np.log10(bathtub_chnl)
+        #  - Tx
+        bathtub_tx = list(
+            np.cumsum(self.results["jitter"]["tx"].hist_synth[-1 : -(half_len + 1) : -1])
+        )
+        bathtub_tx.reverse()
+        bathtub_tx = np.array(
+            bathtub_tx + list(np.cumsum(self.results["jitter"]["tx"].hist_synth[: half_len + 1]))
+        )
+        bathtub_tx = np.where(
+            bathtub_tx < MIN_BATHTUB_VAL,
+            0.1 * MIN_BATHTUB_VAL * np.ones(len(bathtub_tx)),
+            bathtub_tx,
+        )  # To avoid Chaco log scale plot wierdness.
+        self.results["bathtub_tx"] = np.log10(bathtub_tx)
+        #  - CTLE
+        bathtub_ctle = list(
+            np.cumsum(self.results["jitter"]["ctle"].hist_synth[-1 : -(half_len + 1) : -1])
+        )
+        bathtub_ctle.reverse()
+        bathtub_ctle = np.array(
+            bathtub_ctle
+            + list(np.cumsum(self.results["jitter"]["ctle"].hist_synth[: half_len + 1]))
+        )
+        bathtub_ctle = np.where(
+            bathtub_ctle < MIN_BATHTUB_VAL,
+            0.1 * MIN_BATHTUB_VAL * np.ones(len(bathtub_ctle)),
+            bathtub_ctle,
+        )  # To avoid Chaco log scale plot weirdness.
+        self.results["bathtub_ctle"] = np.log10(bathtub_ctle)
+        #  - DFE
+        bathtub_dfe = list(
+            np.cumsum(self.results["jitter"]["dfe"].hist_synth[-1 : -(half_len + 1) : -1])
+        )
+        bathtub_dfe.reverse()
+        bathtub_dfe = np.array(
+            bathtub_dfe + list(np.cumsum(self.results["jitter"]["dfe"].hist_synth[: half_len + 1]))
+        )
+        bathtub_dfe = np.where(
+            bathtub_dfe < MIN_BATHTUB_VAL,
+            0.1 * MIN_BATHTUB_VAL * np.ones(len(bathtub_dfe)),
+            bathtub_dfe,
+        )  # To avoid Chaco log scale plot weirdness.
+        self.results["bathtub_dfe"] = np.log10(bathtub_dfe)
+
+        # Eyes
+        width = 2 * samps_per_ui
+        xs = np.linspace(-ui * 1.0e12, ui * 1.0e12, width)
+        height = 100
+        y_max = 1.1 * max(abs(np.array(self.results["channel"]["out"])))
+        eye_chnl = calc_eye(
+            ui, samps_per_ui, height, self.results["channel"]["out"][ignore_samps:], y_max
+        )
+        y_max = 1.1 * max(abs(np.array(self.rx_in)))
+        eye_tx = calc_eye(ui, samps_per_ui, height, self.rx_in[ignore_samps:], y_max)
+        y_max = 1.1 * max(abs(np.array(self.results["ctle"]["out"])))
+        eye_ctle = calc_eye(
+            ui, samps_per_ui, height, self.results["ctle"]["out"][ignore_samps:], y_max
+        )
+        i = 0
+        while clock_times[i] <= ignore_until:
+            i += 1
+            assert i < len(clock_times), "ERROR: Insufficient coverage in 'clock_times' vector."
+        y_max = 1.1 * max(abs(np.array(self.results["dfe"]["out"])))
+        eye_dfe = calc_eye(
+            ui, samps_per_ui, height, self.results["dfe"]["out"], y_max, clock_times[i:]
+        )
+        self.results["eye_index"] = xs
+        self.results["eye_chnl"] = eye_chnl
+        self.results["eye_tx"] = eye_tx
+        self.results["eye_ctle"] = eye_ctle
+        self.results["eye_dfe"] = eye_dfe

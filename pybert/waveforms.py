@@ -26,31 +26,6 @@ class Waveforms:
     clicks the "Save Results" button.
     """
 
-    _item_names = [
-        "chnl_h",
-        "tx_out_h",
-        "ctle_out_h",
-        "dfe_out_h",
-        "chnl_s",
-        "tx_s",
-        "ctle_s",
-        "dfe_s",
-        "tx_out_s",
-        "ctle_out_s",
-        "dfe_out_s",
-        "chnl_p",
-        "tx_out_p",
-        "ctle_out_p",
-        "dfe_out_p",
-        "chnl_H",
-        "tx_H",
-        "ctle_H",
-        "dfe_H",
-        "tx_out_H",
-        "ctle_out_H",
-        "dfe_out_H",
-    ]
-
     def __init__(self, parent):
         """
         Copy just that subset of the supplied PyBERT instance's
@@ -59,8 +34,8 @@ class Waveforms:
         self.data_file = None
         self.parent = parent
 
-    def save_to_file(self):
-        """Yaml out the current waveforms."""
+    def save_to_file(self, results):
+        """yaml out the current waveforms."""
         if self.data_file:
             directory = self.data_file
         else:
@@ -74,11 +49,11 @@ class Waveforms:
         if filename:
             filename = Path(filename)
             with open(filename, "w") as out_file:
-                yaml.dump(self, out_file)
+                yaml.dump(results, out_file)
             self.data_file = filename
 
     def load_from_file(self):
-        """Read in the YAML waveforms."""
+        """Read in the yaml waveforms."""
         if self.data_file:
             directory = self.data_file
         else:
@@ -93,4 +68,5 @@ class Waveforms:
         if filename:
             filename = Path(filename)
             with open(filename, "r") as in_file:
-                config = yaml.full_load(in_file)
+                results = yaml.full_load(in_file)
+        return results

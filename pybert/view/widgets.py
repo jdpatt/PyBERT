@@ -3,6 +3,7 @@ import pyqtgraph as pg
 
 pg.setConfigOption("background", "w")
 pg.setConfigOption("foreground", "k")
+# pg.setConfigOption("leftButtonPan", False)
 
 TITLES = [
     "Channel",
@@ -27,6 +28,13 @@ class QuadGraphicsLayout(pg.GraphicsLayoutWidget):
         self.channel_ctle.addLegend()
         self.channel_dfe.addLegend()
 
+    def enable_log_scale(self, x=False, y=False):
+        """Enable log scale for both x and y for all four plots."""
+        self.channel.setLogMode(x=x, y=y)
+        self.channel_tx.setLogMode(x=x, y=y)
+        self.channel_ctle.setLogMode(x=x, y=y)
+        self.channel_dfe.setLogMode(x=x, y=y)
+
     def set_axis_labels(self, y_axis, x_axis):
         """Set the Labels for all four plots."""
         self.channel.setLabels(left=y_axis, bottom=x_axis)
@@ -34,24 +42,21 @@ class QuadGraphicsLayout(pg.GraphicsLayoutWidget):
         self.channel_ctle.setLabels(left=y_axis, bottom=x_axis)
         self.channel_dfe.setLabels(left=y_axis, bottom=x_axis)
 
-    def update_plots(self, x_data, y_data_chnl, y_data_tx, y_data_ctle, y_data_dfe):
-        """Update the four plots in this view.
+    def link_x_axes(self):
+        self.channel_tx.setXLink(self.channel)
+        self.channel_ctle.setXLink(self.channel)
+        self.channel_dfe.setXLink(self.channel)
 
-        If you can't update it, carry on with the next one.
-        """
-        try:
-            self.channel.plot(x_data, y_data_chnl, pen="b", clear=True)
-        except:
-            pass
-        try:
-            self.channel_tx.plot(x_data, y_data_chnl, pen="b", clear=True)
-        except:
-            pass
-        try:
-            self.channel_ctle.plot(x_data, y_data_chnl, pen="b", clear=True)
-        except:
-            pass
-        try:
-            self.channel_dfe.plot(x_data, y_data_chnl, pen="b", clear=True)
-        except:
-            pass
+    def set_y_range(self, min_val, max_val):
+        """Pass the arguments to each plot's setRange."""
+        self.channel.setYRange(min_val, max_val)
+        self.channel_tx.setYRange(min_val, max_val)
+        self.channel_ctle.setYRange(min_val, max_val)
+        self.channel_dfe.setYRange(min_val, max_val)
+
+    def set_x_range(self, min_val, max_val):
+        """Pass the arguments to each plot's setRange."""
+        self.channel.setXRange(min_val, max_val)
+        self.channel_tx.setXRange(min_val, max_val)
+        self.channel_ctle.setXRange(min_val, max_val)
+        self.channel_dfe.setXRange(min_val, max_val)
