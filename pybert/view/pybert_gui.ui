@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>1440</width>
-    <height>900</height>
+    <height>895</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -20,7 +20,7 @@
    <property name="sizePolicy">
     <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
      <horstretch>0</horstretch>
-     <verstretch>4</verstretch>
+     <verstretch>0</verstretch>
     </sizepolicy>
    </property>
    <layout class="QVBoxLayout" name="verticalLayout_2">
@@ -851,32 +851,36 @@
              </property>
              <layout class="QVBoxLayout" name="verticalLayout_20">
               <item>
-               <layout class="QHBoxLayout" name="horizontalLayout_24">
-                <item>
-                 <widget class="QCheckBox" name="use_ctle_from_file">
-                  <property name="text">
-                   <string>From File</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QLabel" name="label_37">
-                  <property name="text">
-                   <string>File</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QLineEdit" name="ctle_filename"/>
-                </item>
-                <item>
-                 <widget class="QPushButton" name="load_ctle_from_file">
-                  <property name="text">
-                   <string/>
-                  </property>
-                 </widget>
-                </item>
-               </layout>
+               <widget class="QGroupBox" name="ctle_from_file">
+                <property name="title">
+                 <string>From File</string>
+                </property>
+                <property name="checkable">
+                 <bool>true</bool>
+                </property>
+                <property name="checked">
+                 <bool>false</bool>
+                </property>
+                <layout class="QHBoxLayout" name="horizontalLayout_8">
+                 <item>
+                  <widget class="QLabel" name="label_37">
+                   <property name="text">
+                    <string>File</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QLineEdit" name="ctle_filename"/>
+                 </item>
+                 <item>
+                  <widget class="QPushButton" name="load_ctle_from_file">
+                   <property name="text">
+                    <string/>
+                   </property>
+                  </widget>
+                 </item>
+                </layout>
+               </widget>
               </item>
               <item>
                <layout class="QHBoxLayout" name="horizontalLayout_25">
@@ -1209,7 +1213,7 @@
          </widget>
         </item>
         <item row="1" column="0" colspan="4">
-         <widget class="PlotWidget" name="graphicsView">
+         <widget class="PlotWidget" name="plot_eq">
           <property name="sizePolicy">
            <sizepolicy hsizetype="MinimumExpanding" vsizetype="Expanding">
             <horstretch>0</horstretch>
@@ -2013,7 +2017,7 @@
      <x>0</x>
      <y>0</y>
      <width>1440</width>
-     <height>26</height>
+     <height>22</height>
     </rect>
    </property>
    <property name="sizePolicy">
@@ -2066,13 +2070,13 @@
    <property name="sizePolicy">
     <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
      <horstretch>0</horstretch>
-     <verstretch>1</verstretch>
+     <verstretch>0</verstretch>
     </sizepolicy>
    </property>
    <property name="minimumSize">
     <size>
-     <width>95</width>
-     <height>113</height>
+     <width>0</width>
+     <height>0</height>
     </size>
    </property>
    <property name="maximumSize">

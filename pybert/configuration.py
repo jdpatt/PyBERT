@@ -129,7 +129,7 @@ class Configuration(QObject):
             self.parent,
             self.parent.tr("Save Configuration"),
             directory,
-            self.parent.tr("PyBERT Config Files (*.cfg.yaml)"),
+            self.parent.tr("PyBERT Config Files (*.pybert_cfg)"),
         )
         if filename:
             filename = Path(filename)
@@ -147,7 +147,7 @@ class Configuration(QObject):
             self.parent,
             self.parent.tr("Load Configuration"),
             directory,
-            self.parent.tr("PyBERT Config Files (*.cfg.yaml)"),
+            self.parent.tr("PyBERT Config Files (*.pybert_cfg)"),
         )
         if filename:
             filename = Path(filename)

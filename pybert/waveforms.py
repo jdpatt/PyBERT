@@ -44,7 +44,7 @@ class Waveforms:
             self.parent,
             self.parent.tr("Save waveforms"),
             directory,
-            self.parent.tr("PyBERT Data Files (*.data.yaml)"),
+            self.parent.tr("PyBERT Data Files (*.pybert_data)"),
         )
         if filename:
             filename = Path(filename)
@@ -63,7 +63,7 @@ class Waveforms:
             self.parent,
             self.parent.tr("Load waveforms"),
             directory,
-            self.parent.tr("PyBERT Data Files (*.data.yaml)"),
+            self.parent.tr("PyBERT Data Files (*.pybert_data)"),
         )
         if filename:
             filename = Path(filename)
