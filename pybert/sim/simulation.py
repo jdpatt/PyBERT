@@ -1064,7 +1064,7 @@ class Simulation(QObject):
             self.results[f"tap{index}_weights"] = tap_weight
         self.results["tap_weight_index"] = list(range(len(tap_weight)))
         if self.eq._old_n_taps != n_taps:
-            results["n_dfe_taps"] = self.eq.n_taps
+            self.results["n_dfe_taps"] = self.eq.n_taps
             self.eq._old_n_taps = n_taps
 
         clock_pers = np.diff(clock_times)

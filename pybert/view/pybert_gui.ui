@@ -76,7 +76,7 @@
            <item>
             <widget class="QGroupBox" name="groupBox_7">
              <property name="sizePolicy">
-              <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+              <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
                <horstretch>0</horstretch>
                <verstretch>1</verstretch>
               </sizepolicy>
@@ -103,6 +103,12 @@
               </item>
               <item>
                <widget class="QPushButton" name="load_tx_ami_file">
+                <property name="maximumSize">
+                 <size>
+                  <width>40</width>
+                  <height>16777215</height>
+                 </size>
+                </property>
                 <property name="text">
                  <string/>
                 </property>
@@ -120,6 +126,12 @@
               </item>
               <item>
                <widget class="QPushButton" name="load_tx_dll_file">
+                <property name="maximumSize">
+                 <size>
+                  <width>40</width>
+                  <height>16777215</height>
+                 </size>
+                </property>
                 <property name="text">
                  <string/>
                 </property>
@@ -129,6 +141,13 @@
                <widget class="QPushButton" name="configure_tx">
                 <property name="text">
                  <string>Configure</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QCheckBox" name="tx_use_getwave">
+                <property name="text">
+                 <string>Use GetWave</string>
                 </property>
                </widget>
               </item>
@@ -211,9 +230,9 @@
         <item row="0" column="0">
          <widget class="QGroupBox" name="simulation_control">
           <property name="sizePolicy">
-           <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+           <sizepolicy hsizetype="Preferred" vsizetype="Maximum">
             <horstretch>1</horstretch>
-            <verstretch>2</verstretch>
+            <verstretch>0</verstretch>
            </sizepolicy>
           </property>
           <property name="title">
@@ -593,6 +612,12 @@
                 </item>
                 <item>
                  <widget class="QPushButton" name="load_channel_file">
+                  <property name="maximumSize">
+                   <size>
+                    <width>40</width>
+                    <height>16777215</height>
+                   </size>
+                  </property>
                   <property name="text">
                    <string/>
                   </property>
@@ -806,6 +831,12 @@
               </item>
               <item>
                <widget class="QPushButton" name="load_rx_ami_file">
+                <property name="maximumSize">
+                 <size>
+                  <width>40</width>
+                  <height>16777215</height>
+                 </size>
+                </property>
                 <property name="text">
                  <string/>
                 </property>
@@ -823,6 +854,18 @@
               </item>
               <item>
                <widget class="QPushButton" name="load_rx_dll_file">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="maximumSize">
+                 <size>
+                  <width>40</width>
+                  <height>16777215</height>
+                 </size>
+                </property>
                 <property name="text">
                  <string/>
                 </property>
@@ -832,6 +875,13 @@
                <widget class="QPushButton" name="configure_rx">
                 <property name="text">
                  <string>Configure</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QCheckBox" name="rx_use_getwave">
+                <property name="text">
+                 <string>Use GetWave</string>
                 </property>
                </widget>
               </item>
@@ -874,6 +924,12 @@
                  </item>
                  <item>
                   <widget class="QPushButton" name="load_ctle_from_file">
+                   <property name="maximumSize">
+                    <size>
+                     <width>40</width>
+                     <height>16777215</height>
+                    </size>
+                   </property>
                    <property name="text">
                     <string/>
                    </property>
