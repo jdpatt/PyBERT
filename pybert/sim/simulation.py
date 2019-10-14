@@ -23,7 +23,7 @@ from pybert.sim.buffer import Receiver, Transmitter
 from pybert.sim.channel import Channel
 from pybert.sim.dfe import DFE
 from pybert.sim.equalization import Equalization
-from pybert.sim.jitter import Jitter, calculate_jitter_rejection
+from pybert.sim.jitter import Jitter, calculate_jitter_info
 from pybert.sim.utility import (
     calc_eye,
     calc_G,
@@ -379,7 +379,6 @@ class Simulation(QObject):
 
         return err / p[clock_pos] ** 2
 
-    @lru_cache(maxsize=None)
     def calc_chnl_h(self):
         """
         Calculates the channel impulse response.
@@ -1007,6 +1006,8 @@ class Simulation(QObject):
             self.results["jitter"]["rejection_ratio"] = np.zeros(
                 len(self.results["jitter"]["dfe"].jitter_spectrum)
             )
+
+            self.results["jitter"]["info"] = calculate_jitter_info(self.results["jitter"])
 
             self.performance["jitter"] = nbits * nspb / (clock() - split_time)
             self.performance["total"] = nbits * nspb / (clock() - start_time)

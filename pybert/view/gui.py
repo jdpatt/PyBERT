@@ -169,6 +169,23 @@ class PyBERT_GUI(QMainWindow, Ui_MainWindow):
         """Update all the tabs that need updating."""
         self.update_plots(results)
         # self.update_eyes(results)
+        self.update_jitter_info(results)
+
+    def update_jitter_info(self, results):
+        """Update the jitter rejection tables with the simulation data."""
+        jitter_info = results["jitter"]["info"]
+        tables = [
+            self.jitter_info_tx,
+            self.jitter_info_ctle,
+            self.jitter_info_dfe,
+            self.jitter_info_total,
+        ]
+        for index, table in enumerate(tables):
+            for row in range(0, 4):  # ISI, DCD, PJ and RJ
+                for column in range(0, 3):  # Input, Output and Rejection
+                    table.setItem(
+                        row, column, QTableWidgetItem(jitter_info[index][row][column])                            
+                    )
 
     def update_plots(self, results):
         """Update the plots within the GUI."""

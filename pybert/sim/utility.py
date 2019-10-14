@@ -739,8 +739,8 @@ def safe_log10(value):
 
 
 def calc_reject(num, dem):
-    """Calculate rejection ratio or return 1.0e20."""
-    return 10.0 * safe_log10(num / dem if dem else 1.0e20)
+    """Calculate rejection ratio or return 1.0e20 as a formatted decimal string."""
+    return f"{10.0 * safe_log10(num / dem if dem else 1.0e20):4.1f}"
 
 
 def status_string(status, total_perf, channel_delay, bit_errors, relative_power, jitter):

@@ -331,10 +331,10 @@ def make_uniform(t, jitter, ui, nbits):
     return jitter, valid_ix
 
 
-def calculate_jitter_rejection(jitter):
+def calculate_jitter_info(jitter):
     """Return the content for the jitter rejection tab of the GUI.  We need to calculate the
     jitter rejection ratios as well."""
-    rejection = {}
+    info = []
 
     isi_chnl = jitter["channel"].isi * 1.0e12
     dcd_chnl = jitter["channel"].dcd * 1.0e12
@@ -353,19 +353,32 @@ def calculate_jitter_rejection(jitter):
     pj_dfe = jitter["dfe"].pj * 1.0e12
     rj_dfe = jitter["dfe"].rj * 1.0e12
 
-    rejection["isi_rej_tx"] = calc_reject(isi_chnl, isi_tx)
-    rejection["dcd_rej_tx"] = calc_reject(dcd_chnl, dcd_tx)
-    rejection["isi_rej_ctle"] = calc_reject(isi_tx, isi_ctle)
-    rejection["dcd_rej_ctle"] = calc_reject(dcd_tx, dcd_ctle)
-    rejection["pj_rej_ctle"] = calc_reject(pj_tx, pj_ctle)
-    rejection["rj_rej_ctle"] = calc_reject(rj_tx, rj_ctle)
-    rejection["isi_rej_dfe"] = calc_reject(isi_ctle, isi_dfe)
-    rejection["dcd_rej_dfe"] = calc_reject(dcd_ctle, dcd_dfe)
-    rejection["pj_rej_dfe"] = calc_reject(pj_ctle, pj_dfe)
-    rejection["rj_rej_dfe"] = calc_reject(rj_ctle, rj_dfe)
-    rejection["isi_rej_total"] = calc_reject(isi_chnl, isi_dfe)
-    rejection["dcd_rej_total"] = calc_reject(dcd_chnl, dcd_dfe)
-    rejection["pj_rej_total"] = calc_reject(pj_tx, pj_dfe)
-    rejection["rj_rej_total"] = calc_reject(rj_tx, rj_dfe)
+    info.append(
+        [[f"{isi_chnl:6.3f}", f"{isi_tx:6.3f}", calc_reject(isi_chnl, isi_tx)],
+        [f"{dcd_chnl:6.3f}", f"{dcd_tx:6.3f}", calc_reject(dcd_chnl, dcd_tx)],
+        [f"{pj_chnl:6.3f}", f"{rj_tx:6.3f}", "N/A"],
+        [f"{rj_chnl:6.3f}", f"{rj_tx:6.3f}", "N/A"],]
+    )
 
-    return rejection
+    info.append(
+       [[f"{isi_tx:6.3f}", f"{isi_ctle:6.3f}", calc_reject(isi_tx, isi_ctle)],
+        [f"{dcd_tx:6.3f}", f"{dcd_ctle:6.3f}", calc_reject(dcd_tx, dcd_ctle)],
+        [f"{pj_tx:6.3f}", f"{pj_ctle:6.3f}", calc_reject(pj_tx, pj_ctle)],
+        [f"{rj_tx:6.3f}", f"{rj_ctle:6.3f}", calc_reject(rj_tx, rj_ctle)],]
+    )
+
+    info.append(
+        [[f"{isi_ctle:6.3f}", f"{isi_dfe:6.3f}", calc_reject(isi_ctle, isi_dfe)],
+        [f"{dcd_ctle:6.3f}", f"{dcd_dfe:6.3f}", calc_reject(dcd_ctle, dcd_dfe)],
+        [f"{pj_ctle:6.3f}", f"{pj_dfe:6.3f}", calc_reject(pj_ctle, pj_dfe)],
+        [f"{rj_ctle:6.3f}", f"{rj_dfe:6.3f}", calc_reject(rj_ctle, rj_dfe)],]
+    )
+
+    info.append(
+        [[f"{isi_chnl:6.3f}", f"{isi_ctle:6.3f}", calc_reject(isi_chnl, isi_dfe)],
+        [f"{dcd_chnl:6.3f}", f"{dcd_ctle:6.3f}", calc_reject(dcd_chnl, dcd_dfe)],
+        [f"{pj_tx:6.3f}", f"{pj_ctle:6.3f}", calc_reject(pj_tx, pj_dfe)],
+        [f"{rj_tx:6.3f}", f"{rj_ctle:6.3f}", calc_reject(rj_tx, rj_dfe)],]
+    )
+
+    return info

@@ -1649,7 +1649,7 @@
          </widget>
         </item>
         <item row="5" column="0">
-         <widget class="QTableWidget" name="jitter_rejection_dfe">
+         <widget class="QTableWidget" name="jitter_info_dfe">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
             <horstretch>0</horstretch>
@@ -1661,6 +1661,9 @@
             <width>16777215</width>
             <height>283</height>
            </size>
+          </property>
+          <property name="editTriggers">
+           <set>QAbstractItemView::NoEditTriggers</set>
           </property>
           <property name="alternatingRowColors">
            <bool>true</bool>
@@ -1721,7 +1724,7 @@
          </widget>
         </item>
         <item row="3" column="0">
-         <widget class="QTableWidget" name="jitter_rejection_tx">
+         <widget class="QTableWidget" name="jitter_info_tx">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
             <horstretch>0</horstretch>
@@ -1733,6 +1736,9 @@
             <width>16777215</width>
             <height>283</height>
            </size>
+          </property>
+          <property name="editTriggers">
+           <set>QAbstractItemView::NoEditTriggers</set>
           </property>
           <property name="alternatingRowColors">
            <bool>true</bool>
@@ -1835,7 +1841,7 @@
          </widget>
         </item>
         <item row="3" column="1">
-         <widget class="QTableWidget" name="jitter_rejection_ctle">
+         <widget class="QTableWidget" name="jitter_info_ctle">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
             <horstretch>0</horstretch>
@@ -1850,6 +1856,9 @@
           </property>
           <property name="sizeAdjustPolicy">
            <enum>QAbstractScrollArea::AdjustIgnored</enum>
+          </property>
+          <property name="editTriggers">
+           <set>QAbstractItemView::NoEditTriggers</set>
           </property>
           <property name="alternatingRowColors">
            <bool>true</bool>
@@ -1913,7 +1922,7 @@
          </widget>
         </item>
         <item row="5" column="1">
-         <widget class="QTableWidget" name="jitter_rejection_total">
+         <widget class="QTableWidget" name="jitter_info_total">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
             <horstretch>0</horstretch>
@@ -1925,6 +1934,9 @@
             <width>16777215</width>
             <height>283</height>
            </size>
+          </property>
+          <property name="editTriggers">
+           <set>QAbstractItemView::NoEditTriggers</set>
           </property>
           <property name="alternatingRowColors">
            <bool>true</bool>
