@@ -21,8 +21,7 @@ import traceback
 from pathlib import Path
 
 from pybert import __version__ as VERSION
-from pybert.configuration import Configuration
-from pybert.defaults import DEBUG
+from pybert.config import DEBUG, Configuration
 from pybert.logger import ThreadLogHandler, setup_logger
 from pybert.sim.simulation import Simulation
 from pybert.view.gui import PyBERT_GUI
@@ -63,7 +62,8 @@ class PyBERT:
         app = QApplication([])
         self.gui = PyBERT_GUI()
         self.waveforms = Waveforms(self.gui)
-        self.config = Configuration(self.gui)
+        config = Configuration(self.gui)
+        # self.gui.load_defaults(config)
 
         thread_log = ThreadLogHandler()
         thread_log.new_record.connect(self.gui.log_message)
@@ -85,11 +85,11 @@ class PyBERT:
         self.sim.status_update.connect(self.gui.update_statusbar)  # Status Bar Updates
         self.gui.sim_start.connect(self.sim.run_sweeps)  # Simulation Start
         self.sim.sim_done.connect(self.gui.update_gui_with_results)  # Simulation Done
-        self.sim.eq_results.connect(self.gui.update_eq_plots)  # Eq Plots
+        # self.sim.eq_results.connect(self.gui.update_eq_plots)  # Eq Plots
         self.gui.action_Abort.triggered.connect(self.abort_simulation)  # Simulation Abort
-        self.gui.eq_buttons.buttonClicked[int].connect(
-            self.sim.eq.handler
-        )  # EQ Tuning and Control
+        # self.gui.eq_buttons.buttonClicked[int].connect(
+        # self.sim.eq.handler
+        # )  # EQ Tuning and Control
         self.gui.actionDebug_Mode.triggered.connect(self.toggle_debug_mode)  # Enable Debug Logging
         self.gui.actionSave_Configuration.triggered.connect(self.save_configuration)
         self.gui.actionLoad_Configuration.triggered.connect(self.load_configuration)
@@ -101,7 +101,7 @@ class PyBERT:
         # Run the builtin simulation so that the plots have information.
         try:
             if run_simulation:
-                self.sim.run_simulation()
+                self.sim.run_simulation(config)
         except Exception as error:
             self.log.error(traceback.format_exc())
             raise

@@ -12,9 +12,12 @@ into the larger *PyBERT* framework.
 Copyright (c) 2014 by David Banas; All rights reserved World wide.
 """
 from numpy import array, sign, zeros
-from pybert.defaults import MODULATION, SUM_NUM_TAPS
 from pybert.sim.cdr import CDR
+from pybert.sim.utility import MODULATION
 from scipy.signal import iirfilter
+
+SUM_NUM_TAPS = 3  # Number of taps used in summing node filter.
+# TODO: Add this to the config option
 
 
 class LfilterSS:

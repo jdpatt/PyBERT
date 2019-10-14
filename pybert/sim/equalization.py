@@ -1,103 +1,65 @@
 """Module to handle all of the equalization features of pybert."""
 import logging
-from dataclasses import dataclass
 from functools import lru_cache
 from time import sleep
 
 import numpy as np
 from numpy.fft import ifft
-from pybert.defaults import (
-    ALPHA,
-    BANDWIDTH,
-    CTLE_MODE,
-    CTLE_OFFSET,
-    DEBUG_OPTIMIZE,
-    DECISION_SCALER,
-    DELTA_T,
-    DFE_BW,
-    DFE_IDEAL,
-    DFE_NUM_AVG,
-    GAIN,
-    LOCK_SUSTAIN,
-    MAX_CTLE_PEAK,
-    NUM_LOCK_AVG,
-    NUM_TAPS,
-    PEAK_FREQ,
-    PEAK_MAG,
-    REL_LOCK_TOL,
-    USE_DFE,
-)
-from pybert.sim.utility import fir_numerator, make_ctle
+from pybert.config import DEBUG_OPTIMIZE
+from pybert.sim.utility import CTLE_MODE, fir_numerator, make_ctle
 from scipy.optimize import minimize, minimize_scalar
-
-
-@dataclass
-class TxTapTuner:
-    """Object used to populate the rows of the Tx FFE tap tuning table."""
-
-    name: str = "(noname)"
-    enabled: bool = False
-    min_val: float = 0.0
-    max_val: float = 0.0
-    value: float = 0.0
-    steps: int = 0
 
 
 class Equalization:
     """Any equalization that the SerDes channel can make use of."""
 
-    def __init__(self):
+    def __init__(self, config):
         super(Equalization, self).__init__()
         self.log = logging.getLogger("pybert.equalization")
-        self.tx_taps = [
-            TxTapTuner(name="Pre-tap", enabled=True, min_val=-0.2, max_val=0.2, value=0.0),
-            TxTapTuner(name="Post-tap1", enabled=False, min_val=-0.4, max_val=0.4, value=0.0),
-            TxTapTuner(name="Post-tap2", enabled=False, min_val=-0.3, max_val=0.3, value=0.0),
-            TxTapTuner(name="Post-tap3", enabled=False, min_val=-0.2, max_val=0.2, value=0.0),
-        ]  #: List of TxTapTuner objects.
-        self.tx_tap_tuners = [
-            TxTapTuner(name="Pre-tap", enabled=True, min_val=-0.2, max_val=0.2, value=0.0),
-            TxTapTuner(name="Post-tap1", enabled=False, min_val=-0.4, max_val=0.4, value=0.0),
-            TxTapTuner(name="Post-tap2", enabled=False, min_val=-0.3, max_val=0.3, value=0.0),
-            TxTapTuner(name="Post-tap3", enabled=False, min_val=-0.2, max_val=0.2, value=0.0),
-        ]  #: EQ optimizer list of TxTapTuner objects.
-        self.use_ctle_file = False  #: For importing CTLE impulse/step response directly.
-        self.ctle_file = None  #: CTLE response file (when use_ctle_file = True). ["*.csv"]
-        self.rx_bw = BANDWIDTH  #: CTLE bandwidth (GHz).
-        self.peak_freq = PEAK_FREQ  #: CTLE peaking frequency (GHz)
-        self.peak_mag = PEAK_MAG  #: CTLE peaking magnitude (dB)
-        self.ctle_offset = CTLE_OFFSET  #: CTLE d.c. offset (dB)
-        self.ctle_mode = CTLE_MODE.OFF  #: CTLE mode ('Off', 'Passive', 'AGC', 'Manual').
+        self.log.debug("Initializing Equalization")
+        # EQ optimizer list of TxTapTuner objects.
 
-        self.rx_bw_tune = BANDWIDTH  #: EQ optimizer CTLE bandwidth (GHz).
-        self.peak_freq_tune = PEAK_FREQ  #: EQ optimizer CTLE peaking freq. (GHz).
-        self.peak_mag_tune = PEAK_MAG  #: EQ optimizer CTLE peaking mag. (dB).
-        self.ctle_offset_tune = CTLE_OFFSET  #: EQ optimizer CTLE d.c. offset (dB).
-        self.ctle_mode_tune = (
-            CTLE_MODE.OFF
-        )  #: EQ optimizer CTLE mode ('Off', 'Passive', 'AGC', 'Manual').
-        self.use_dfe_tune = USE_DFE  #: EQ optimizer DFE select (Bool).
-        self.n_taps_tune = NUM_TAPS  #: EQ optimizer # DFE taps.
-        self.max_iter = 50  #: EQ optimizer max. # of optimization iterations.
+        self.tx_taps = config.tx_taps
+        self.tx_tap_tuners = config.tx_tap_tuners
+
+        self.use_ctle_file = (
+            config.use_ctle_file
+        )  # For importing CTLE impulse/step response directly.
+        self.ctle_file = (
+            config.ctle_file
+        )  # CTLE response file (when use_ctle_file = True). ["*.csv"]
+        self.rx_bw = config.rx_bw  # CTLE bandwidth (GHz).
+        self.peak_freq = config.peak_freq  # CTLE peaking frequency (GHz)
+        self.peak_mag = config.peak_mag  # CTLE peaking magnitude (dB)
+        self.ctle_offset = config.ctle_offset  # CTLE d.c. offset (dB)
+        self.ctle_mode = config.ctle_mode  # CTLE mode ('Off', 'Passive', 'AGC', 'Manual').
+        self.rx_bw_tune = config.rx_bw  # EQ optimizer CTLE bandwidth (GHz).
+        self.peak_freq_tune = config.peak_freq  # EQ optimizer CTLE peaking freq. (GHz).
+        self.peak_mag_tune = config.peak_mag  # EQ optimizer CTLE peaking mag. (dB).
+        self.ctle_offset_tune = config.ctle_offset_tune  # EQ optimizer CTLE d.c. offset (dB).
+        self.ctle_mode_tune = config.ctle_mode_tune
+        self.use_dfe_tune = config.use_dfe  # EQ optimizer DFE select (Bool).
+        self.n_taps_tune = config.n_taps  # EQ optimizer # DFE taps.
+        self.max_iter = config.max_iter  # EQ optimizer max. # of optimization iterations.
 
         # - DFE
-        self.use_dfe = USE_DFE  #: True = use a DFE (Bool).
-        self.sum_ideal = (
-            DFE_IDEAL
-        )  #: True = use an ideal (i.e. - infinite bandwidth) summing node (Bool).
-        self.decision_scaler = DECISION_SCALER  #: DFE slicer output voltage (V).
-        self.gain = GAIN  #: DFE error gain (unitless).
-        self.n_ave = DFE_NUM_AVG  #: DFE # of averages to take, before making tap corrections.
-        self.n_taps = NUM_TAPS  #: DFE # of taps.
+        self.use_dfe = config.use_dfe
+        self.sum_ideal = config.sum_ideal  # True = use an ideal
+        self.decision_scaler = config.decision_scaler  # DFE slicer output voltage (V).
+        self.gain = config.gain  # DFE error gain (unitless).
+        self.n_ave = config.n_ave  # DFE # of averages to take, before making tap corrections.
+        self.n_taps = config.n_taps  # DFE # of taps.
         self._old_n_taps = self.n_taps
-        self.sum_bw = DFE_BW  #: DFE summing node bandwidth (Used when sum_ideal=False.) (GHz).
+        self.sum_bw = (
+            config.sum_bw
+        )  # DFE summing node bandwidth (Used when sum_ideal=False.) (GHz).
 
         # - CDR
-        self.delta_t = DELTA_T  #: CDR proportional branch magnitude (ps).
-        self.alpha = ALPHA  #: CDR integral branch magnitude (unitless).
-        self.n_lock_ave = NUM_LOCK_AVG  #: CDR # of averages to take in determining lock.
-        self.rel_lock_tol = REL_LOCK_TOL  #: CDR relative tolerance to use in determining lock.
-        self.lock_sustain = LOCK_SUSTAIN  #: CDR hysteresis to use in determining lock.
+        self.delta_t = config.delta_t  # proportional branch magnitude (ps).
+        self.alpha = config.alpha  # integral branch magnitude (unitless).
+        self.n_lock_ave = config.n_lock_ave  # # of averages to take in determining lock.
+        self.rel_lock_tol = config.rel_lock_tol  # relative tolerance to use in determining lock.
+        self.lock_sustain = config.lock_sustain  # hysteresis to use in determining lock.
 
         self.tx_h_tune = np.array([])
         self.ctle_h_tune = np.array([])

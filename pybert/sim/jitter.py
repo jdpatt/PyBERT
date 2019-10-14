@@ -354,31 +354,39 @@ def calculate_jitter_info(jitter):
     rj_dfe = jitter["dfe"].rj * 1.0e12
 
     info.append(
-        [[f"{isi_chnl:6.3f}", f"{isi_tx:6.3f}", calc_reject(isi_chnl, isi_tx)],
-        [f"{dcd_chnl:6.3f}", f"{dcd_tx:6.3f}", calc_reject(dcd_chnl, dcd_tx)],
-        [f"{pj_chnl:6.3f}", f"{rj_tx:6.3f}", "N/A"],
-        [f"{rj_chnl:6.3f}", f"{rj_tx:6.3f}", "N/A"],]
+        [
+            [f"{isi_chnl:6.3f}", f"{isi_tx:6.3f}", calc_reject(isi_chnl, isi_tx)],
+            [f"{dcd_chnl:6.3f}", f"{dcd_tx:6.3f}", calc_reject(dcd_chnl, dcd_tx)],
+            [f"{pj_chnl:6.3f}", f"{rj_tx:6.3f}", "N/A"],
+            [f"{rj_chnl:6.3f}", f"{rj_tx:6.3f}", "N/A"],
+        ]
     )
 
     info.append(
-       [[f"{isi_tx:6.3f}", f"{isi_ctle:6.3f}", calc_reject(isi_tx, isi_ctle)],
-        [f"{dcd_tx:6.3f}", f"{dcd_ctle:6.3f}", calc_reject(dcd_tx, dcd_ctle)],
-        [f"{pj_tx:6.3f}", f"{pj_ctle:6.3f}", calc_reject(pj_tx, pj_ctle)],
-        [f"{rj_tx:6.3f}", f"{rj_ctle:6.3f}", calc_reject(rj_tx, rj_ctle)],]
+        [
+            [f"{isi_tx:6.3f}", f"{isi_ctle:6.3f}", calc_reject(isi_tx, isi_ctle)],
+            [f"{dcd_tx:6.3f}", f"{dcd_ctle:6.3f}", calc_reject(dcd_tx, dcd_ctle)],
+            [f"{pj_tx:6.3f}", f"{pj_ctle:6.3f}", calc_reject(pj_tx, pj_ctle)],
+            [f"{rj_tx:6.3f}", f"{rj_ctle:6.3f}", calc_reject(rj_tx, rj_ctle)],
+        ]
     )
 
     info.append(
-        [[f"{isi_ctle:6.3f}", f"{isi_dfe:6.3f}", calc_reject(isi_ctle, isi_dfe)],
-        [f"{dcd_ctle:6.3f}", f"{dcd_dfe:6.3f}", calc_reject(dcd_ctle, dcd_dfe)],
-        [f"{pj_ctle:6.3f}", f"{pj_dfe:6.3f}", calc_reject(pj_ctle, pj_dfe)],
-        [f"{rj_ctle:6.3f}", f"{rj_dfe:6.3f}", calc_reject(rj_ctle, rj_dfe)],]
+        [
+            [f"{isi_ctle:6.3f}", f"{isi_dfe:6.3f}", calc_reject(isi_ctle, isi_dfe)],
+            [f"{dcd_ctle:6.3f}", f"{dcd_dfe:6.3f}", calc_reject(dcd_ctle, dcd_dfe)],
+            [f"{pj_ctle:6.3f}", f"{pj_dfe:6.3f}", calc_reject(pj_ctle, pj_dfe)],
+            [f"{rj_ctle:6.3f}", f"{rj_dfe:6.3f}", calc_reject(rj_ctle, rj_dfe)],
+        ]
     )
 
     info.append(
-        [[f"{isi_chnl:6.3f}", f"{isi_ctle:6.3f}", calc_reject(isi_chnl, isi_dfe)],
-        [f"{dcd_chnl:6.3f}", f"{dcd_ctle:6.3f}", calc_reject(dcd_chnl, dcd_dfe)],
-        [f"{pj_tx:6.3f}", f"{pj_ctle:6.3f}", calc_reject(pj_tx, pj_dfe)],
-        [f"{rj_tx:6.3f}", f"{rj_ctle:6.3f}", calc_reject(rj_tx, rj_dfe)],]
+        [
+            [f"{isi_chnl:6.3f}", f"{isi_ctle:6.3f}", calc_reject(isi_chnl, isi_dfe)],
+            [f"{dcd_chnl:6.3f}", f"{dcd_ctle:6.3f}", calc_reject(dcd_chnl, dcd_dfe)],
+            [f"{pj_tx:6.3f}", f"{pj_ctle:6.3f}", calc_reject(pj_tx, pj_dfe)],
+            [f"{rj_tx:6.3f}", f"{rj_ctle:6.3f}", calc_reject(rj_tx, rj_dfe)],
+        ]
     )
 
     return info

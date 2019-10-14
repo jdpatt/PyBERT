@@ -2,16 +2,6 @@
 from logging import getLogger
 from pathlib import Path
 
-from pybert.defaults import (
-    AC_CAPACITANCE,
-    INPUT_CAPACITANCE,
-    INPUT_IMPEDANCE,
-    OUTPUT_CAPACITANCE,
-    OUTPUT_DRIVE_STRENGTH,
-    OUTPUT_IMPEDANCE,
-    PN_FREQ,
-    PN_MAG,
-)
 from pyibisami.ami_model import AMIModel, AMIModelInitializer
 from pyibisami.ami_parse import AMIParamConfigurator
 
@@ -113,24 +103,34 @@ class FailledDLLLoad(Exception):
 class Transmitter(Buffer):
     """Transmitter in the Channel"""
 
-    def __init__(self, random_noise):
+    def __init__(self, config):
         super(Transmitter, self).__init__()
         self.log.debug("Initializing Tx")
-        self.vod = OUTPUT_DRIVE_STRENGTH  #: Tx differential output voltage (V)
-        self.output_impedance = OUTPUT_IMPEDANCE  #: Tx source impedance (Ohms)
-        self.output_capacitance = OUTPUT_CAPACITANCE  #: Tx parasitic output capacitance (pF)
-        self.pn_mag = PN_MAG  #: Periodic noise magnitude (V).
-        self.pn_freq = PN_FREQ  #: Periodic noise frequency (MHz).
-        self.random_noise = random_noise  #: Standard deviation of Gaussian random noise (V).
-        self.rel_power = 1.0  #: Tx power dissipation (W).
+        self.vod = config.vod
+        self.output_impedance = config.output_impedance
+        self.output_capacitance = config.output_capacitance
+        self.pn_mag = config.pn_mag
+        self.pn_freq = config.pn_freq
+        self.random_noise = config.random_noise
+        self.rel_power = 1.0
+
+        self.use_ami = config.tx_use_ami
+        self.use_getwave = config.tx_use_getwave
+        self.ami_file = config.tx_ami_file
+        self.dll_file = config.tx_dll_file
 
 
 class Receiver(Buffer):
     """Receiver in the Channel"""
 
-    def __init__(self):
+    def __init__(self, config):
         super(Receiver, self).__init__()
         self.log.debug("Initializing Rx")
-        self.input_impedance = INPUT_IMPEDANCE  #: Rx input impedance (Ohm)
-        self.input_capacitance = INPUT_CAPACITANCE  #: Rx parasitic input capacitance (pF)
-        self.cac = AC_CAPACITANCE  #: Rx a.c. coupling capacitance (uF)
+        self.input_impedance = config.input_impedance
+        self.input_capacitance = config.input_capacitance
+        self.cac = config.ac_capacitance
+
+        self.use_ami = config.rx_use_ami
+        self.use_getwave = config.rx_use_getwave
+        self.ami_file = config.rx_ami_file
+        self.dll_file = config.rx_dll_file

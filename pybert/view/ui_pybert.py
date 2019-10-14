@@ -1226,6 +1226,7 @@ class Ui_MainWindow(object):
         self.text_edit.setMaximumBlockCount(200)
         self.text_edit.setCenterOnScroll(True)
         self.text_edit.setObjectName("text_edit")
+        self.text_edit.centerOnScroll()
         self.gridLayout_8.addWidget(self.text_edit, 0, 0, 1, 1)
         self.console.setWidget(self.dockWidgetContents)
         MainWindow.addDockWidget(QtCore.Qt.DockWidgetArea(8), self.console)

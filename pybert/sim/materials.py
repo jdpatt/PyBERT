@@ -15,8 +15,6 @@ class Materials:
     characteristic_impedance = 100.0  # Channel characteristic impedance, in LC region (Ohms).
     rel_velocity = 0.67  # relative propagation velocity (c)
     channel_length = 1.0  # cable length (m)
-    # The random noise is applied at end of channel, so as to appear white to Rx.
-    random_noise = 0.001  # standard deviation of Gaussian random noise (V)
 
 
 @dataclass

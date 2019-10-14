@@ -13,6 +13,8 @@ matplotlib.use("Qt5Agg")  # isort:skip
 import re
 
 # pylint: disable=C0103
+from dataclasses import dataclass
+from enum import Enum
 from functools import reduce
 from logging import getLogger
 from pathlib import Path
@@ -21,34 +23,38 @@ from typing import List, Sequence
 
 import numpy as np
 import skrf as rf
-from pybert.defaults import CTLE_MODE, MODULATION
 from scipy.signal import freqs, get_window, invres
 
 log = getLogger("pybert.utility")
 
 
-class StoppableThread(Thread):
-    """
-    Thread class with a stop() method.
+class CTLE_MODE(Enum):
+    """The different CTLE (Continuous Time Linear Equalizer) modes supported by PyBERT."""
 
-    The thread itself has to check regularly for the stopped() condition.
+    OFF = 0
+    PASSIVE = 1
+    AGC = 2
+    MANUAL = 3
 
-    All PyBERT thread classes are subclasses of this class.
-    """
 
-    def __init__(self):
-        super(StoppableThread, self).__init__()
-        self._stop_event = Event()
+class MODULATION(Enum):
+    """The different modulation types supported by PyBERT."""
 
-    def stop(self):
-        """Called by thread invoker, when thread should be stopped prematurely."""
-        self._stop_event.set()
+    NRZ = 0
+    DUO = 1
+    PAM4 = 2
 
-    def stopped(self):
-        """Should be called by thread (i.e. - subclass) periodically and, if this function
-        returns True, thread should clean itself up and quit ASAP.
-        """
-        return self._stop_event.is_set()
+
+@dataclass
+class TxTapTuner:
+    """Object used to populate the rows of the Tx FFE tap tuning table."""
+
+    name: str = "(noname)"
+    enabled: bool = False
+    min_val: float = 0.0
+    max_val: float = 0.0
+    value: float = 0.0
+    steps: int = 0
 
 
 def moving_average(a, n=3):
@@ -747,7 +753,7 @@ def status_string(status, total_perf, channel_delay, bit_errors, relative_power,
     """Return the status string across the bottom of the GUI."""
     status = (
         f"{status} | Perf. (Ms/m):    {total_perf:4.1}"
-        f"         | ChnlDly (ns):    {channel_delay:5.3f}"
+        f"         | ChnlDly (ns):    {channel_delay * 1.0e9:5.3f}"
         f"         | BitErrs: {bit_errors}"
         f"         | TxPwr (W): {relative_power:4.2}"
     )

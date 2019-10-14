@@ -39,7 +39,7 @@ else:
 class PyBERT_GUI(QMainWindow, Ui_MainWindow):
     """Main PyBERT Window"""
 
-    sim_start = Signal()
+    sim_start = Signal(object)
 
     def __init__(self):
         QMainWindow.__init__(self)
@@ -105,6 +105,14 @@ class PyBERT_GUI(QMainWindow, Ui_MainWindow):
         #     raise error
         QMessageBox.warning(self, self.tr("PyBERT Error"), str(error))
 
+    def get_config(self):
+        """Grab all the current GUI values and pass them to the simulation."""
+        return
+
+    def load_config(self, config):
+        """Take the deafult configuration and populate the GUI with its values."""
+        return
+
     def init_plots(self):
         self.cdr_adapt = self.plot_dfe.addPlot(
             row=0, col=0, title="CDR Adaptation", labels={"left": "UI (ps)", "bottom": "Time (ns)"}
@@ -164,6 +172,13 @@ class PyBERT_GUI(QMainWindow, Ui_MainWindow):
         self.plot_eq.plot(t_ns_chnl, ctle_out_h_tune, pen="b", clear=True)
         self.plot_eq.plot(t_ns_chnl, clocks_tune)  # Gray by default.
 
+    def update_eyes(self, results):
+        """Update the heat plots representing the eye diagrams."""
+        self.plot_eye.channel.plot(results["eye_index"], results["eye_chnl"])
+        self.plot_eye.channel_tx.plot(results["eye_index"], results["eye_tx"])
+        self.plot_eye.channel_ctle.plot(results["eye_index"], results["eye_ctle"])
+        self.plot_eye.channel_dfe.plot(results["eye_index"], results["eye_dfe"])
+
     @Slot(dict, object, object)
     def update_gui_with_results(self, results):
         """Update all the tabs that need updating."""
@@ -183,9 +198,7 @@ class PyBERT_GUI(QMainWindow, Ui_MainWindow):
         for index, table in enumerate(tables):
             for row in range(0, 4):  # ISI, DCD, PJ and RJ
                 for column in range(0, 3):  # Input, Output and Rejection
-                    table.setItem(
-                        row, column, QTableWidgetItem(jitter_info[index][row][column])                            
-                    )
+                    table.setItem(row, column, QTableWidgetItem(jitter_info[index][row][column]))
 
     def update_plots(self, results):
         """Update the plots within the GUI."""
@@ -435,16 +448,9 @@ class PyBERT_GUI(QMainWindow, Ui_MainWindow):
             results["jitter"]["channel"].bin_centers, results["bathtub_dfe"], pen="b", clear=True
         )
 
-    def update_eyes(self, results):
-        """Update the heat plots representing the eye diagrams."""
-        self.plot_eye.channel.plot(results["eye_index"], results["eye_chnl"])
-        self.plot_eye.channel_tx.plot(results["eye_index"], results["eye_tx"])
-        self.plot_eye.channel_ctle.plot(results["eye_index"], results["eye_ctle"])
-        self.plot_eye.channel_dfe.plot(results["eye_index"], results["eye_dfe"])
-
     def start_simulation(self):
         """Get the parameters and kick off the simulation."""
-        self.sim_start.emit()
+        self.sim_start.emit(self.get_config())
 
 
 def open_docs():

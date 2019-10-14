@@ -7,24 +7,13 @@ from time import clock
 import numpy as np
 from numpy.fft import fft, ifft
 from numpy.random import normal, randint
-from pybert.defaults import (
-    BIT_RATE,
-    HPF_CORNER_COUPLING,
-    MIN_BATHTUB_VAL,
-    MODULATION,
-    NUM_AVG,
-    NUM_BITS,
-    NUM_TAPS,
-    PATTERN_LEN,
-    SAMPLES_PER_BIT,
-    THRESHOLD,
-)
 from pybert.sim.buffer import Receiver, Transmitter
-from pybert.sim.channel import Channel
 from pybert.sim.dfe import DFE
 from pybert.sim.equalization import Equalization
 from pybert.sim.jitter import Jitter, calculate_jitter_info
+from pybert.sim.materials import MATERIALS, Materials
 from pybert.sim.utility import (
+    MODULATION,
     calc_eye,
     calc_G,
     calc_gamma,
@@ -40,6 +29,15 @@ from PySide2.QtCore import QObject, Signal, Slot
 from scipy.signal import iirfilter, lfilter
 from scipy.signal.windows import hann
 
+MIN_BATHTUB_VAL = 1.0e-18
+
+
+def change_material(new_material):
+    """Update the material properties of the channel."""
+    if new_material not in MATERIALS:
+        raise ValueError("Invalid Material Choice.")
+    return MATERIALS[new_material]
+
 
 class Simulation(QObject):
     """The main object in pybert containing the simulator."""
@@ -53,31 +51,20 @@ class Simulation(QObject):
     def __init__(self):
         super(Simulation, self).__init__()
         self.log = getLogger("pybert.simulation")
-        self.log.debug("Initializing Simulation")
         self._status = "Ready"
 
-        self.bit_rate = BIT_RATE  #: (Gbps)
-        self.nbits = NUM_BITS  #: Number of bits to simulate.
-        self.pattern_len = PATTERN_LEN  #: PRBS pattern length.
-        self.nspb = SAMPLES_PER_BIT  #: Signal vector samples per bit.
-        self.eye_bits = NUM_BITS // 5  #: # of bits used to form eye. (Default = last 20%)
-        self.mod_type = MODULATION.NRZ  #: 0 = NRZ; 1 = Duo-binary; 2 = PAM-4
-        self.num_sweeps = 1  #: Number of sweeps to run.
-        self.sweep_num = 1
-        self.sweep_aves = NUM_AVG
-        self.do_sweep = False  #: Run sweeps? (Default = False)
-
-        self.run_count = 0  # Used as a mechanism to force bit stream regeneration.
-        self.thresh = THRESHOLD
-
-        self.channel = Channel()
-        self.tx = Transmitter(self.channel.material.random_noise)
-        self.rx = Receiver()
-        self.eq = Equalization()
+        # Empty Objects for the Simulation
+        self.config = None
+        self.channel = None
+        self.tx = None
+        self.rx = None
+        self.eq = None
 
         # The outputs of the simulation
         self.performance = {}
         self.results = defaultdict(dict)
+
+        self.sweep_num = 1  # Current sweep number if sweeping
         self.sweep_results = []
 
         # Variables that got defined randomly throughout the simulation.  TODO: Clean up data structure.
@@ -99,10 +86,6 @@ class Simulation(QObject):
         #
         # - Note: Don't make properties, which have a high calculation overhead, dependencies of other properties!
         #         This will slow the GUI down noticeably.
-        self.jitter_info = ""
-        self.perf_info = ""
-        self.status_str = ""
-        self.sweep_info = ""
         self._cost: float = 0.0
         self._rel_opt: float = 0.0
         self._t = np.array([])
@@ -118,7 +101,7 @@ class Simulation(QObject):
         self._eye_uis: int = 0
         self._przf_err: float = 0.0
 
-        self.chnl_dly = np.array([])
+        self.chnl_dly = 0.0
         self.start_ix = np.array([])
         self.len_h = np.array([])
 
@@ -196,8 +179,8 @@ class Simulation(QObject):
         Generate the bit stream.
         """
 
-        pattern_len = self.pattern_len
-        nbits = self.nbits
+        pattern_len = self.config.pattern_len
+        nbits = self.config.nbits
 
         bits = []
         seed = randint(128)
@@ -215,7 +198,7 @@ class Simulation(QObject):
         # We may want to talk to Mike Steinberger, of SiSoft, about his
         # correlation based approach to this alignment chore. It's
         # probably more robust.
-        if self.mod_type == MODULATION.DUO:  # Use XOR.
+        if self.config.mod_type == MODULATION.DUO:  # Use XOR.
             return np.resize(np.array([0, 0, 1, 0] + bits), nbits)
         return np.resize(np.array([0, 0, 1, 1] + bits), nbits)
 
@@ -225,8 +208,8 @@ class Simulation(QObject):
         """
         Returns the "unit interval" (i.e. - the nominal time span of each symbol moving through the channel).
         """
-        ui = 1.0 / (self.bit_rate * 1.0e9)
-        if self.mod_type == MODULATION.PAM4:
+        ui = 1.0 / (self.config.bit_rate * 1.0e9)
+        if self.config.mod_type == MODULATION.PAM4:
             ui *= 2.0
 
         return ui
@@ -238,10 +221,10 @@ class Simulation(QObject):
         Returns the number of unit intervals in the test vectors.
         """
 
-        nbits = self.nbits
+        nbits = self.config.nbits
 
         nui = nbits
-        if self.mod_type == MODULATION.PAM4:
+        if self.config.mod_type == MODULATION.PAM4:
             nui //= 2
 
         return nui
@@ -253,10 +236,10 @@ class Simulation(QObject):
         Returns the number of samples per unit interval.
         """
 
-        nspb = self.nspb
+        nspb = self.config.nspb
 
         nspui = nspb
-        if self.mod_type == MODULATION.PAM4:
+        if self.config.mod_type == MODULATION.PAM4:
             nspui *= 2
 
         return nspui
@@ -268,10 +251,10 @@ class Simulation(QObject):
         Returns the number of unit intervals to use for eye construction.
         """
 
-        eye_bits = self.eye_bits
+        eye_bits = self.config.eye_bits
 
         eye_uis = eye_bits
-        if self.mod_type == MODULATION.PAM4:
+        if self.config.mod_type == MODULATION.PAM4:
             eye_uis //= 2
 
         return eye_uis
@@ -286,14 +269,14 @@ class Simulation(QObject):
         vod = self.tx.vod
         bits = self.bits
 
-        if self.mod_type == MODULATION.NRZ:
+        if self.config.mod_type == MODULATION.NRZ:
             symbols = 2 * bits - 1
-        elif self.mod_type == MODULATION.DUO:
+        elif self.config.mod_type == MODULATION.DUO:
             symbols = [bits[0]]
             for bit in bits[1:]:  # XOR pre-coding prevents infinite error propagation.
                 symbols.append(bit ^ symbols[-1])
             symbols = 2 * np.array(symbols) - 1
-        elif self.mod_type == MODULATION.PAM4:
+        elif self.config.mod_type == MODULATION.PAM4:
             symbols = []
             for bits in zip(bits[0::2], bits[1::2]):
                 if bits == (0, 0):
@@ -321,10 +304,10 @@ class Simulation(QObject):
         if clock_pos == -1:
             return 1.0  # Returning a large cost lets it know it took a wrong turn.
         clocks = thresh * np.ones(len(p))
-        if self.mod_type == MODULATION.DUO:
+        if self.config.mod_type == MODULATION.DUO:
             clock_pos -= nspui // 2
         clocks[clock_pos] = 0.0
-        if self.mod_type == MODULATION.DUO:
+        if self.config.mod_type == MODULATION.DUO:
             clocks[clock_pos + nspui] = 0.0
 
         # Cost is simply ISI minus main lobe amplitude.
@@ -336,7 +319,7 @@ class Simulation(QObject):
             isi += abs(p[ix])
             ix -= nspui
         ix = clock_pos + nspui
-        if self.mod_type == MODULATION.DUO:
+        if self.config.mod_type == MODULATION.DUO:
             ix += nspui
         while ix < len(p):
             clocks[ix] = 0.0
@@ -351,7 +334,7 @@ class Simulation(QObject):
         # Signal the GUI that there is new data to plot
         self.eq_results.emit(self.results["t_ns_chnl"], p, clocks)
 
-        if self.mod_type == MODULATION.DUO:
+        if self.config.mod_type == MODULATION.DUO:
             return (
                 isi
                 - p[clock_pos]
@@ -402,11 +385,11 @@ class Simulation(QObject):
         w = self.w
         nspui = self.nspui
         ts = t[1]
-        impulse_length = self.channel.impulse_length * 1.0e-9
+        impulse_length = self.config.impulse_length * 1.0e-9
 
-        if self.channel.use_ch_file:
+        if self.config.use_ch_file:
             chnl_h = import_channel(
-                self.channel.filename, ts, self.channel.padded, self.channel.windowed
+                self.config.ch_file, ts, self.config.padded, self.config.windowed
             )
             if chnl_h[-1] > (max(chnl_h) / 2.0):  # step response?
                 chnl_h = np.diff(chnl_h)  # impulse response is derivative of step response.
@@ -415,13 +398,13 @@ class Simulation(QObject):
             chnl_h.resize(len(t))
             chnl_H = fft(chnl_h)
         else:
-            l_ch = self.channel.material.channel_length
-            rel_velocity = self.channel.material.rel_velocity * 3.0e8
-            skin_effect_resistance = self.channel.material.skin_effect_resistance
-            w_transition_freq = self.channel.material.w_transition_freq
-            dc_resistance_per_meter = self.channel.material.dc_resistance_per_meter
-            characteristic_impedance = self.channel.material.characteristic_impedance
-            loss_tangent = self.channel.material.loss_tangent
+            l_ch = self.channel.channel_length
+            rel_velocity = self.channel.rel_velocity * 3.0e8
+            skin_effect_resistance = self.channel.skin_effect_resistance
+            w_transition_freq = self.channel.w_transition_freq
+            dc_resistance_per_meter = self.channel.dc_resistance_per_meter
+            characteristic_impedance = self.channel.characteristic_impedance
+            loss_tangent = self.channel.loss_tangent
             output_impedance = self.tx.output_impedance
             output_capacitance = self.tx.output_capacitance * 1.0e-12
             input_impedance = self.rx.input_impedance
@@ -482,7 +465,7 @@ class Simulation(QObject):
         return status_string(
             self.status,
             self.performance.get("total", 0.0) * 60.0e-6,
-            self.channel.chnl_dly,
+            self.chnl_dly,
             self.results.get("bit_errors", 0),
             self.tx.rel_power,
             self.results["jitter"].get("dfe", None),
@@ -506,7 +489,7 @@ class Simulation(QObject):
 
         return err / p[clock_pos] ** 2
 
-    def run_sweeps(self):
+    def run_sweeps(self, config):
         """
         Runs the simulation sweeps.
 
@@ -515,12 +498,12 @@ class Simulation(QObject):
 
         """
 
-        self.log.debug("Simulation Started")
-        sweep_aves = self.sweep_aves
-        do_sweep = self.do_sweep
+        self.log.debug("Simulation Sweep Started")
+        sweep_aves = config.sweep_aves
         tx_taps = self.eq.tx_taps
+        do_sweep = config.do_sweep
 
-        if do_sweep:
+        if config.do_sweep:
             # Assemble the list of desired values for each sweepable parameter.
             sweep_vals = []
             for tap in tx_taps:
@@ -548,7 +531,7 @@ class Simulation(QObject):
                 for z in sweep_vals[3]
             ]
             num_sweeps = sweep_aves * len(sweeps)
-            self.num_sweeps = num_sweeps
+            config.num_sweeps = num_sweeps
             sweep_results = []
             sweep_num = 1
             for sweep in sweeps:
@@ -557,15 +540,15 @@ class Simulation(QObject):
                 bit_errs = []
                 for i in range(sweep_aves):
                     self.sweep_num = sweep_num
-                    self.run_simulation(update_plots=False)
+                    self.run_simulation(config, update_plots=False)
                     bit_errs.append(self.results["bit_errors"])
                     sweep_num += 1
                 sweep_results.append((sweep, np.mean(bit_errs), np.std(bit_errs)))
             self.sweep_results = sweep_results
         else:
-            self.run_simulation()
+            self.run_simulation(config)
 
-    def run_simulation(self, update_plots: bool = True):
+    def run_simulation(self, config, update_plots: bool = True):
         """
         Runs the simulation.
 
@@ -577,13 +560,20 @@ class Simulation(QObject):
                 conflicts and speed up this function's execution time.
                 (Optional; default = True.)
         """
+        self.log.info("Configuring Simulation")
+        self.config = config
+        # Init the other features using the configuration
+        self.channel: Materials = change_material(config.material)
+        self.tx = Transmitter(config)
+        self.rx = Receiver(config)
+        self.eq = Equalization(config)
+
         self.log.info("Starting Simulation")
-        num_sweeps = self.num_sweeps
+        num_sweeps = self.config.num_sweeps
         sweep_num = self.sweep_num
 
         start_time = clock()
         self.status = f"Running Channel...(Sweep {sweep_num} of {num_sweeps})"
-        self.run_count += 1  # Force regeneration of bit stream.
 
         # Pull class variables into local storage, performing unit conversion where necessary.
         t = self.t
@@ -591,17 +581,17 @@ class Simulation(QObject):
         bits = self.bits
         symbols = self.symbols
         ffe = self.eq.ffe
-        nbits = self.nbits
+        nbits = self.config.nbits
         nui = self.nui
-        bit_rate = self.bit_rate * 1.0e9
-        eye_bits = self.eye_bits
+        bit_rate = self.config.bit_rate * 1.0e9
+        eye_bits = self.config.eye_bits
         eye_uis = self.eye_uis
-        nspb = self.nspb
+        nspb = self.config.nspb
         nspui = self.nspui
         rn = self.tx.random_noise
         pn_mag = self.tx.pn_mag
         pn_freq = self.tx.pn_freq * 1.0e6
-        pattern_len = self.pattern_len
+        pattern_len = self.config.pattern_len
         rx_bw = self.eq.rx_bw * 1.0e9
         peak_freq = self.eq.peak_freq * 1.0e9
         peak_mag = self.eq.peak_mag
@@ -618,7 +608,7 @@ class Simulation(QObject):
         rel_lock_tol = self.eq.rel_lock_tol
         lock_sustain = self.eq.lock_sustain
         bandwidth = self.eq.sum_bw * 1.0e9
-        rel_thresh = self.thresh
+        rel_thresh = self.config.thresh
 
         try:
             # Calculate misc. values.
@@ -632,14 +622,14 @@ class Simulation(QObject):
             # impulse response, in order to produce the proper ideal signal.
             x = np.repeat(symbols, nspui)
             self.x = x
-            if self.mod_type == MODULATION.DUO:  # Handle duo-binary case.
+            if self.config.mod_type == MODULATION.DUO:  # Handle duo-binary case.
                 duob_h = np.array(([0.5] + [0.0] * (nspui - 1)) * 2)
                 x = np.convolve(x, duob_h)[: len(t)]
             self.ideal_signal = x
 
             # Find the ideal crossing times, for subsequent jitter analysis of transmitted signal.
             ideal_xings = find_crossings(
-                t, x, decision_scaler, min_delay=(ui / 2.0), mod_type=self.mod_type
+                t, x, decision_scaler, min_delay=(ui / 2.0), mod_type=self.config.mod_type
             )
             self.ideal_xings = ideal_xings
 
@@ -729,7 +719,7 @@ class Simulation(QObject):
             pn[pn_samps // 2 :] = pn_mag
             pn = np.resize(pn, len(tx_out))
             #   - High pass filter it. (Simulating capacitive coupling.)
-            (b, a) = iirfilter(2, HPF_CORNER_COUPLING / (fs / 2), btype="highpass")
+            (b, a) = iirfilter(2, self.config.hpf_corner_coupling / (fs / 2), btype="highpass")
             pn = lfilter(b, a, pn)[: len(pn)]
 
             # - Add the uncorrelated periodic and random noise to the Tx output.
@@ -865,7 +855,7 @@ class Simulation(QObject):
                     ui,
                     nspui,
                     decision_scaler,
-                    self.mod_type,
+                    self.config.mod_type,
                     n_ave=n_ave,
                     n_lock_ave=n_lock_ave,
                     rel_lock_tol=rel_lock_tol,
@@ -882,7 +872,7 @@ class Simulation(QObject):
                     ui,
                     nspui,
                     decision_scaler,
-                    self.mod_type,
+                    self.config.mod_type,
                     n_ave=n_ave,
                     n_lock_ave=n_lock_ave,
                     rel_lock_tol=rel_lock_tol,
@@ -956,14 +946,16 @@ class Simulation(QObject):
         # -----------------------------------------------------------------------------------------
 
         try:
-            if self.mod_type == MODULATION.DUO:  # Handle duo-binary case.
+            if self.config.mod_type == MODULATION.DUO:  # Handle duo-binary case.
                 pattern_len *= 2  # Because, the XOR pre-coding can invert every other pattern rep.
-            if self.mod_type == MODULATION.PAM4:  # Handle PAM-4 case.
+            if self.config.mod_type == MODULATION.PAM4:  # Handle PAM-4 case.
                 if pattern_len % 2:
                     pattern_len *= 2  # Because, the bits are taken in pairs, to form the symbols.
 
             # - channel output
-            actual_xings = find_crossings(t, chnl_out, decision_scaler, mod_type=self.mod_type)
+            actual_xings = find_crossings(
+                t, chnl_out, decision_scaler, mod_type=self.config.mod_type
+            )
             self.results["jitter"]["channel"] = Jitter.calc_jitter(
                 ui, nui, pattern_len, ideal_xings, actual_xings, rel_thresh
             )
@@ -972,13 +964,15 @@ class Simulation(QObject):
             )
 
             # - Tx output
-            actual_xings = find_crossings(t, rx_in, decision_scaler, mod_type=self.mod_type)
+            actual_xings = find_crossings(t, rx_in, decision_scaler, mod_type=self.config.mod_type)
             self.results["jitter"]["tx"] = Jitter.calc_jitter(
                 ui, nui, pattern_len, ideal_xings, actual_xings, rel_thresh
             )
 
             # - CTLE output
-            actual_xings = find_crossings(t, ctle_out, decision_scaler, mod_type=self.mod_type)
+            actual_xings = find_crossings(
+                t, ctle_out, decision_scaler, mod_type=self.config.mod_type
+            )
             self.results["jitter"]["ctle"] = Jitter.calc_jitter(
                 ui, nui, pattern_len, ideal_xings, actual_xings, rel_thresh
             )
@@ -994,7 +988,7 @@ class Simulation(QObject):
                 dfe_out,
                 decision_scaler,
                 min_delay=min_delay,
-                mod_type=self.mod_type,
+                mod_type=self.config.mod_type,
                 rising_first=False,
             )
             self.results["jitter"]["dfe"] = Jitter.calc_jitter(
@@ -1059,7 +1053,7 @@ class Simulation(QObject):
         self.results["t_ns"] = self.t_ns
 
         # DFE.
-        self.results["n_dfe_taps"] = NUM_TAPS
+        self.results["n_dfe_taps"] = self.config.n_taps
         tap_weights = np.transpose(np.array(self.adaptation))
         for index, tap_weight in enumerate(tap_weights, 1):
             self.results[f"tap{index}_weights"] = tap_weight
