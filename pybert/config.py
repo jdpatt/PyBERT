@@ -43,7 +43,7 @@ class Configuration:
         self.mod_type = MODULATION.NRZ  # 0 = NRZ; 1 = Duo-binary; 2 = PAM-4
         self.num_sweeps: int = 1  # Number of sweeps to run.
         self.sweep_aves: int = 1  # Number of bit error samples to average, when sweeping.
-        self.do_sweep: bool = False  # Run sweeps? (Default = False)
+        self.run_sweeps: bool = False  # Run sweeps? (Default = False)
 
         # Channel Control ----------------------------------------------------------
         self.use_ch_file: bool = False  # By Deafult, use the built-in model.

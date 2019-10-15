@@ -81,11 +81,6 @@ class Simulation(QObject):
         self.lockeds = np.array([])
         self.clock_times = np.array([])
 
-        # Dependent variables
-        # - Handled by the Traits/UI machinery. (Should only contain "low overhead" variables, which don't freeze the GUI noticeably.)
-        #
-        # - Note: Don't make properties, which have a high calculation overhead, dependencies of other properties!
-        #         This will slow the GUI down noticeably.
         self._cost: float = 0.0
         self._rel_opt: float = 0.0
         self._t = np.array([])
@@ -102,8 +97,8 @@ class Simulation(QObject):
         self._przf_err: float = 0.0
 
         self.chnl_dly = 0.0
-        self.start_ix = np.array([])
-        self.len_h = np.array([])
+        self.start_ix = 0
+        self.len_h = 0
 
     @property
     def status(self):

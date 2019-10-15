@@ -251,20 +251,20 @@ class Equalization:
     def toggle_dfe(self, new_value):
         """ Turn on/off the DFE."""
         if not new_value:
-            for i in range(1, 4):
-                self.tx_taps[i].enabled = True
+            for tuner in self.tx_taps:
+                tuner.enabled = True
         else:
-            for i in range(1, 4):
-                self.tx_taps[i].enabled = False
+            for tuner in self.tx_taps:
+                tuner.enabled = False
 
     def toggle_tuned_dfe(self, new_value):
         """ Turn on/off the tuned DFE."""
         if not new_value:
-            for i in range(1, 4):
-                self.tx_tap_tuners[i].enabled = True
+            for tuner in self.tx_tap_tuners:
+                tuner.enabled = True
         else:
-            for i in range(1, 4):
-                self.tx_tap_tuners[i].enabled = False
+            for tuner in self.tx_tap_tuners:
+                tuner.enabled = False
 
     @property
     @lru_cache(maxsize=None)

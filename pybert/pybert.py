@@ -63,7 +63,7 @@ class PyBERT:
         self.gui = PyBERT_GUI()
         self.waveforms = Waveforms(self.gui)
         config = Configuration(self.gui)
-        # self.gui.load_defaults(config)
+        self.gui.load_config(config)
 
         thread_log = ThreadLogHandler()
         thread_log.new_record.connect(self.gui.log_message)

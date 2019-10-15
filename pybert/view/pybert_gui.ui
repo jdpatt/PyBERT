@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>1440</width>
-    <height>895</height>
+    <height>920</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -18,7 +18,7 @@
   </property>
   <widget class="QWidget" name="centralwidget">
    <property name="sizePolicy">
-    <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+    <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
      <horstretch>0</horstretch>
      <verstretch>0</verstretch>
     </sizepolicy>
@@ -42,7 +42,7 @@
     <item>
      <widget class="QTabWidget" name="tabWidget">
       <property name="sizePolicy">
-       <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+       <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
         <horstretch>0</horstretch>
         <verstretch>0</verstretch>
        </sizepolicy>
@@ -60,558 +60,328 @@
        <attribute name="title">
         <string>Configuration</string>
        </attribute>
-       <layout class="QGridLayout" name="gridLayout">
-        <item row="1" column="0">
-         <widget class="QGroupBox" name="tx_equalization">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-            <horstretch>0</horstretch>
-            <verstretch>3</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="title">
-           <string>Tx Equalization</string>
-          </property>
-          <layout class="QVBoxLayout" name="verticalLayout_17">
-           <item>
-            <widget class="QGroupBox" name="groupBox_7">
-             <property name="sizePolicy">
-              <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
-               <horstretch>0</horstretch>
-               <verstretch>1</verstretch>
-              </sizepolicy>
-             </property>
-             <property name="title">
-              <string>Use AMI Model</string>
-             </property>
-             <property name="checkable">
-              <bool>true</bool>
-             </property>
-             <property name="checked">
-              <bool>false</bool>
-             </property>
-             <layout class="QHBoxLayout" name="horizontalLayout_2">
-              <item>
-               <widget class="QLabel" name="label_17">
-                <property name="text">
-                 <string>AMI File</string>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QLineEdit" name="tx_ami_filename"/>
-              </item>
-              <item>
-               <widget class="QPushButton" name="load_tx_ami_file">
-                <property name="maximumSize">
-                 <size>
-                  <width>40</width>
-                  <height>16777215</height>
-                 </size>
-                </property>
-                <property name="text">
-                 <string/>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QLabel" name="label_22">
-                <property name="text">
-                 <string>DLL File</string>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QLineEdit" name="tx_dll_filename"/>
-              </item>
-              <item>
-               <widget class="QPushButton" name="load_tx_dll_file">
-                <property name="maximumSize">
-                 <size>
-                  <width>40</width>
-                  <height>16777215</height>
-                 </size>
-                </property>
-                <property name="text">
-                 <string/>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QPushButton" name="configure_tx">
-                <property name="text">
-                 <string>Configure</string>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QCheckBox" name="tx_use_getwave">
-                <property name="text">
-                 <string>Use GetWave</string>
-                </property>
-               </widget>
-              </item>
-             </layout>
-            </widget>
-           </item>
-           <item>
-            <widget class="QGroupBox" name="groupBox_8">
-             <property name="sizePolicy">
-              <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-               <horstretch>0</horstretch>
-               <verstretch>2</verstretch>
-              </sizepolicy>
-             </property>
-             <property name="title">
-              <string>Native</string>
-             </property>
-             <layout class="QVBoxLayout" name="verticalLayout_24">
-              <item>
-               <widget class="QTableWidget" name="tableWidget">
-                <attribute name="horizontalHeaderDefaultSectionSize">
-                 <number>70</number>
-                </attribute>
-                <attribute name="verticalHeaderVisible">
-                 <bool>false</bool>
-                </attribute>
-                <row>
-                 <property name="text">
-                  <string>Pre-Tap</string>
-                 </property>
-                </row>
-                <row>
-                 <property name="text">
-                  <string>Post-Tap 1</string>
-                 </property>
-                </row>
-                <row>
-                 <property name="text">
-                  <string>Post-Tap 2</string>
-                 </property>
-                </row>
-                <row>
-                 <property name="text">
-                  <string>Post-Tap 3</string>
-                 </property>
-                </row>
-                <column>
-                 <property name="text">
-                  <string>Enabled</string>
-                 </property>
-                </column>
-                <column>
-                 <property name="text">
-                  <string>Min Val</string>
-                 </property>
-                </column>
-                <column>
-                 <property name="text">
-                  <string>Max Val</string>
-                 </property>
-                </column>
-                <column>
-                 <property name="text">
-                  <string>Value</string>
-                 </property>
-                </column>
-                <column>
-                 <property name="text">
-                  <string>Steps</string>
-                 </property>
-                </column>
-               </widget>
-              </item>
-             </layout>
-            </widget>
-           </item>
-          </layout>
-         </widget>
-        </item>
-        <item row="0" column="0">
-         <widget class="QGroupBox" name="simulation_control">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Preferred" vsizetype="Maximum">
-            <horstretch>1</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="title">
-           <string>Simulation Control</string>
-          </property>
-          <layout class="QGridLayout" name="gridLayout_5">
-           <item row="0" column="0">
-            <layout class="QFormLayout" name="formLayout_17">
+       <layout class="QHBoxLayout" name="horizontalLayout_9">
+        <item>
+         <layout class="QVBoxLayout" name="verticalLayout_13">
+          <item>
+           <widget class="QGroupBox" name="simulation_control">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Preferred" vsizetype="Maximum">
+              <horstretch>1</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="title">
+             <string>Simulation Control</string>
+            </property>
+            <layout class="QGridLayout" name="gridLayout_5">
              <item row="0" column="0">
-              <widget class="QLabel" name="bitRateGbpsLabel_3">
-               <property name="text">
-                <string>Bit Rate (Gbps)</string>
-               </property>
-              </widget>
+              <layout class="QFormLayout" name="formLayout_17">
+               <item row="0" column="0">
+                <widget class="QLabel" name="bitRateGbpsLabel_3">
+                 <property name="text">
+                  <string>Bit Rate (Gbps)</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="1" column="0">
+                <widget class="QLabel" name="nbitsLabel_3">
+                 <property name="text">
+                  <string>Nbits</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="2" column="0">
+                <widget class="QLabel" name="nspbLabel_3">
+                 <property name="text">
+                  <string>Nspb</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="3" column="0">
+                <widget class="QLabel" name="modulationLabel_3">
+                 <property name="text">
+                  <string>Modulation</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="3" column="1">
+                <widget class="QComboBox" name="mod_type">
+                 <property name="editable">
+                  <bool>false</bool>
+                 </property>
+                </widget>
+               </item>
+               <item row="0" column="1">
+                <widget class="QDoubleSpinBox" name="bit_rate">
+                 <property name="decimals">
+                  <number>2</number>
+                 </property>
+                 <property name="maximum">
+                  <double>200.000000000000000</double>
+                 </property>
+                 <property name="value">
+                  <double>10.000000000000000</double>
+                 </property>
+                </widget>
+               </item>
+               <item row="1" column="1">
+                <widget class="QSpinBox" name="nbits">
+                 <property name="maximum">
+                  <number>1000000</number>
+                 </property>
+                 <property name="stepType">
+                  <enum>QAbstractSpinBox::DefaultStepType</enum>
+                 </property>
+                 <property name="value">
+                  <number>8000</number>
+                 </property>
+                 <property name="displayIntegerBase">
+                  <number>10</number>
+                 </property>
+                </widget>
+               </item>
+               <item row="2" column="1">
+                <widget class="QSpinBox" name="nspb">
+                 <property name="value">
+                  <number>32</number>
+                 </property>
+                </widget>
+               </item>
+              </layout>
              </item>
              <item row="0" column="1">
-              <widget class="QLineEdit" name="bit_rate"/>
+              <layout class="QFormLayout" name="formLayout_18">
+               <item row="0" column="0">
+                <widget class="QLabel" name="sweepSimulationLabel">
+                 <property name="text">
+                  <string>Sweep Simulation</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="0" column="1">
+                <widget class="QCheckBox" name="run_sweeps"/>
+               </item>
+               <item row="1" column="0">
+                <widget class="QLabel" name="sweepAvesLabel_3">
+                 <property name="text">
+                  <string>Sweep Aves.</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="2" column="0">
+                <widget class="QLabel" name="patternLengthLabel">
+                 <property name="text">
+                  <string>Pattern Length</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="3" column="0">
+                <widget class="QLabel" name="eyeBitsLabel_3">
+                 <property name="text">
+                  <string>Eye Bits</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="1" column="1">
+                <widget class="QSpinBox" name="sweep_aves">
+                 <property name="value">
+                  <number>1</number>
+                 </property>
+                </widget>
+               </item>
+               <item row="2" column="1">
+                <widget class="QSpinBox" name="pattern_len">
+                 <property name="maximum">
+                  <number>1000000</number>
+                 </property>
+                 <property name="value">
+                  <number>127</number>
+                 </property>
+                </widget>
+               </item>
+               <item row="3" column="1">
+                <widget class="QSpinBox" name="eye_bits">
+                 <property name="maximum">
+                  <number>1000000</number>
+                 </property>
+                 <property name="value">
+                  <number>1600</number>
+                 </property>
+                </widget>
+               </item>
+              </layout>
              </item>
-             <item row="1" column="0">
-              <widget class="QLabel" name="nbitsLabel_3">
-               <property name="text">
-                <string>Nbits</string>
+             <item row="0" column="2">
+              <layout class="QFormLayout" name="formLayout_24">
+               <item row="0" column="0">
+                <widget class="QLabel" name="vodVLabel_3">
+                 <property name="text">
+                  <string>Vod (V)</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="1" column="0">
+                <widget class="QLabel" name="rnVLabel_3">
+                 <property name="text">
+                  <string>Rn (V)</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="2" column="0">
+                <widget class="QLabel" name="pnVLabel_3">
+                 <property name="text">
+                  <string>Pn (V)</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="3" column="0">
+                <widget class="QLabel" name="fPnMHzLabel_3">
+                 <property name="text">
+                  <string>f(Pn) (MHz)</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="0" column="1">
+                <widget class="QDoubleSpinBox" name="vod">
+                 <property name="value">
+                  <double>1.000000000000000</double>
+                 </property>
+                </widget>
+               </item>
+               <item row="1" column="1">
+                <widget class="QDoubleSpinBox" name="random_noise">
+                 <property name="decimals">
+                  <number>3</number>
+                 </property>
+                 <property name="singleStep">
+                  <double>0.000100000000000</double>
+                 </property>
+                 <property name="value">
+                  <double>0.001000000000000</double>
+                 </property>
+                </widget>
+               </item>
+               <item row="2" column="1">
+                <widget class="QDoubleSpinBox" name="pn_mag">
+                 <property name="decimals">
+                  <number>3</number>
+                 </property>
+                 <property name="singleStep">
+                  <double>0.001000000000000</double>
+                 </property>
+                 <property name="value">
+                  <double>0.001000000000000</double>
+                 </property>
+                </widget>
+               </item>
+               <item row="3" column="1">
+                <widget class="QDoubleSpinBox" name="pn_freq">
+                 <property name="prefix">
+                  <string/>
+                 </property>
+                 <property name="suffix">
+                  <string/>
+                 </property>
+                 <property name="decimals">
+                  <number>3</number>
+                 </property>
+                 <property name="singleStep">
+                  <double>0.001000000000000</double>
+                 </property>
+                 <property name="value">
+                  <double>0.437000000000000</double>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+             <item row="1" column="0" colspan="3">
+              <widget class="QGroupBox" name="groupBox_20">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Preferred" vsizetype="Maximum">
+                 <horstretch>0</horstretch>
+                 <verstretch>1</verstretch>
+                </sizepolicy>
                </property>
-              </widget>
-             </item>
-             <item row="1" column="1">
-              <widget class="QLineEdit" name="nbits"/>
-             </item>
-             <item row="2" column="0">
-              <widget class="QLabel" name="nspbLabel_3">
-               <property name="text">
-                <string>Nspb</string>
+               <property name="title">
+                <string>Analysis Parameters</string>
                </property>
-              </widget>
-             </item>
-             <item row="2" column="1">
-              <widget class="QLineEdit" name="nspb"/>
-             </item>
-             <item row="3" column="0">
-              <widget class="QLabel" name="modulationLabel_3">
-               <property name="text">
-                <string>Modulation</string>
-               </property>
-              </widget>
-             </item>
-             <item row="3" column="1">
-              <widget class="QComboBox" name="mod_type"/>
-             </item>
-            </layout>
-           </item>
-           <item row="0" column="1">
-            <layout class="QFormLayout" name="formLayout_18">
-             <item row="0" column="0">
-              <widget class="QLabel" name="sweepSimulationLabel">
-               <property name="text">
-                <string>Sweep Simulation</string>
-               </property>
-              </widget>
-             </item>
-             <item row="0" column="1">
-              <widget class="QCheckBox" name="sweepSimulationCheckBox"/>
-             </item>
-             <item row="1" column="0">
-              <widget class="QLabel" name="sweepAvesLabel_3">
-               <property name="text">
-                <string>Sweep Aves.</string>
-               </property>
-              </widget>
-             </item>
-             <item row="1" column="1">
-              <widget class="QLineEdit" name="sweep_aves"/>
-             </item>
-             <item row="2" column="0">
-              <widget class="QLabel" name="patternLengthLabel">
-               <property name="text">
-                <string>Pattern Length</string>
-               </property>
-              </widget>
-             </item>
-             <item row="2" column="1">
-              <widget class="QLineEdit" name="pattern_len"/>
-             </item>
-             <item row="3" column="0">
-              <widget class="QLabel" name="eyeBitsLabel_3">
-               <property name="text">
-                <string>Eye Bits</string>
-               </property>
-              </widget>
-             </item>
-             <item row="3" column="1">
-              <widget class="QLineEdit" name="eye_bits"/>
-             </item>
-            </layout>
-           </item>
-           <item row="0" column="2">
-            <layout class="QFormLayout" name="formLayout_24">
-             <item row="0" column="0">
-              <widget class="QLabel" name="vodVLabel_3">
-               <property name="text">
-                <string>Vod (V)</string>
-               </property>
-              </widget>
-             </item>
-             <item row="0" column="1">
-              <widget class="QLineEdit" name="vod"/>
-             </item>
-             <item row="1" column="0">
-              <widget class="QLabel" name="rnVLabel_3">
-               <property name="text">
-                <string>Rn (V)</string>
-               </property>
-              </widget>
-             </item>
-             <item row="1" column="1">
-              <widget class="QLineEdit" name="random_noise"/>
-             </item>
-             <item row="2" column="0">
-              <widget class="QLabel" name="pnVLabel_3">
-               <property name="text">
-                <string>Pn (V)</string>
-               </property>
-              </widget>
-             </item>
-             <item row="2" column="1">
-              <widget class="QLineEdit" name="periodic_noise"/>
-             </item>
-             <item row="3" column="0">
-              <widget class="QLabel" name="fPnMHzLabel_3">
-               <property name="text">
-                <string>f(Pn) (MHz)</string>
-               </property>
-              </widget>
-             </item>
-             <item row="3" column="1">
-              <widget class="QLineEdit" name="f_pn"/>
-             </item>
-            </layout>
-           </item>
-           <item row="1" column="0" colspan="3">
-            <widget class="QGroupBox" name="groupBox_20">
-             <property name="sizePolicy">
-              <sizepolicy hsizetype="Preferred" vsizetype="Maximum">
-               <horstretch>0</horstretch>
-               <verstretch>1</verstretch>
-              </sizepolicy>
-             </property>
-             <property name="title">
-              <string>Analysis Parameters</string>
-             </property>
-             <layout class="QHBoxLayout" name="horizontalLayout_23">
-              <item>
-               <widget class="QLabel" name="label_35">
-                <property name="text">
-                 <string>Pj Threshold (sigma)</string>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QLineEdit" name="thresh"/>
-              </item>
-              <item>
-               <widget class="QLabel" name="label_36">
-                <property name="sizePolicy">
-                 <sizepolicy hsizetype="Preferred" vsizetype="Minimum">
-                  <horstretch>0</horstretch>
-                  <verstretch>0</verstretch>
-                 </sizepolicy>
-                </property>
-                <property name="text">
-                 <string>Impulse Response Length (ns)</string>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QLineEdit" name="impulse_response_length"/>
-              </item>
-             </layout>
-            </widget>
-           </item>
-          </layout>
-         </widget>
-        </item>
-        <item row="2" column="0">
-         <widget class="QGroupBox" name="cdr_parameters">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-            <horstretch>0</horstretch>
-            <verstretch>1</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="title">
-           <string>CDR Parameters</string>
-          </property>
-          <layout class="QVBoxLayout" name="verticalLayout_16">
-           <item>
-            <layout class="QHBoxLayout" name="horizontalLayout_7">
-             <item>
-              <widget class="QLabel" name="label_6">
-               <property name="text">
-                <string>Delta-t (ps)</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLineEdit" name="delta_t"/>
-             </item>
-             <item>
-              <widget class="QLabel" name="label_7">
-               <property name="text">
-                <string>Alpha</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLineEdit" name="alpha"/>
-             </item>
-            </layout>
-           </item>
-           <item>
-            <layout class="QHBoxLayout" name="horizontalLayout_6">
-             <item>
-              <widget class="QLabel" name="label_8">
-               <property name="text">
-                <string>Lock Nave.</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLineEdit" name="lock_num_averages"/>
-             </item>
-             <item>
-              <widget class="QLabel" name="label_9">
-               <property name="text">
-                <string>Lock Tol.</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLineEdit" name="lock_tolerance"/>
-             </item>
-             <item>
-              <widget class="QLabel" name="label_10">
-               <property name="text">
-                <string>Lock Sus.</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLineEdit" name="lock_sustain"/>
-             </item>
-            </layout>
-           </item>
-          </layout>
-         </widget>
-        </item>
-        <item row="2" column="1">
-         <widget class="QGroupBox" name="dfe_parameters">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-            <horstretch>0</horstretch>
-            <verstretch>1</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="title">
-           <string>Use DFE</string>
-          </property>
-          <property name="checkable">
-           <bool>true</bool>
-          </property>
-          <layout class="QVBoxLayout" name="verticalLayout_15">
-           <item>
-            <widget class="QCheckBox" name="checkBox">
-             <property name="text">
-              <string>Ideal DFE</string>
-             </property>
-             <property name="checked">
-              <bool>true</bool>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <layout class="QHBoxLayout" name="horizontalLayout_5">
-             <item>
-              <widget class="QLabel" name="label">
-               <property name="text">
-                <string>Taps</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLineEdit" name="dfe_num_taps"/>
-             </item>
-             <item>
-              <widget class="QLabel" name="label_2">
-               <property name="text">
-                <string>Gain</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLineEdit" name="dfe_gain"/>
-             </item>
-             <item>
-              <widget class="QLabel" name="label_3">
-               <property name="text">
-                <string>Level</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLineEdit" name="dfe_level"/>
-             </item>
-            </layout>
-           </item>
-           <item>
-            <layout class="QHBoxLayout" name="horizontalLayout_4">
-             <item>
-              <widget class="QLabel" name="label_4">
-               <property name="text">
-                <string>N ave.</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLineEdit" name="dfe_num_averages"/>
-             </item>
-             <item>
-              <widget class="QLabel" name="label_5">
-               <property name="text">
-                <string>BW (GHz)</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLineEdit" name="dfe_bw"/>
-             </item>
-            </layout>
-           </item>
-          </layout>
-         </widget>
-        </item>
-        <item row="0" column="1">
-         <widget class="QGroupBox" name="channel_parameters">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-            <horstretch>1</horstretch>
-            <verstretch>2</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="title">
-           <string>Channel Parameters</string>
-          </property>
-          <layout class="QVBoxLayout" name="verticalLayout_19">
-           <item>
-            <widget class="QGroupBox" name="groupBox_11">
-             <property name="title">
-              <string>From File</string>
-             </property>
-             <property name="checkable">
-              <bool>true</bool>
-             </property>
-             <property name="checked">
-              <bool>false</bool>
-             </property>
-             <layout class="QHBoxLayout" name="horizontalLayout_22">
-              <item>
-               <layout class="QHBoxLayout" name="horizontalLayout_21">
+               <layout class="QHBoxLayout" name="horizontalLayout_23">
                 <item>
-                 <widget class="QLabel" name="label_32">
+                 <widget class="QLabel" name="label_35">
                   <property name="text">
-                   <string>File</string>
+                   <string>Pj Threshold (sigma)</string>
                   </property>
                  </widget>
                 </item>
                 <item>
-                 <widget class="QLineEdit" name="channel_filename"/>
+                 <widget class="QSpinBox" name="thresh"/>
                 </item>
                 <item>
-                 <widget class="QPushButton" name="load_channel_file">
+                 <widget class="QLabel" name="label_36">
+                  <property name="sizePolicy">
+                   <sizepolicy hsizetype="Preferred" vsizetype="Minimum">
+                    <horstretch>0</horstretch>
+                    <verstretch>0</verstretch>
+                   </sizepolicy>
+                  </property>
+                  <property name="text">
+                   <string>Impulse Response Length (ns)</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QDoubleSpinBox" name="impulse_response_length"/>
+                </item>
+               </layout>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+          </item>
+          <item>
+           <widget class="QGroupBox" name="tx_equalization">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+              <horstretch>0</horstretch>
+              <verstretch>3</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="title">
+             <string>Tx Equalization</string>
+            </property>
+            <layout class="QVBoxLayout" name="verticalLayout_17">
+             <item>
+              <widget class="QGroupBox" name="groupBox_7">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                 <horstretch>0</horstretch>
+                 <verstretch>1</verstretch>
+                </sizepolicy>
+               </property>
+               <property name="title">
+                <string>Use AMI Model</string>
+               </property>
+               <property name="checkable">
+                <bool>true</bool>
+               </property>
+               <property name="checked">
+                <bool>false</bool>
+               </property>
+               <layout class="QHBoxLayout" name="horizontalLayout_2">
+                <item>
+                 <widget class="QLabel" name="label_17">
+                  <property name="text">
+                   <string>AMI File</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QLineEdit" name="tx_ami_filename"/>
+                </item>
+                <item>
+                 <widget class="QPushButton" name="load_tx_ami_file">
                   <property name="maximumSize">
                    <size>
                     <width>40</width>
@@ -624,376 +394,709 @@
                  </widget>
                 </item>
                 <item>
-                 <widget class="QCheckBox" name="zero_padded">
+                 <widget class="QLabel" name="label_22">
                   <property name="text">
-                   <string>Zero-Padded</string>
+                   <string>DLL File</string>
                   </property>
                  </widget>
                 </item>
                 <item>
-                 <widget class="QCheckBox" name="windowed">
+                 <widget class="QLineEdit" name="tx_dll_filename"/>
+                </item>
+                <item>
+                 <widget class="QPushButton" name="load_tx_dll_file">
+                  <property name="maximumSize">
+                   <size>
+                    <width>40</width>
+                    <height>16777215</height>
+                   </size>
+                  </property>
                   <property name="text">
-                   <string>Windowed</string>
+                   <string/>
                   </property>
                  </widget>
                 </item>
                 <item>
-                 <widget class="QLabel" name="label_33">
+                 <widget class="QPushButton" name="configure_tx">
                   <property name="text">
-                   <string>f_step</string>
+                   <string>Configure</string>
                   </property>
                  </widget>
                 </item>
                 <item>
-                 <widget class="QLineEdit" name="channel_f_step"/>
+                 <widget class="QCheckBox" name="tx_use_getwave">
+                  <property name="text">
+                   <string>Use GetWave</string>
+                  </property>
+                 </widget>
                 </item>
+               </layout>
+              </widget>
+             </item>
+             <item>
+              <widget class="QGroupBox" name="groupBox_8">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Preferred" vsizetype="MinimumExpanding">
+                 <horstretch>0</horstretch>
+                 <verstretch>2</verstretch>
+                </sizepolicy>
+               </property>
+               <property name="title">
+                <string>Native</string>
+               </property>
+               <layout class="QVBoxLayout" name="verticalLayout_24">
                 <item>
-                 <widget class="QLabel" name="label_34">
-                  <property name="text">
-                   <string>MHz</string>
+                 <widget class="QTableWidget" name="tableWidget">
+                  <property name="sizePolicy">
+                   <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                    <horstretch>0</horstretch>
+                    <verstretch>0</verstretch>
+                   </sizepolicy>
                   </property>
+                  <attribute name="horizontalHeaderDefaultSectionSize">
+                   <number>70</number>
+                  </attribute>
+                  <attribute name="verticalHeaderVisible">
+                   <bool>true</bool>
+                  </attribute>
+                  <row>
+                   <property name="text">
+                    <string>Pre-Tap</string>
+                   </property>
+                  </row>
+                  <row>
+                   <property name="text">
+                    <string>Post-Tap 1</string>
+                   </property>
+                  </row>
+                  <row>
+                   <property name="text">
+                    <string>Post-Tap 2</string>
+                   </property>
+                  </row>
+                  <row>
+                   <property name="text">
+                    <string>Post-Tap 3</string>
+                   </property>
+                  </row>
+                  <column>
+                   <property name="text">
+                    <string>Enabled</string>
+                   </property>
+                  </column>
+                  <column>
+                   <property name="text">
+                    <string>Min Val</string>
+                   </property>
+                  </column>
+                  <column>
+                   <property name="text">
+                    <string>Max Val</string>
+                   </property>
+                  </column>
+                  <column>
+                   <property name="text">
+                    <string>Value</string>
+                   </property>
+                  </column>
+                  <column>
+                   <property name="text">
+                    <string>Steps</string>
+                   </property>
+                  </column>
                  </widget>
                 </item>
                </layout>
-              </item>
-             </layout>
-            </widget>
-           </item>
-           <item>
-            <widget class="QGroupBox" name="groupBox_12">
-             <property name="title">
-              <string>Native</string>
-             </property>
-             <layout class="QGridLayout" name="gridLayout_7">
-              <item row="0" column="0">
-               <layout class="QFormLayout" name="formLayout_14">
-                <item row="1" column="0">
-                 <widget class="QLabel" name="tx_RsOhmsLabel_3">
-                  <property name="text">
-                   <string>Tx_Rs (Ohms)</string>
-                  </property>
-                 </widget>
-                </item>
-                <item row="1" column="1">
-                 <widget class="QLineEdit" name="tx_rs"/>
-                </item>
-                <item row="2" column="0">
-                 <widget class="QLabel" name="tx_CoutPFLabel_3">
-                  <property name="text">
-                   <string>Tx_Cout (pF)</string>
-                  </property>
-                 </widget>
-                </item>
-                <item row="2" column="1">
-                 <widget class="QLineEdit" name="tx_cout"/>
-                </item>
-                <item row="3" column="0">
-                 <widget class="QLabel" name="lengthMLabel_3">
-                  <property name="text">
-                   <string>Length (m)</string>
-                  </property>
-                 </widget>
-                </item>
-                <item row="3" column="1">
-                 <widget class="QLineEdit" name="channel_length"/>
-                </item>
-                <item row="0" column="0">
-                 <widget class="QLabel" name="materialLabel">
-                  <property name="text">
-                   <string>Material</string>
-                  </property>
-                 </widget>
-                </item>
-                <item row="0" column="1">
-                 <widget class="QComboBox" name="material"/>
-                </item>
-               </layout>
-              </item>
-              <item row="0" column="1">
-               <layout class="QFormLayout" name="formLayout_15">
-                <property name="formAlignment">
-                 <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
-                </property>
-                <item row="0" column="0">
-                 <widget class="QLabel" name="lossTangentLabel">
-                  <property name="text">
-                   <string>Loss Tangent</string>
-                  </property>
-                 </widget>
-                </item>
-                <item row="0" column="1">
-                 <widget class="QLineEdit" name="loss_tangent"/>
-                </item>
-                <item row="1" column="0">
-                 <widget class="QLabel" name="z0OhmsLabel_3">
-                  <property name="text">
-                   <string>Z0 (Ohms)</string>
-                  </property>
-                 </widget>
-                </item>
-                <item row="1" column="1">
-                 <widget class="QLineEdit" name="z0"/>
-                </item>
-                <item row="2" column="0">
-                 <widget class="QLabel" name="v_relCLabel_3">
-                  <property name="text">
-                   <string>v_rel (c)</string>
-                  </property>
-                 </widget>
-                </item>
-                <item row="2" column="1">
-                 <widget class="QLineEdit" name="v_rel"/>
-                </item>
-               </layout>
-              </item>
-              <item row="0" column="2">
-               <layout class="QFormLayout" name="formLayout_16">
-                <property name="formAlignment">
-                 <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
-                </property>
-                <item row="0" column="0">
-                 <widget class="QLabel" name="rx_RinOhmsLabel_3">
-                  <property name="text">
-                   <string>Rx_Rin (Ohms)</string>
-                  </property>
-                 </widget>
-                </item>
-                <item row="0" column="1">
-                 <widget class="QLineEdit" name="rx_rin"/>
-                </item>
-                <item row="1" column="0">
-                 <widget class="QLabel" name="rx_CinPFLabel_3">
-                  <property name="text">
-                   <string>Rx_Cin (pF)</string>
-                  </property>
-                 </widget>
-                </item>
-                <item row="1" column="1">
-                 <widget class="QLineEdit" name="rx_cin"/>
-                </item>
-                <item row="2" column="0">
-                 <widget class="QLabel" name="rx_CacUFLabel_3">
-                  <property name="text">
-                   <string>Rx_Cac (uF)</string>
-                  </property>
-                 </widget>
-                </item>
-                <item row="2" column="1">
-                 <widget class="QLineEdit" name="rx_cac"/>
-                </item>
-               </layout>
-              </item>
-             </layout>
-            </widget>
-           </item>
-          </layout>
-         </widget>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+          </item>
+          <item>
+           <widget class="QGroupBox" name="cdr_parameters">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+              <horstretch>0</horstretch>
+              <verstretch>1</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="title">
+             <string>CDR Parameters</string>
+            </property>
+            <layout class="QVBoxLayout" name="verticalLayout_16">
+             <item>
+              <layout class="QHBoxLayout" name="horizontalLayout_7">
+               <item>
+                <widget class="QLabel" name="label_6">
+                 <property name="text">
+                  <string>Delta-t (ps)</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLineEdit" name="delta_t"/>
+               </item>
+               <item>
+                <widget class="QLabel" name="label_7">
+                 <property name="text">
+                  <string>Alpha</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLineEdit" name="alpha"/>
+               </item>
+              </layout>
+             </item>
+             <item>
+              <layout class="QHBoxLayout" name="horizontalLayout_6">
+               <item>
+                <widget class="QLabel" name="label_8">
+                 <property name="text">
+                  <string>Lock Nave.</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLineEdit" name="lock_num_averages"/>
+               </item>
+               <item>
+                <widget class="QLabel" name="label_9">
+                 <property name="text">
+                  <string>Lock Tol.</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLineEdit" name="lock_tolerance"/>
+               </item>
+               <item>
+                <widget class="QLabel" name="label_10">
+                 <property name="text">
+                  <string>Lock Sus.</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLineEdit" name="lock_sustain"/>
+               </item>
+              </layout>
+             </item>
+            </layout>
+           </widget>
+          </item>
+         </layout>
         </item>
-        <item row="1" column="1">
-         <widget class="QGroupBox" name="rx_equalization">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-            <horstretch>0</horstretch>
-            <verstretch>3</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="title">
-           <string>Rx Equalization</string>
-          </property>
-          <layout class="QVBoxLayout" name="verticalLayout_18">
-           <item>
-            <widget class="QGroupBox" name="groupBox_9">
-             <property name="sizePolicy">
-              <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-               <horstretch>0</horstretch>
-               <verstretch>1</verstretch>
-              </sizepolicy>
-             </property>
-             <property name="title">
-              <string>Use AMI Model</string>
-             </property>
-             <property name="checkable">
-              <bool>true</bool>
-             </property>
-             <property name="checked">
-              <bool>false</bool>
-             </property>
-             <layout class="QHBoxLayout" name="horizontalLayout_3">
-              <item>
-               <widget class="QLabel" name="label_24">
-                <property name="text">
-                 <string>AMI File</string>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QLineEdit" name="rx_ami_filename"/>
-              </item>
-              <item>
-               <widget class="QPushButton" name="load_rx_ami_file">
-                <property name="maximumSize">
-                 <size>
-                  <width>40</width>
-                  <height>16777215</height>
-                 </size>
-                </property>
-                <property name="text">
-                 <string/>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QLabel" name="label_25">
-                <property name="text">
-                 <string>DLL File</string>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QLineEdit" name="rx_dll_filename"/>
-              </item>
-              <item>
-               <widget class="QPushButton" name="load_rx_dll_file">
-                <property name="sizePolicy">
-                 <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-                  <horstretch>0</horstretch>
-                  <verstretch>0</verstretch>
-                 </sizepolicy>
-                </property>
-                <property name="maximumSize">
-                 <size>
-                  <width>40</width>
-                  <height>16777215</height>
-                 </size>
-                </property>
-                <property name="text">
-                 <string/>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QPushButton" name="configure_rx">
-                <property name="text">
-                 <string>Configure</string>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QCheckBox" name="rx_use_getwave">
-                <property name="text">
-                 <string>Use GetWave</string>
-                </property>
-               </widget>
-              </item>
-             </layout>
-            </widget>
-           </item>
-           <item>
-            <widget class="QGroupBox" name="groupBox_10">
-             <property name="sizePolicy">
-              <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-               <horstretch>0</horstretch>
-               <verstretch>2</verstretch>
-              </sizepolicy>
-             </property>
-             <property name="title">
-              <string>Native</string>
-             </property>
-             <layout class="QVBoxLayout" name="verticalLayout_20">
-              <item>
-               <widget class="QGroupBox" name="ctle_from_file">
-                <property name="title">
-                 <string>From File</string>
-                </property>
-                <property name="checkable">
-                 <bool>true</bool>
-                </property>
-                <property name="checked">
-                 <bool>false</bool>
-                </property>
-                <layout class="QHBoxLayout" name="horizontalLayout_8">
-                 <item>
-                  <widget class="QLabel" name="label_37">
-                   <property name="text">
-                    <string>File</string>
-                   </property>
-                  </widget>
-                 </item>
-                 <item>
-                  <widget class="QLineEdit" name="ctle_filename"/>
-                 </item>
-                 <item>
-                  <widget class="QPushButton" name="load_ctle_from_file">
-                   <property name="maximumSize">
-                    <size>
-                     <width>40</width>
-                     <height>16777215</height>
-                    </size>
-                   </property>
-                   <property name="text">
-                    <string/>
-                   </property>
-                  </widget>
-                 </item>
-                </layout>
-               </widget>
-              </item>
-              <item>
-               <layout class="QHBoxLayout" name="horizontalLayout_25">
+        <item>
+         <layout class="QVBoxLayout" name="verticalLayout_14">
+          <item>
+           <widget class="QGroupBox" name="channel_parameters">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+              <horstretch>1</horstretch>
+              <verstretch>2</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="title">
+             <string>Channel Parameters</string>
+            </property>
+            <layout class="QVBoxLayout" name="verticalLayout_19">
+             <item>
+              <widget class="QGroupBox" name="groupBox_11">
+               <property name="title">
+                <string>From File</string>
+               </property>
+               <property name="checkable">
+                <bool>true</bool>
+               </property>
+               <property name="checked">
+                <bool>false</bool>
+               </property>
+               <layout class="QHBoxLayout" name="horizontalLayout_22">
                 <item>
-                 <widget class="QLabel" name="label_38">
-                  <property name="text">
-                   <string>CTLE fp (GHz)</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QLineEdit" name="ctle_fp"/>
-                </item>
-                <item>
-                 <widget class="QLabel" name="label_39">
-                  <property name="text">
-                   <string>Bandwidth (GHz)</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QLineEdit" name="ctle_bandwidth"/>
+                 <layout class="QHBoxLayout" name="horizontalLayout_21">
+                  <item>
+                   <widget class="QLabel" name="label_32">
+                    <property name="text">
+                     <string>File</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QLineEdit" name="channel_filename"/>
+                  </item>
+                  <item>
+                   <widget class="QPushButton" name="load_channel_file">
+                    <property name="maximumSize">
+                     <size>
+                      <width>40</width>
+                      <height>16777215</height>
+                     </size>
+                    </property>
+                    <property name="text">
+                     <string/>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QCheckBox" name="zero_padded">
+                    <property name="text">
+                     <string>Zero-Padded</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QCheckBox" name="windowed">
+                    <property name="text">
+                     <string>Windowed</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QLabel" name="label_33">
+                    <property name="text">
+                     <string>f_step</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QDoubleSpinBox" name="channel_f_step"/>
+                  </item>
+                  <item>
+                   <widget class="QLabel" name="label_34">
+                    <property name="text">
+                     <string>MHz</string>
+                    </property>
+                   </widget>
+                  </item>
+                 </layout>
                 </item>
                </layout>
-              </item>
-              <item>
-               <layout class="QHBoxLayout" name="horizontalLayout_26">
-                <item>
-                 <widget class="QLabel" name="label_40">
-                  <property name="text">
-                   <string>CTLE Boost (dB)</string>
+              </widget>
+             </item>
+             <item>
+              <widget class="QGroupBox" name="groupBox_12">
+               <property name="title">
+                <string>Native</string>
+               </property>
+               <layout class="QGridLayout" name="gridLayout_7">
+                <item row="0" column="0">
+                 <layout class="QFormLayout" name="formLayout_14">
+                  <item row="1" column="0">
+                   <widget class="QLabel" name="tx_RsOhmsLabel_3">
+                    <property name="text">
+                     <string>Tx_Rs (Ohms)</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="2" column="0">
+                   <widget class="QLabel" name="tx_CoutPFLabel_3">
+                    <property name="text">
+                     <string>Tx_Cout (pF)</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="3" column="0">
+                   <widget class="QLabel" name="lengthMLabel_3">
+                    <property name="text">
+                     <string>Length (m)</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="0" column="0">
+                   <widget class="QLabel" name="materialLabel">
+                    <property name="text">
+                     <string>Material</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="0" column="1">
+                   <widget class="QComboBox" name="material"/>
+                  </item>
+                  <item row="1" column="1">
+                   <widget class="QDoubleSpinBox" name="tx_rs"/>
+                  </item>
+                  <item row="2" column="1">
+                   <widget class="QDoubleSpinBox" name="tx_cout"/>
+                  </item>
+                  <item row="3" column="1">
+                   <widget class="QDoubleSpinBox" name="channel_length"/>
+                  </item>
+                 </layout>
+                </item>
+                <item row="0" column="1">
+                 <layout class="QFormLayout" name="formLayout_15">
+                  <property name="formAlignment">
+                   <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
                   </property>
-                 </widget>
+                  <item row="0" column="0">
+                   <widget class="QLabel" name="lossTangentLabel">
+                    <property name="text">
+                     <string>Loss Tangent</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="1" column="0">
+                   <widget class="QLabel" name="z0OhmsLabel_3">
+                    <property name="text">
+                     <string>Z0 (Ohms)</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="2" column="0">
+                   <widget class="QLabel" name="v_relCLabel_3">
+                    <property name="text">
+                     <string>v_rel (c)</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="0" column="1">
+                   <widget class="QDoubleSpinBox" name="loss_tangent"/>
+                  </item>
+                  <item row="1" column="1">
+                   <widget class="QDoubleSpinBox" name="z0"/>
+                  </item>
+                  <item row="2" column="1">
+                   <widget class="QDoubleSpinBox" name="v_rel"/>
+                  </item>
+                 </layout>
                 </item>
-                <item>
-                 <widget class="QLineEdit" name="ctle_boost"/>
-                </item>
-                <item>
-                 <widget class="QLabel" name="label_41">
-                  <property name="text">
-                   <string>CTLE Mode</string>
+                <item row="0" column="2">
+                 <layout class="QFormLayout" name="formLayout_16">
+                  <property name="formAlignment">
+                   <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
                   </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QComboBox" name="ctle_mode"/>
-                </item>
-                <item>
-                 <widget class="QLineEdit" name="ctle_dc_offset_2"/>
+                  <item row="0" column="0">
+                   <widget class="QLabel" name="rx_RinOhmsLabel_3">
+                    <property name="text">
+                     <string>Rx_Rin (Ohms)</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="1" column="0">
+                   <widget class="QLabel" name="rx_CinPFLabel_3">
+                    <property name="text">
+                     <string>Rx_Cin (pF)</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="2" column="0">
+                   <widget class="QLabel" name="rx_CacUFLabel_3">
+                    <property name="text">
+                     <string>Rx_Cac (uF)</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="0" column="1">
+                   <widget class="QDoubleSpinBox" name="rx_rin"/>
+                  </item>
+                  <item row="1" column="1">
+                   <widget class="QDoubleSpinBox" name="rx_cin"/>
+                  </item>
+                  <item row="2" column="1">
+                   <widget class="QDoubleSpinBox" name="rx_cac"/>
+                  </item>
+                 </layout>
                 </item>
                </layout>
-              </item>
-             </layout>
-            </widget>
-           </item>
-          </layout>
-         </widget>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+          </item>
+          <item>
+           <widget class="QGroupBox" name="rx_equalization">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+              <horstretch>0</horstretch>
+              <verstretch>3</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="title">
+             <string>Rx Equalization</string>
+            </property>
+            <layout class="QVBoxLayout" name="verticalLayout_18">
+             <item>
+              <widget class="QGroupBox" name="groupBox_9">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                 <horstretch>0</horstretch>
+                 <verstretch>1</verstretch>
+                </sizepolicy>
+               </property>
+               <property name="title">
+                <string>Use AMI Model</string>
+               </property>
+               <property name="checkable">
+                <bool>true</bool>
+               </property>
+               <property name="checked">
+                <bool>false</bool>
+               </property>
+               <layout class="QHBoxLayout" name="horizontalLayout_3">
+                <item>
+                 <widget class="QLabel" name="label_24">
+                  <property name="text">
+                   <string>AMI File</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QLineEdit" name="rx_ami_filename"/>
+                </item>
+                <item>
+                 <widget class="QPushButton" name="load_rx_ami_file">
+                  <property name="maximumSize">
+                   <size>
+                    <width>40</width>
+                    <height>16777215</height>
+                   </size>
+                  </property>
+                  <property name="text">
+                   <string/>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QLabel" name="label_25">
+                  <property name="text">
+                   <string>DLL File</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QLineEdit" name="rx_dll_filename"/>
+                </item>
+                <item>
+                 <widget class="QPushButton" name="load_rx_dll_file">
+                  <property name="sizePolicy">
+                   <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+                    <horstretch>0</horstretch>
+                    <verstretch>0</verstretch>
+                   </sizepolicy>
+                  </property>
+                  <property name="maximumSize">
+                   <size>
+                    <width>40</width>
+                    <height>16777215</height>
+                   </size>
+                  </property>
+                  <property name="text">
+                   <string/>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QPushButton" name="configure_rx">
+                  <property name="text">
+                   <string>Configure</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QCheckBox" name="rx_use_getwave">
+                  <property name="text">
+                   <string>Use GetWave</string>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </widget>
+             </item>
+             <item>
+              <widget class="QGroupBox" name="groupBox_10">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                 <horstretch>0</horstretch>
+                 <verstretch>2</verstretch>
+                </sizepolicy>
+               </property>
+               <property name="title">
+                <string>Native</string>
+               </property>
+               <layout class="QVBoxLayout" name="verticalLayout_20">
+                <item>
+                 <widget class="QGroupBox" name="ctle_from_file">
+                  <property name="title">
+                   <string>From File</string>
+                  </property>
+                  <property name="checkable">
+                   <bool>true</bool>
+                  </property>
+                  <property name="checked">
+                   <bool>false</bool>
+                  </property>
+                  <layout class="QHBoxLayout" name="horizontalLayout_8">
+                   <item>
+                    <widget class="QLabel" name="label_37">
+                     <property name="text">
+                      <string>File</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item>
+                    <widget class="QLineEdit" name="ctle_filename"/>
+                   </item>
+                   <item>
+                    <widget class="QPushButton" name="load_ctle_from_file">
+                     <property name="maximumSize">
+                      <size>
+                       <width>40</width>
+                       <height>16777215</height>
+                      </size>
+                     </property>
+                     <property name="text">
+                      <string/>
+                     </property>
+                    </widget>
+                   </item>
+                  </layout>
+                 </widget>
+                </item>
+                <item>
+                 <layout class="QHBoxLayout" name="horizontalLayout_25">
+                  <item>
+                   <widget class="QLabel" name="label_38">
+                    <property name="text">
+                     <string>CTLE fp (GHz)</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QDoubleSpinBox" name="ctle_fp"/>
+                  </item>
+                  <item>
+                   <widget class="QLabel" name="label_39">
+                    <property name="text">
+                     <string>Bandwidth (GHz)</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QDoubleSpinBox" name="ctle_bandwidth"/>
+                  </item>
+                 </layout>
+                </item>
+                <item>
+                 <layout class="QHBoxLayout" name="horizontalLayout_26">
+                  <item>
+                   <widget class="QLabel" name="label_40">
+                    <property name="text">
+                     <string>CTLE Boost (dB)</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QDoubleSpinBox" name="ctle_boost"/>
+                  </item>
+                  <item>
+                   <widget class="QLabel" name="label_41">
+                    <property name="text">
+                     <string>CTLE Mode</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QComboBox" name="ctle_mode"/>
+                  </item>
+                  <item>
+                   <widget class="QDoubleSpinBox" name="ctle_dc_offset"/>
+                  </item>
+                 </layout>
+                </item>
+               </layout>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+          </item>
+          <item>
+           <widget class="QGroupBox" name="dfe_parameters">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+              <horstretch>0</horstretch>
+              <verstretch>1</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="title">
+             <string>Use DFE</string>
+            </property>
+            <property name="checkable">
+             <bool>true</bool>
+            </property>
+            <layout class="QVBoxLayout" name="verticalLayout_15">
+             <item>
+              <widget class="QCheckBox" name="checkBox">
+               <property name="text">
+                <string>Ideal DFE</string>
+               </property>
+               <property name="checked">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <layout class="QHBoxLayout" name="horizontalLayout_5">
+               <item>
+                <widget class="QLabel" name="label">
+                 <property name="text">
+                  <string>Taps</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QSpinBox" name="dfe_num_taps"/>
+               </item>
+               <item>
+                <widget class="QLabel" name="label_2">
+                 <property name="text">
+                  <string>Gain</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QDoubleSpinBox" name="dfe_gain"/>
+               </item>
+               <item>
+                <widget class="QLabel" name="label_3">
+                 <property name="text">
+                  <string>Level</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QDoubleSpinBox" name="dfe_level"/>
+               </item>
+              </layout>
+             </item>
+             <item>
+              <layout class="QHBoxLayout" name="horizontalLayout_4">
+               <item>
+                <widget class="QLabel" name="label_4">
+                 <property name="text">
+                  <string>N ave.</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QSpinBox" name="dfe_num_averages"/>
+               </item>
+               <item>
+                <widget class="QLabel" name="label_5">
+                 <property name="text">
+                  <string>BW (GHz)</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QDoubleSpinBox" name="dfe_bw"/>
+               </item>
+              </layout>
+             </item>
+            </layout>
+           </widget>
+          </item>
+         </layout>
         </item>
        </layout>
       </widget>
@@ -1218,7 +1321,7 @@
                 <widget class="QComboBox" name="ctle_modes"/>
                </item>
                <item>
-                <widget class="QLineEdit" name="ctle_dc_offset">
+                <widget class="QLineEdit" name="ctle_dc_offset_tune">
                  <property name="toolTip">
                   <string>CTLE D.C. offset (dB)</string>
                  </property>
@@ -2085,7 +2188,7 @@
      <x>0</x>
      <y>0</y>
      <width>1440</width>
-     <height>22</height>
+     <height>26</height>
     </rect>
    </property>
    <property name="sizePolicy">
@@ -2143,8 +2246,8 @@
    </property>
    <property name="minimumSize">
     <size>
-     <width>0</width>
-     <height>0</height>
+     <width>95</width>
+     <height>113</height>
     </size>
    </property>
    <property name="maximumSize">

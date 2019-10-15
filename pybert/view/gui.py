@@ -13,6 +13,7 @@ from pybert import __copy__ as COPY
 from pybert import __date__ as DATE
 from pybert import __version__ as VERSION
 from pybert.view.ui_pybert import Ui_MainWindow
+from pybert.sim.utility import CTLE_MODE, MODULATION
 from PySide2.QtCore import *
 from PySide2.QtWidgets import *
 
@@ -111,7 +112,7 @@ class PyBERT_GUI(QMainWindow, Ui_MainWindow):
 
     def load_config(self, config):
         """Take the deafult configuration and populate the GUI with its values."""
-        return
+        self.mod_type.addItems([name for name in MODULATION.__members__])
 
     def init_plots(self):
         self.cdr_adapt = self.plot_dfe.addPlot(
