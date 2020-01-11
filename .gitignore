@@ -9,6 +9,7 @@ PKG-INFO
 dist/*
 *prof*
 .*
+.tox/
 AMI_Models
 pz_test.py
 EDN_Article

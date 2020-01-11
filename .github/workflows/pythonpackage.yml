@@ -1,0 +1,24 @@
+name: PyBERT Test Suite
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: [ubuntu-latest, macos-latest, windows-latest]
+    strategy:
+      max-parallel: 4
+      matrix:
+        python-version: [3.7]
+
+    steps:
+    - uses: actions/checkout@v1
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v1
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install Dependencies
+      run: |
+        pip install tox
+    - name: Tox
+      run: |
+        tox -p auto -e py37,pylint,bandit,flake8 -q
