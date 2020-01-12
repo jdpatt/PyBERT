@@ -19,10 +19,12 @@ jobs:
     - name: Install Dependencies
       run: |
         pip install tox
-    - uses: goanpeca/setup-miniconda@v1
+    - name: Install Conda
+      uses: s-weigand/setup-conda@v1
       with:
-        auto-update-conda: true
-        python-version: ${{ matrix.python-version }}
+        activate-conda: false
+        update-conda: true
+        conda-channels: dbanas
     - name: Tox
       run: |
         tox -p auto -e py37,pylint,bandit,flake8 -q
