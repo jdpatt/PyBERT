@@ -24,6 +24,7 @@ jobs:
         conda-channels: dbanas
     - name: Install Dependencies
       run: |
+        conda clean --all
         conda install -c dbanas -c defaults -c conda-forge --only-deps pybert
         pip install tox
     - name: Tox
