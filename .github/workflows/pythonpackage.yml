@@ -24,9 +24,13 @@ jobs:
         conda-channels: dbanas
     - name: Install Dependencies
       run: |
-        conda clean --all
-        conda install -c dbanas -c defaults -c conda-forge --only-deps pybert
         pip install tox
+        conda clean --all
+    - name: Setup Test Environment
+      run: |
+        conda create -n pybert-ci
+        conda activate pybert-ci
+        conda install -c dbanas -c defaults -c conda-forge --only-deps pybert
     - name: Tox
       run: |
-        tox -p auto -e py37,pylint,bandit,flake8 -q
+        tox -p auto -e py37,bandit,flake8 -q
