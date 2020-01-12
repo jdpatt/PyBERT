@@ -20,11 +20,11 @@ jobs:
       uses: goanpeca/setup-miniconda@v1.0.2
       with:
         auto-update-conda: true
-        environment-file: conda.recipe/pybert/meta.yaml
         python-version: ${{ matrix.python-version }}
     - name: List Conda Environment
       shell: bash -l {0}
       run: |
+        conda install -c dbanas -c defaults -c conda-forge --only-deps pybert
         conda info
         conda list
     - name: Install Dependencies
