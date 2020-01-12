@@ -16,15 +16,16 @@ jobs:
       uses: actions/setup-python@v1
       with:
         python-version: ${{ matrix.python-version }}
-    - name: Install Dependencies
-      run: |
-        pip install tox
     - name: Install Conda
       uses: s-weigand/setup-conda@v1
       with:
         activate-conda: false
         update-conda: true
         conda-channels: dbanas
+    - name: Install Dependencies
+      run: |
+        conda install -c dbanas -c defaults -c conda-forge --only-deps pybert
+        pip install tox
     - name: Tox
       run: |
         tox -p auto -e py37,pylint,bandit,flake8 -q
