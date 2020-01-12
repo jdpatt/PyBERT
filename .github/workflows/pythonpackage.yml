@@ -29,7 +29,7 @@ jobs:
         conda list
     - name: Install Dependencies
       run: |
-        pip install tox tox-gh-actions
+        pip install tox
     - name: Tox
       run: |
-        tox -p auto -q
+        tox -p auto -e py37,flake8 -q
