@@ -21,15 +21,17 @@ jobs:
       with:
         auto-update-conda: true
         python-version: ${{ matrix.python-version }}
-    - name: List Conda Environment
+    - name: Install Conda Dependencies
       shell: bash -l {0}
       run: |
         conda install -c dbanas -c defaults -c conda-forge --only-deps pybert
         conda info
         conda list
     - name: Install Dependencies
+      shell: bash -l {0}
       run: |
-        pip install tox
+        python -m pip install tox
     - name: Tox
+      shell: bash -l {0}
       run: |
         tox -p auto -e py37,flake8 -q
