@@ -1,14 +1,14 @@
 name: PyBERT Test Suite
-
 on: [push, pull_request]
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       max-parallel: 4
       matrix:
         python-version: [3.7]
+        os: [ubuntu-latest]
 
     steps:
     - uses: actions/checkout@v1
@@ -16,21 +16,20 @@ jobs:
       uses: actions/setup-python@v1
       with:
         python-version: ${{ matrix.python-version }}
-    - name: Install Conda
-      uses: s-weigand/setup-conda@v1
+    - name: Setup Miniconda and Install PyBERT
+      uses: goanpeca/setup-miniconda@v1.0.2
       with:
-        activate-conda: false
-        update-conda: true
-        conda-channels: dbanas
+        auto-update-conda: true
+        environment-file: conda.recipe/pybert/meta.yaml
+        python-version: ${{ matrix.python-version }}
+    - name: List Conda Environment
+      shell: bash -l {0}
+      run: |
+        conda info
+        conda list
     - name: Install Dependencies
       run: |
-        pip install tox
-        conda clean --all
-    - name: Setup Test Environment
-      run: |
-        conda create -n pybert-ci
-        conda activate pybert-ci
-        conda install -c dbanas -c defaults -c conda-forge --only-deps pybert
+        pip install tox tox-gh-actions
     - name: Tox
       run: |
-        tox -p auto -e py37,bandit,flake8 -q
+        tox -p auto -q
