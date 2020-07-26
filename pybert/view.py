@@ -77,12 +77,11 @@ class MyHandler(Handler):
                     # Grab all the instance variables from the_PyBertCfg
                     yaml.dump(the_PyBertCfg, the_file)
                 the_pybert.cfg_file = dlg.path
-                the_pybert.log(f"Configuration saved to {the_pybert.cfg_file}")
+                the_pybert.log.info(f"Configuration saved to {the_pybert.cfg_file}")
             except Exception as err:
                 error_message = f"The following error occured:\n\t{err}\nThe configuration was NOT saved."
-                the_pybert.log(
-                    "Exception raised by pybert.view.MyHandler.do_save_cfg().", exception=RuntimeError(error_message)
-                )
+                the_pybert.log.error("Exception raised by pybert.pybert_view.MyHandler.do_save_cfg().")
+                raise RuntimeError(error_message)
 
     def do_load_cfg(self, info):
         """Read in the pickled configuration."""
@@ -106,12 +105,11 @@ class MyHandler(Handler):
                     else:
                         setattr(the_pybert, prop, value)
                 the_pybert.cfg_file = dlg.path
-                the_pybert.log(f"Configuration loaded from {the_pybert.cfg_file}")
+                the_pybert.log.info(f"Configuration loaded from {the_pybert.cfg_file}")
             except Exception as err:
                 error_message = f"The following error occured:\n\t{err}\nThe configuration was NOT loaded."
-                the_pybert.log(
-                    "Exception raised by pybert.view.MyHandler.do_load_cfg().", exception=RuntimeError(error_message)
-                )
+                the_pybert.log.error("Exception raised by pybert.pybert_view.MyHandler.do_load_cfg().")
+                raise RuntimeError(error_message)
 
     def do_save_data(self, info):
         """Pickle out all the generated data."""
@@ -125,9 +123,8 @@ class MyHandler(Handler):
                 the_pybert.data_file = dlg.path
             except Exception as err:
                 error_message = f"The following error occured:\n\t{err}\nThe data was NOT saved."
-                the_pybert.log(
-                    "Exception raised by pybert.view.MyHandler.do_save_data().", exception=RuntimeError(error_message)
-                )
+                the_pybert.log.error("Exception raised by pybert.pybert_view.MyHandler.do_save_data().")
+                raise RuntimeError(error_message)
 
     def do_load_data(self, info):
         """Read in the pickled data.'"""
@@ -197,9 +194,8 @@ class MyHandler(Handler):
             except Exception as err:
                 error_message = f"The following error occured while processing item: {item_name}:\n \
 \t{err}\nThe configuration was NOT saved."
-                the_pybert.log(
-                    "Exception raised by pybert.view.MyHandler.do_load_data().", exception=RuntimeError(error_message)
-                )
+                the_pybert.log.error("Exception raised by pybert.pybert_view.MyHandler.do_load_data().")
+                raise RuntimeError(error_message)
 
 
 # These are the "globally applicable" buttons referred to in pybert.py,

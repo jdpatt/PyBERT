@@ -7,7 +7,7 @@ Original date:   September 27, 2014 (Copied from pybert_cntrl.py.)
 
 Copyright (c) 2014 David Banas; all rights reserved World wide.
 """
-import importlib
+import logging
 import os.path
 import pkgutil
 import re
@@ -45,6 +45,8 @@ from scipy.stats import norm
 debug = False
 gDebugOptimize = False
 gMaxCTLEPeak = 20  # max. allowed CTLE peaking (dB) (when optimizing, only)
+
+LOG = logging.getLogger("pybert.utility")
 
 
 def moving_average(a, n=3):
@@ -102,7 +104,7 @@ def find_crossing_times(
     try:
         max_mag_x = max(abs(x))
     except:
-        print("len(x):", len(x))
+        LOG.error("len(x):", len(x))
         raise
     min_mag_x = min_init_dev * max_mag_x
     i = 0
@@ -130,21 +132,21 @@ def find_crossing_times(
             i += 1
 
     if debug:
-        print("min_delay: {}".format(min_delay))
-        print("rising_first: {}".format(rising_first))
-        print("i: {}".format(i))
-        print("max_mag_x: {}".format(max_mag_x))
-        print("min_mag_x: {}".format(min_mag_x))
-        print("xings[0]: {}".format(xings[0]))
-        print("xings[i]: {}".format(xings[i]))
+        LOG.error("min_delay: {}".format(min_delay))
+        LOG.error("rising_first: {}".format(rising_first))
+        LOG.error("i: {}".format(i))
+        LOG.error("max_mag_x: {}".format(max_mag_x))
+        LOG.error("min_mag_x: {}".format(min_mag_x))
+        LOG.error("xings[0]: {}".format(xings[0]))
+        LOG.error("xings[i]: {}".format(xings[i]))
 
     try:
         if rising_first and diff_sign_x[xing_ix[i]] < 0.0:
             i += 1
     except:
-        print("len(diff_sign_x):", len(diff_sign_x))
-        print("len(xing_ix):", len(xing_ix))
-        print("i:", i)
+        LOG.error("len(diff_sign_x):", len(diff_sign_x))
+        LOG.error("len(xing_ix):", len(xing_ix))
+        LOG.error("i:", i)
         raise
 
     return array(xings[i:])
@@ -288,11 +290,11 @@ def calc_jitter(ui, nui, pattern_len, ideal_xings, actual_xings, rel_thresh=6, n
     actual_xings = array(actual_xings) - (actual_xings[0] - ui / 2.0)
     xings_per_pattern = where(ideal_xings > (pattern_len * ui))[0][0]
     if xings_per_pattern % 2 or not xings_per_pattern:
-        print("xings_per_pattern:", xings_per_pattern)
-        print("len(ideal_xings):", len(ideal_xings))
-        print("min(ideal_xings):", min(ideal_xings))
-        print("max(ideal_xings):", max(ideal_xings))
-        raise AssertionError("utility.calc_jitter(): Odd number of (or, no) crossings per pattern detected!")
+        LOG.error("xings_per_pattern:", xings_per_pattern)
+        LOG.error("len(ideal_xings):", len(ideal_xings))
+        LOG.error("min(ideal_xings):", min(ideal_xings))
+        LOG.error("max(ideal_xings):", max(ideal_xings))
+        raise AssertionError("pybert_util.calc_jitter(): Odd number of (or, no) crossings per pattern detected!")
     num_patterns = nui // pattern_len
 
     # Assemble the TIE track.
@@ -330,8 +332,8 @@ def calc_jitter(ui, nui, pattern_len, ideal_xings, actual_xings, rel_thresh=6, n
     jitter = array(jitter)
 
     if debug:
-        print("mean(jitter):", mean(jitter))
-        print("len(jitter):", len(jitter))
+        LOG.error("mean(jitter):", mean(jitter))
+        LOG.error("len(jitter):", len(jitter))
 
     if zero_mean:
         jitter -= mean(jitter)
@@ -351,8 +353,8 @@ def calc_jitter(ui, nui, pattern_len, ideal_xings, actual_xings, rel_thresh=6, n
         tie_fallings_ave = tie_fallings.mean(axis=0)
         isi = max(tie_risings_ave.ptp(), tie_fallings_ave.ptp())
     except:
-        print("xings_per_pattern:", xings_per_pattern)
-        print("len(ideal_xings):", len(ideal_xings))
+        LOG.error("xings_per_pattern:", xings_per_pattern)
+        LOG.error("len(ideal_xings):", len(ideal_xings))
         raise
     isi = min(isi, ui)  # Cap the ISI at the unit interval.
     dcd = abs(mean(tie_risings_ave) - mean(tie_fallings_ave))
@@ -984,3 +986,14 @@ def submodules(package):
         rst[name] = mod
 
     return rst
+
+
+def alert_user(message):
+    """Prompt the user with a pop-up, that something needs attention."""
+    message(message, "PyBERT Alert")
+
+
+def log_error_and_alert_user(logger, message):
+    """Log with the caller's logger and prompt the user with a pop-up."""
+    logger.error(message)
+    message(message, "PyBERT Alert")

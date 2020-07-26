@@ -7,6 +7,7 @@ Original date:   August 24, 2014 (Copied from pybert.py, as part of a major code
 
 Copyright (c) 2014 David Banas; all rights reserved World wide.
 """
+import logging
 from time import clock
 
 from chaco.api import Plot
@@ -39,12 +40,12 @@ from scipy.signal import iirfilter, lfilter
 from scipy.signal.windows import hann
 
 from pybert.dfe import DFE
-from pybert.utility import calc_eye, calc_jitter, find_crossings, import_channel, make_ctle
+from pybert.utility import calc_eye, calc_jitter, find_crossings, import_channel, log_error_and_alert_user, make_ctle
 from pyibisami.ami_model import AMIModel, AMIModelInitializer
 
 DEBUG = False
 MIN_BATHTUB_VAL = 1.0e-18
-
+LOG = logging.getLogger("pybert.control")
 gFc = 1.0e6  # Corner frequency of high-pass filter used to model capacitive coupling of periodic noise.
 
 
@@ -184,7 +185,7 @@ def my_run_simulation(self, initial_run=False, update_plots=True):
         #       create the duobinary waveform. We only create it explicitly, above,
         #       so that we'll have an ideal reference for comparison.
         chnl_h = self.calc_chnl_h()
-        self.log("Channel impulse response is {} samples long.".format(len(chnl_h)))
+        self.log.info("Channel impulse response is {} samples long.".format(len(chnl_h)))
         chnl_out = convolve(self.x, chnl_h)[: len(t)]
 
         self.channel_perf = nbits * nspb / (clock() - start_time)
@@ -215,7 +216,7 @@ def my_run_simulation(self, initial_run=False, update_plots=True):
             tx_model_init.bit_time = ui
             tx_model = AMIModel(self.tx_dll_file)
             tx_model.initialize(tx_model_init)
-            self.log(
+            self.log.info(
                 "Tx IBIS-AMI model initialization results:\nInput parameters: {}\nOutput parameters: {}\nMessage: {}".format(
                     tx_model.ami_params_in, tx_model.ami_params_out, tx_model.msg
                 )
@@ -224,19 +225,15 @@ def my_run_simulation(self, initial_run=False, update_plots=True):
                 tx_h = array(tx_model.initOut) * ts
             elif not tx_cfg.fetch_param_val(["Reserved_Parameters", "GetWave_Exists"]):
                 self.status = "Simulation Error."
-                self.log(
-                    "ERROR: Both 'Init_Returns_Impulse' and 'GetWave_Exists' are False!\n \
-I cannot continue.\nYou will have to select a different model.",
-                    alert=True,
-                )
+                message = "ERROR: Both 'Init_Returns_Impulse' and 'GetWave_Exists' are False!\n \
+I cannot continue.\nYou will have to select a different model."
+                log_error_and_alert_user(self.log, message)
                 return
             elif not self.tx_use_getwave:
                 self.status = "Simulation Error."
-                self.log(
-                    "ERROR: You have elected not to use GetWave for a model, which does not return an impulse response!\n \
-I cannot continue.\nPlease, select 'Use GetWave' and try again.",
-                    alert=True,
-                )
+                message = "ERROR: You have elected not to use GetWave for a model, which does not return an impulse response!\n \
+I cannot continue.\nPlease, select 'Use GetWave' and try again."
+                log_error_and_alert_user(self.log, message)
                 return
             if self.tx_use_getwave:
                 # For GetWave, use a step to extract the model's native properties.
@@ -324,7 +321,7 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
             rx_model_init.bit_time = ui
             rx_model = AMIModel(self.rx_dll_file)
             rx_model.initialize(rx_model_init)
-            self.log(
+            self.log.info(
                 "Rx IBIS-AMI model initialization results:\nInput parameters: {}\nMessage: {}\nOutput parameters: {}".format(
                     rx_model.ami_params_in, rx_model.msg, rx_model.ami_params_out
                 )
@@ -333,26 +330,24 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
                 ctle_out_h = array(rx_model.initOut) * ts
             elif not rx_cfg.fetch_param_val(["Reserved_Parameters", "GetWave_Exists"]):
                 self.status = "Simulation Error."
-                self.log(
-                    "ERROR: Both 'Init_Returns_Impulse' and 'GetWave_Exists' are False!\n \
-I cannot continue.\nYou will have to select a different model.",
-                    alert=True,
-                )
+                message = "ERROR: Both 'Init_Returns_Impulse' and 'GetWave_Exists' are False!\n \
+I cannot continue.\nYou will have to select a different model."
+                log_error_and_alert_user(self.log, message)
                 return
             elif not self.rx_use_getwave:
                 self.status = "Simulation Error."
-                self.log(
+                message = (
                     "ERROR: You have elected not to use GetWave for a model, which does not return an impulse response!\n \
 I cannot continue.\nPlease, select 'Use GetWave' and try again.",
-                    alert=True,
                 )
+                log_error_and_alert_user(self.log, message)
                 return
             if self.rx_use_getwave:
                 if False:
                     ctle_out, clock_times = rx_model.getWave(rx_in, 32)
                 else:
                     ctle_out, clock_times = rx_model.getWave(rx_in, len(rx_in))
-                self.log(rx_model.ami_params_out)
+                self.log.info(rx_model.ami_params_out)
 
                 ctle_H = fft(ctle_out * hann(len(ctle_out))) / fft(rx_in * hann(len(rx_in)))
                 ctle_h = real(ifft(ctle_H)[: len(chnl_h)])
@@ -399,10 +394,10 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
         try:
             conv_dly = t[conv_dly_ix]  # Keep this line only.
         except:
-            print("chnl_dly:", self.chnl_dly)
-            print("conv_dly_ix:", conv_dly_ix)
-            print("tx_h:", tx_h)
-            print("chnl_h:", chnl_h)
+            LOG.error("chnl_dly:", self.chnl_dly)
+            LOG.error("conv_dly_ix:", conv_dly_ix)
+            LOG.error("tx_h:", tx_h)
+            LOG.error("chnl_h:", chnl_h)
             raise
         #####
         ctle_out_s = ctle_out_h.cumsum()
