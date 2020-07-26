@@ -1,3 +1,4 @@
+# type: ignore
 """
 A group of channel solvers, used by the *PyBERT* application.
 
@@ -14,6 +15,7 @@ so as to support solvers, which may need extra data/support files.
 
 Copyright (c) 2019 by David Banas; all rights reserved World wide.
 """
+
 __all__ = [
     "simbeor",
 ]  # Should contain the name of each submodule.
