@@ -1,0 +1,22 @@
+[tool.black]
+line-length = 119
+target-version = ['py37']
+
+[tool.isort]
+default_section = "THIRDPARTY"
+known_first_party = "{{ cookiecutter.project_slug }}"
+sections="FUTURE,STDLIB,THIRDPARTY,FIRSTPARTY,LOCALFOLDER"
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-vv"
+
+[tool.pylint.'MESSAGES CONTROL']
+max-line-length = 119
+
+[build-system]
+requires = [
+    "setuptools >= 35.0.2",
+    "setuptools_scm >= 2.0.0, <3"
+]
+build-backend = "setuptools.build_meta"
