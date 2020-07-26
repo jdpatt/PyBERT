@@ -55,7 +55,6 @@ class Solver(slvr.Solver):
         prj_name: str = "SimbeorPyBERT",
     ):
         """Use the simbeor.pyd Python library to solve the channel."""
-
         # Make sure the `simbeor.pyd` library doesn't attempt to open a console, and initialize.
         cfg = simbeor.GetSimbeorOptions()
         cfg["KeepConsoleWindow"] = False

@@ -45,6 +45,7 @@ class Solver(ABC):
         """Solves a particular channel cross-section.
 
         Returns:
+        -------
             gamma: Frequency dependent complex propagation constant.
             Zc: Frequency dependent complex impedance.
             freqs: List of frequencies at which ``gamma`` and ``Zc`` were sampled.

@@ -16,8 +16,7 @@ from chaco.api import ArrayPlotData
 
 
 class PyBertData:
-    """
-    PyBERT simulation results data encapsulation class.
+    """PyBERT simulation results data encapsulation class.
 
     This class is used to encapsulate that subset of the results
     data for a PyBERT instance, which is to be saved when the user

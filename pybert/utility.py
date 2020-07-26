@@ -48,8 +48,7 @@ gMaxCTLEPeak = 20  # max. allowed CTLE peaking (dB) (when optimizing, only)
 
 
 def moving_average(a, n=3):
-    """
-    Calculates a sliding average over the input vector.
+    """Calculates a sliding average over the input vector.
 
     Args:
         a([float]): Input vector to be averaged.
@@ -69,8 +68,7 @@ def moving_average(a, n=3):
 def find_crossing_times(
     t, x, min_delay: float = 0.0, rising_first: bool = True, min_init_dev: float = 0.1, thresh: float = 0.0,
 ):
-    """
-    Finds the threshold crossing times of the input signal.
+    """Finds the threshold crossing times of the input signal.
 
     Args:
         t([float]): Vector of sample times. Intervals do NOT need to be
@@ -155,8 +153,7 @@ def find_crossing_times(
 def find_crossings(
     t, x, amplitude, min_delay: float = 0.0, rising_first: bool = True, min_init_dev=0.1, mod_type=0,
 ):
-    """
-    Finds the crossing times in a signal, according to the modulation type.
+    """Finds the crossing times in a signal, according to the modulation type.
 
     Args:
         t([float]): The times associated with each signal sample.
@@ -233,8 +230,7 @@ def find_crossings(
 
 
 def calc_jitter(ui, nui, pattern_len, ideal_xings, actual_xings, rel_thresh=6, num_bins=99, zero_mean=True):
-    """
-    Calculate the jitter in a set of actual zero crossings, given the ideal crossings and unit interval.
+    """Calculate the jitter in a set of actual zero crossings, given the ideal crossings and unit interval.
 
     Inputs:
 
@@ -445,8 +441,7 @@ def calc_jitter(ui, nui, pattern_len, ideal_xings, actual_xings, rel_thresh=6, n
 
 
 def make_uniform(t, jitter, ui, nbits):
-    """
-    Make the jitter vector uniformly sampled in time, by zero-filling where necessary.
+    """Make the jitter vector uniformly sampled in time, by zero-filling where necessary.
 
     The trick, here, is creating a uniformly sampled input vector for the FFT operation,
     since the jitter samples are almost certainly not uniformly sampled.
@@ -494,8 +489,7 @@ def make_uniform(t, jitter, ui, nbits):
 
 
 def calc_gamma(R0, w0, Rdc, Z0, v0, Theta0, ws):
-    """
-    Calculates propagation constant from cross-sectional parameters.
+    """Calculates propagation constant from cross-sectional parameters.
 
     The formula's applied are taken from Howard Johnson's "Metallic Transmission Model"
     (See "High Speed Signal Propagation", Sec. 3.1.)
@@ -532,8 +526,7 @@ def calc_gamma(R0, w0, Rdc, Z0, v0, Theta0, ws):
 
 
 def calc_gamma_RLGC(R, L, G, C, ws):
-    """
-    Calculates propagation constant from R, L, G, and C.
+    """Calculates propagation constant from R, L, G, and C.
 
     Inputs:
       - R           resistance per unit length (Ohms/m)
@@ -560,8 +553,7 @@ def calc_gamma_RLGC(R, L, G, C, ws):
 
 
 def calc_G(H, Rs, Cs, Zc, RL, Cp, CL, ws):
-    """
-    Calculates fully loaded transfer function of complete channel.
+    """Calculates fully loaded transfer function of complete channel.
 
     Inputs:
       - H     unloaded transfer function of interconnect
@@ -603,8 +595,7 @@ def calc_G(H, Rs, Cs, Zc, RL, Cp, CL, ws):
 
 
 def calc_eye(ui, samps_per_ui, height, ys, y_max, clock_times=None):
-    """
-    Calculates the "eye" diagram of the input signal vector.
+    """Calculates the "eye" diagram of the input signal vector.
 
     Args:
         ui(float): unit interval (s)
@@ -667,8 +658,7 @@ def calc_eye(ui, samps_per_ui, height, ys, y_max, clock_times=None):
 
 
 def make_ctle(rx_bw, peak_freq, peak_mag, w, mode="Passive", dc_offset=0):
-    """
-    Generate the frequency response of a continuous time linear
+    """Generate the frequency response of a continuous time linear
     equalizer (CTLE), given the:
 
     - signal path bandwidth,
@@ -743,8 +733,7 @@ def make_ctle(rx_bw, peak_freq, peak_mag, w, mode="Passive", dc_offset=0):
 
 
 def trim_impulse(g, min_len=0, max_len=1000000):
-    """
-    Trim impulse response, for more useful display, by:
+    """Trim impulse response, for more useful display, by:
       - clipping off the tail, after 99.8% of the total power has been
         captured (Using 99.9% was causing problems; I don't know why.), and
       - setting the "front porch" length equal to 20% of the total length.
@@ -785,8 +774,7 @@ def trim_impulse(g, min_len=0, max_len=1000000):
 
 
 def import_channel(filename, sample_per, padded=False, windowed=False):
-    """
-    Read in a channel file.
+    """Read in a channel file.
 
     Args:
         filename(str): Name of file from which to import channel description.
@@ -805,8 +793,7 @@ def import_channel(filename, sample_per, padded=False, windowed=False):
 
 
 def interp_time(ts, xs, sample_per):
-    """
-    Resample time domain data, using linear interpolation.
+    """Resample time domain data, using linear interpolation.
 
     Args:
         ts([float]): Original time values.
@@ -830,8 +817,7 @@ def interp_time(ts, xs, sample_per):
 
 
 def import_time(filename, sample_per):
-    """
-    Read in a time domain waveform file, resampling as
+    """Read in a time domain waveform file, resampling as
     appropriate, via linear interpolation.
 
     Args:
@@ -856,8 +842,7 @@ def import_time(filename, sample_per):
 
 
 def sdd_21(ntwk):
-    """
-    Given a 4-port single-ended network, return its differential throughput.
+    """Given a 4-port single-ended network, return its differential throughput.
 
     Args:
         ntwk(skrf.Network): 4-port single ended network.
@@ -872,8 +857,7 @@ def sdd_21(ntwk):
 
 
 def import_freq(filename, sample_per, padded=False, windowed=False, f_step=10e6):
-    """
-    Read in a single ended 4-port Touchstone file, and extract the
+    """Read in a single ended 4-port Touchstone file, and extract the
     differential throughput step response, resampling as
     appropriate, via linear interpolation.
 
@@ -921,8 +905,7 @@ def import_freq(filename, sample_per, padded=False, windowed=False, f_step=10e6)
 
 
 def lfsr_bits(taps, seed):
-    """
-    Given a set of tap indices and a seed, generate a PRBS.
+    """Given a set of tap indices and a seed, generate a PRBS.
 
     Args:
         taps([int]): The set of fed back taps.
@@ -958,8 +941,7 @@ def safe_log10(x):
 
 
 def pulse_center(p, nspui):
-    """
-    Determines the center of the pulse response, using the "Hula Hoop"
+    """Determines the center of the pulse response, using the "Hula Hoop"
     algorithm (See SiSoft/Tellian's DesignCon 2016 paper.)
 
     Args:

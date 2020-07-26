@@ -49,10 +49,10 @@ gFc = 1.0e6  # Corner frequency of high-pass filter used to model capacitive cou
 
 
 def my_run_sweeps(self):
-    """
-    Runs the simulation sweeps.
+    """Runs the simulation sweeps.
 
     Args:
+    ----
         self(PyBERT): Reference to an instance of the *PyBERT* class.
 
     """
@@ -96,10 +96,10 @@ def my_run_sweeps(self):
 
 
 def my_run_simulation(self, initial_run=False, update_plots=True):
-    """
-    Runs the simulation.
+    """Runs the simulation.
 
     Args:
+    ----
         self(PyBERT): Reference to an instance of the *PyBERT* class.
         initial_run(Bool): If True, don't update the eye diagrams, since
             they haven't been created, yet. (Optional; default = False.)
@@ -109,7 +109,6 @@ def my_run_simulation(self, initial_run=False, update_plots=True):
             conflicts and speed up this function's execution time.
             (Optional; default = True.)
     """
-
     num_sweeps = self.num_sweeps
     sweep_num = self.sweep_num
 
@@ -690,8 +689,7 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
 
 # Plot updating
 def update_results(self):
-    """
-    Updates all plot data used by GUI.
+    """Updates all plot data used by GUI.
 
     Args:
         self(PyBERT): Reference to an instance of the *PyBERT* class.
@@ -903,8 +901,7 @@ def update_results(self):
 
 
 def update_eyes(self):
-    """
-    Update the heat plots representing the eye diagrams.
+    """Update the heat plots representing the eye diagrams.
 
     Args:
         self(PyBERT): Reference to an instance of the *PyBERT* class.

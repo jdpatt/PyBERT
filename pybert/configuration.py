@@ -15,8 +15,7 @@ Copyright (c) 2017 by David Banas; All rights reserved World wide.
 
 
 class PyBertCfg:
-    """
-    PyBERT simulation configuration data encapsulation class.
+    """PyBERT simulation configuration data encapsulation class.
 
     This class is used to encapsulate that subset of the configuration
     data for a PyBERT instance, which is to be saved when the user

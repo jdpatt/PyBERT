@@ -17,9 +17,26 @@ from numpy import array, mean, sign, where
 
 
 class CDR:
-    """
-    A class providing behavioral modeling of a 'bang- bang' clock
-    data recovery (CDR) unit.
+    """Provides behavioral modeling of a 'bang- bang' clock data recovery (CDR) unit.
+
+    Args:
+    ----
+        delta_t (float): The proportional branch correction, in seconds.
+        alpha (float): The integral branch correction, normalized to
+            proportional branch correction.
+        ui (float): The nominal unit interval, in seconds.
+        n_lock_ave (Optional, int): Number of unit intervals to use for
+            determining lock. Defaults to 500.
+        rel_lock_tol(Optional, float): Lock tolerance, relative to
+            *delta_t*. Defaults to 0.01.
+        lock_sustain(Optional, int): Length of lock sustain vector
+            used to provide histerysis. Defaults to 500.
+
+    Notes:
+    -----
+        The code does not care what units are actually used for
+        'delta_t' and 'ui'; only that they are the same.
+
     """
 
     def __init__(
@@ -31,23 +48,6 @@ class CDR:
         rel_lock_tol: float = 0.01,
         lock_sustain: int = 500,
     ):
-        """
-        Args:
-            delta_t (float): The proportional branch correction, in seconds.
-            alpha (float): The integral branch correction, normalized to
-                proportional branch correction.
-            ui (float): The nominal unit interval, in seconds.
-            n_lock_ave (Optional, int): Number of unit intervals to use for
-                determining lock. Defaults to 500.
-            rel_lock_tol(Optional, float): Lock tolerance, relative to
-                *delta_t*. Defaults to 0.01.
-            lock_sustain(Optional, int): Length of lock sustain vector
-                used to provide histerysis. Defaults to 500.
-
-        Notes:
-            The code does not care what units are actually used for
-            'delta_t' and 'ui'; only that they are the same.
-        """
 
         self.delta_t = delta_t
         self.alpha = alpha
@@ -63,19 +63,16 @@ class CDR:
 
     @property
     def ui(self) -> float:
-        """The current unit interval estimate."""
-
+        """Return the current unit interval estimate."""
         return self._ui
 
     @property
     def locked(self) -> bool:
-        """The current locked state."""
-
+        """Return the current locked state."""
         return self._locked
 
     def adapt(self, samples: Sequence[float]) -> Tuple[float, bool]:
-        """
-        Adapt period/phase, according to 3 samples.
+        """Adapt period/phase, according to 3 samples.
 
         Should be called, when the clock has just struck.
 
@@ -83,6 +80,7 @@ class CDR:
             (ui, locked) = adapt(samples)
 
         Args:
+        ----
             samples: A list of 3 samples of the input waveform, as follows:
 
                 - at the last clock time
@@ -90,6 +88,7 @@ class CDR:
                 - at the current clock time
 
         Returns:
+        -------
             (float, bool): The new unit interval estimate, in seconds, and
                 a flag indicating 'locked' status.
 

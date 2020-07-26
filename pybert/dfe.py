@@ -25,6 +25,7 @@ class LfilterSS:
     def __init__(self, b, a):
         """
         Args:
+        ----
             b([float]): Coefficients of the numerator of the rational transfer function.
             a([float]): Coefficients of the denominator of the rational transfer function.
         """
@@ -43,9 +44,11 @@ class LfilterSS:
         Step the filter.
 
         Args:
+        ----
             x(float): Next input value.
 
         Returns:
+        -------
             (float): Next output value.
         """
 
@@ -167,11 +170,13 @@ class DFE:
         Step the DFE, according to the new decision and error inputs.
 
         Args:
+        ----
             decision(float): Current slicer output.
             error(float): Difference between summing node and slicer outputs.
             update(bool): If true, update tap weights.
 
         Returns:
+        -------
             res(float): New backward filter output value.
         """
 
@@ -205,9 +210,11 @@ class DFE:
         Make the bit decisions, according to modulation type.
 
         Args:
+        ----
             x(float): The signal value, at the decision time.
 
         Returns:
+        -------
             tuple(float, [int]): The members of the returned tuple are:
 
                 decision:
@@ -265,11 +272,13 @@ class DFE:
         Run the DFE on the input signal.
 
         Args:
+        ----
             sample_times([float]): Vector of time values at wich
                 corresponding signal values were sampled.
             signal([float]): Vector of sampled signal values.
 
         Returns:
+        -------
             tuple(([float], [[float]], [float], [int], [bool], [float], [int])):
                 The members of the returned tuple, in order, are:
 

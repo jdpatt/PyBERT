@@ -130,8 +130,7 @@ gThresh = 6  # threshold for identifying periodic jitter spectral elements (sigm
 
 
 class StoppableThread(Thread):
-    """
-    Thread class with a stop() method.
+    """Thread class with a stop() method.
 
     The thread itself has to check regularly for the stopped() condition.
 
@@ -352,8 +351,7 @@ class TxTapTuner(HasTraits):
 
 
 class PyBERT(HasTraits):
-    """
-    A serial communication link bit error rate tester (BERT) simulator with a GUI interface.
+    """A serial communication link bit error rate tester (BERT) simulator with a GUI interface.
 
     Useful for exploring the concepts of serial communication link design.
     """
@@ -605,6 +603,7 @@ class PyBERT(HasTraits):
         construct the plots, we must run the simulation.
 
         Args:
+        ----
             run_simulation(Bool): If true, run the simulation, as part
                 of class initialization. This is provided as an argument
                 for the sake of larger applications, which may be
