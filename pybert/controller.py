@@ -40,7 +40,7 @@ from scipy.signal.windows import hann
 from pyibisami.ami_model import AMIModel, AMIModelInitializer
 
 from pybert.dfe import DFE
-from pybert.pybert_util import calc_eye, calc_jitter, find_crossings, import_channel, make_ctle
+from pybert.utility import calc_eye, calc_jitter, find_crossings, import_channel, make_ctle
 
 DEBUG = False
 MIN_BATHTUB_VAL = 1.0e-18

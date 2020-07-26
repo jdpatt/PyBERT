@@ -31,11 +31,6 @@ setup(
         "pyyaml",
         "pyside2",
     ],
-    entry_points={
-        "console_scripts": [
-            "pybert = pybert.pybert:main",
-        ]
-    },
     keywords=["bert", "communication", "simulator"],
     classifiers=[
         "Development Status :: 3 - Alpha",

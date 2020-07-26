@@ -185,7 +185,7 @@ def find_crossings(
         [float]: The signal threshold crossing times.
     """
 
-    assert mod_type >= 0 and mod_type <= 2, "ERROR: pybert_util.find_crossings(): Unknown modulation type: {}".format(
+    assert mod_type >= 0 and mod_type <= 2, "ERROR: utility.find_crossings(): Unknown modulation type: {}".format(
         mod_type
     )
 
@@ -296,7 +296,7 @@ def calc_jitter(ui, nui, pattern_len, ideal_xings, actual_xings, rel_thresh=6, n
         print("len(ideal_xings):", len(ideal_xings))
         print("min(ideal_xings):", min(ideal_xings))
         print("max(ideal_xings):", max(ideal_xings))
-        raise AssertionError("pybert_util.calc_jitter(): Odd number of (or, no) crossings per pattern detected!")
+        raise AssertionError("utility.calc_jitter(): Odd number of (or, no) crossings per pattern detected!")
     num_patterns = nui // pattern_len
 
     # Assemble the TIE track.
@@ -736,7 +736,7 @@ def make_ctle(rx_bw, peak_freq, peak_mag, w, mode="Passive", dc_offset=0):
     elif mode in ("Manual", "AGC"):
         H *= pow(10.0, dc_offset / 20.0) / abs(H[0])  # Enforce d.c. offset.
     else:
-        raise RuntimeError("pybert_util.make_ctle(): Unrecognized value for 'mode' parameter: {}.".format(mode))
+        raise RuntimeError("utility.make_ctle(): Unrecognized value for 'mode' parameter: {}.".format(mode))
 
     return (w, H)
 

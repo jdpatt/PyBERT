@@ -12,7 +12,7 @@ from chaco.tools.api import PanTool, ZoomTool
 
 from numpy import linspace
 
-from pybert.pybert_cntrl import update_eyes
+from pybert.controller import update_eyes
 
 
 def make_plots(self, n_dfe_taps):
