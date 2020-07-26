@@ -4,7 +4,8 @@
     October 22, 2014
 """
 
-from setuptools import setup, find_packages
+from setuptools import find_packages, setup
+
 import pybert
 
 setup(

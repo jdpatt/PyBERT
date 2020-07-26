@@ -7,13 +7,14 @@ Original date:   September 27, 2014 (Copied from pybert_cntrl.py.)
 
 Copyright (c) 2014 David Banas; all rights reserved World wide.
 """
+import importlib
 import os.path
+import pkgutil
 import re
 from functools import reduce
-import pkgutil
-import importlib
 
 import numpy as np
+import skrf as rf
 from numpy import (
     array,
     concatenate,
@@ -40,7 +41,6 @@ from numpy import (
 from numpy.fft import fft, ifft
 from scipy.signal import freqs, get_window, invres
 from scipy.stats import norm
-import skrf as rf
 
 debug = False
 gDebugOptimize = False
@@ -664,6 +664,7 @@ def calc_eye(ui, samps_per_ui, height, ys, y_max, clock_times=None):
             start_ix += samps_per_ui
 
     return img_array
+
 
 def make_ctle(rx_bw, peak_freq, peak_mag, w, mode="Passive", dc_offset=0):
     """

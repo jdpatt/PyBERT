@@ -7,10 +7,9 @@ Original date:   February 21, 2015 (Copied from pybert.py, as part of a major co
 
 Copyright (c) 2015 David Banas; all rights reserved World wide.
 """
+
 from chaco.api import ColorMapper, GridPlotContainer, Plot
 from chaco.tools.api import PanTool, ZoomTool
-
-from numpy import linspace
 
 from pybert.controller import update_eyes
 
@@ -19,9 +18,9 @@ def make_plots(self, n_dfe_taps):
     """ Create the plots used by the PyBERT GUI."""
 
     post_chnl_str = "Channel"
-    post_tx_str   = "Channel + Tx Preemphasis"
+    post_tx_str = "Channel + Tx Preemphasis"
     post_ctle_str = "Channel + Tx Preemphasis + CTLE (+ AMI DFE)"
-    post_dfe_str  = "Channel + Tx Preemphasis + CTLE (+ AMI DFE) + PyBERT DFE"
+    post_dfe_str = "Channel + Tx Preemphasis + CTLE (+ AMI DFE) + PyBERT DFE"
 
     plotdata = self.plotdata
 

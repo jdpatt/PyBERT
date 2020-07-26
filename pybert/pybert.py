@@ -18,19 +18,16 @@ Copyright (c) 2014 by David Banas; All rights reserved World wide.
 # ETSConfig.toolkit = "qt4"
 # ETSConfig.toolkit = "wx"
 
-from datetime import datetime
 import platform
+from datetime import datetime
+from os.path import dirname, join
 from threading import Event, Thread
 from time import sleep
 
-from math import isnan
-
 from chaco.api import ArrayPlotData, GridPlotContainer
-import numpy as np
 from numpy import array, convolve, cos, diff, exp, ones, pad, pi, real, resize, sinc, where, zeros
 from numpy.fft import fft, ifft
 from numpy.random import randint
-from os.path import dirname, join
 from scipy.optimize import minimize, minimize_scalar
 from traits.api import (
     HTML,
@@ -47,20 +44,15 @@ from traits.api import (
     Property,
     Range,
     String,
-    cached_property,
     Trait,
+    cached_property,
 )
 from traitsui.message import message
 
-from pyibisami.ami_parse import AMIParamConfigurator
-from pyibisami.ami_model import AMIModel
-from pyibisami.ibis_file import IBISModel
-
-from pybert import __version__ as VERSION
-from pybert import __date__ as DATE
 from pybert import __authors__ as AUTHORS
 from pybert import __copy__ as COPY
-
+from pybert import __date__ as DATE
+from pybert import __version__ as VERSION
 from pybert.controller import my_run_simulation
 from pybert.help import help_str
 from pybert.plots import make_plots
@@ -72,10 +64,12 @@ from pybert.utility import (
     make_ctle,
     pulse_center,
     safe_log10,
-    trim_impulse,
     submodules,
+    trim_impulse,
 )
-from pybert.view import traits_view
+from pyibisami.ami_model import AMIModel
+from pyibisami.ami_parse import AMIParamConfigurator
+from pyibisami.ibis_file import IBISModel
 
 gDebugStatus = False
 gDebugOptimize = False
@@ -101,8 +95,8 @@ gZ0 = 100.0  # characteristic impedance in LC region (Ohms)
 gv0 = 0.67  # relative propagation velocity (c)
 gl_ch = 1.0  # cable length (m)
 gRn = (
-    0.001
-)  # standard deviation of Gaussian random noise (V) (Applied at end of channel, so as to appear white to Rx.)
+    0.001  # standard deviation of Gaussian random noise (V) (Applied at end of channel, so as to appear white to Rx.)
+)
 # - Tx
 gVod = 1.0  # output drive strength (Vp)
 gRs = 100  # differential source impedance (Ohms)
@@ -367,40 +361,40 @@ class PyBERT(HasTraits):
     # Independent variables
 
     # - Simulation Control
-    bit_rate = Range(low=0.1, high=120.0, value=gBitRate)     #: (Gbps)
-    nbits = Range(low=1000, high=10000000, value=gNbits)      #: Number of bits to simulate.
+    bit_rate = Range(low=0.1, high=120.0, value=gBitRate)  #: (Gbps)
+    nbits = Range(low=1000, high=10000000, value=gNbits)  #: Number of bits to simulate.
     pattern_len = Range(low=7, high=10000000, value=gPatLen)  #: PRBS pattern length.
-    nspb = Range(low=2, high=256, value=gNspb)                #: Signal vector samples per bit.
+    nspb = Range(low=2, high=256, value=gNspb)  #: Signal vector samples per bit.
     eye_bits = Int(gNbits // 5)  #: # of bits used to form eye. (Default = last 20%)
-    mod_type = List([0])         #: 0 = NRZ; 1 = Duo-binary; 2 = PAM-4
-    num_sweeps = Int(1)          #: Number of sweeps to run.
+    mod_type = List([0])  #: 0 = NRZ; 1 = Duo-binary; 2 = PAM-4
+    num_sweeps = Int(1)  #: Number of sweeps to run.
     sweep_num = Int(1)
     sweep_aves = Int(gNumAve)
     do_sweep = Bool(False)  #: Run sweeps? (Default = False)
-    debug = Bool(False)     #: Send log messages to terminal, as well as console, when True. (Default = False)
+    debug = Bool(False)  #: Send log messages to terminal, as well as console, when True. (Default = False)
 
     # - Channel Control
     ch_file = File(
         "", entries=5, filter=["*.s4p", "*.S4P", "*.csv", "*.CSV", "*.txt", "*.TXT", "*.*"]
-    )                          #: Channel file name.
+    )  #: Channel file name.
     use_ch_file = Bool(False)  #: Import channel description from file? (Default = False)
-    Zref = Float(100)          #: Reference (or, nominal) channel impedance.
-    padded = Bool(False)       #: Zero pad imported Touchstone data? (Default = False)
-    windowed = Bool(False)     #: Apply windowing to the Touchstone data? (Default = False)
-    f_step = Float(10)         #: Frequency step to use when constructing H(f). (Default = 10 MHz)
+    Zref = Float(100)  #: Reference (or, nominal) channel impedance.
+    padded = Bool(False)  #: Zero pad imported Touchstone data? (Default = False)
+    windowed = Bool(False)  #: Apply windowing to the Touchstone data? (Default = False)
+    f_step = Float(10)  #: Frequency step to use when constructing H(f). (Default = 10 MHz)
     impulse_length = Float(0.0)  #: Impulse response length. (Determined automatically, when 0.)
-    Rdc = Float(gRdc)            #: Channel d.c. resistance (Ohms/m).
-    w0 = Float(gw0)              #: Channel transition frequency (rads./s).
-    R0 = Float(gR0)              #: Channel skin effect resistance (Ohms/m).
-    Theta0 = Float(gTheta0)      #: Channel loss tangent (unitless).
-    Z0 = Float(gZ0)              #: Channel characteristic impedance, in LC region (Ohms).
-    v0 = Float(gv0)              #: Channel relative propagation velocity (c).
-    l_ch = Float(gl_ch)          #: Channel length (m).
+    Rdc = Float(gRdc)  #: Channel d.c. resistance (Ohms/m).
+    w0 = Float(gw0)  #: Channel transition frequency (rads./s).
+    R0 = Float(gR0)  #: Channel skin effect resistance (Ohms/m).
+    Theta0 = Float(gTheta0)  #: Channel loss tangent (unitless).
+    Z0 = Float(gZ0)  #: Channel characteristic impedance, in LC region (Ohms).
+    v0 = Float(gv0)  #: Channel relative propagation velocity (c).
+    l_ch = Float(gl_ch)  #: Channel length (m).
 
     # - EQ Tune
     tx_tap_tuners = List(
         [
-            TxTapTuner(name="Pre-tap",   enabled=True,  min_val=-0.2, max_val=0.2, value=0.0),
+            TxTapTuner(name="Pre-tap", enabled=True, min_val=-0.2, max_val=0.2, value=0.0),
             TxTapTuner(name="Post-tap1", enabled=False, min_val=-0.4, max_val=0.4, value=0.0),
             TxTapTuner(name="Post-tap2", enabled=False, min_val=-0.3, max_val=0.3, value=0.0),
             TxTapTuner(name="Post-tap3", enabled=False, min_val=-0.2, max_val=0.2, value=0.0),
@@ -429,7 +423,7 @@ class PyBERT(HasTraits):
     rn = Float(gRn)  #: Standard deviation of Gaussian random noise (V).
     tx_taps = List(
         [
-            TxTapTuner(name="Pre-tap",   enabled=True,  min_val=-0.2, max_val=0.2, value=0.0),
+            TxTapTuner(name="Pre-tap", enabled=True, min_val=-0.2, max_val=0.2, value=0.0),
             TxTapTuner(name="Post-tap1", enabled=False, min_val=-0.4, max_val=0.4, value=0.0),
             TxTapTuner(name="Post-tap2", enabled=False, min_val=-0.3, max_val=0.3, value=0.0),
             TxTapTuner(name="Post-tap3", enabled=False, min_val=-0.2, max_val=0.2, value=0.0),
@@ -583,9 +577,9 @@ class PyBERT(HasTraits):
     btn_abort = Button(label="Abort")
     btn_cfg_tx = Button(label="Configure")  # Configure AMI parameters.
     btn_cfg_rx = Button(label="Configure")
-    btn_sel_tx = Button(label="Select")     # Select IBIS model.
+    btn_sel_tx = Button(label="Select")  # Select IBIS model.
     btn_sel_rx = Button(label="Select")
-    btn_view_tx = Button(label="View")      # View IBIS model.
+    btn_view_tx = Button(label="View")  # View IBIS model.
     btn_view_rx = Button(label="View")
 
     # Logger & Pop-up
@@ -1287,7 +1281,7 @@ class PyBERT(HasTraits):
         ctle_h = self.ctle_h_tune
 
         tx_out_h = convolve(tx_h, chnl_h)
-        return(convolve(ctle_h, tx_out_h))
+        return convolve(ctle_h, tx_out_h)
 
     @cached_property
     def _get_cost(self):
@@ -1352,9 +1346,9 @@ class PyBERT(HasTraits):
         for i in range(n_taps):
             ix = clock_pos + (i + 1) * nspui
             if ix < len_p:
-                err += p[ix]**2
+                err += p[ix] ** 2
 
-        return err / p[clock_pos]**2
+        return err / p[clock_pos] ** 2
 
     # Changed property handlers.
     def _status_str_changed(self):

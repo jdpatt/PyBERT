@@ -16,9 +16,11 @@ Initialization of the Simbeor solver consists of:
 Copyright (c) 2019 by David Banas; all rights reserved World wide.
 """
 import os
-import os.path as osp
+from os import path as osp
+
 import numpy as np
-import pybert.solver as slvr
+
+from pybert import solver as slvr
 
 sdkdir = os.environ.get("SIMBEOR_SDK")
 __path__ = [osp.join(sdkdir, "python")]

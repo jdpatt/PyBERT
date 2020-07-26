@@ -13,7 +13,6 @@ Each solver must define how the standard interface is implemented.
 Copyright (c) 2019 by David Banas; all rights reserved World wide.
 """
 from abc import ABC, abstractmethod
-from typing import List, Tuple, Dict
 from enum import Enum
 
 ChType = Enum("ChType", "microstrip_se microstrip_diff stripline_se stripline_diff")
@@ -50,4 +49,3 @@ class Solver(ABC):
             Zc: Frequency dependent complex impedance.
             freqs: List of frequencies at which ``gamma`` and ``Zc`` were sampled.
         """
-        pass

@@ -37,10 +37,10 @@ from numpy.fft import fft, ifft
 from numpy.random import normal
 from scipy.signal import iirfilter, lfilter
 from scipy.signal.windows import hann
-from pyibisami.ami_model import AMIModel, AMIModelInitializer
 
 from pybert.dfe import DFE
 from pybert.utility import calc_eye, calc_jitter, find_crossings, import_channel, make_ctle
+from pyibisami.ami_model import AMIModel, AMIModelInitializer
 
 DEBUG = False
 MIN_BATHTUB_VAL = 1.0e-18
@@ -169,7 +169,7 @@ def my_run_simulation(self, initial_run=False, update_plots=True):
         if mod_type == 1:  # Handle duo-binary case.
             duob_h = array(([0.5] + [0.0] * (nspui - 1)) * 2)
             x = convolve(x, duob_h)[: len(t)]
-        self.ideal_signal = x           # Causes crash.
+        self.ideal_signal = x  # Causes crash.
         # self.ideal_signal = x[:-70000]    # Fixes crash.
         # self.ideal_signal = x[:-62500]  # Causes crash again.
         # self.ideal_signal = 0.6 * x     # Also fixes crash
@@ -225,16 +225,18 @@ def my_run_simulation(self, initial_run=False, update_plots=True):
                 tx_h = array(tx_model.initOut) * ts
             elif not tx_cfg.fetch_param_val(["Reserved_Parameters", "GetWave_Exists"]):
                 self.status = "Simulation Error."
-                self.log( "ERROR: Both 'Init_Returns_Impulse' and 'GetWave_Exists' are False!\n \
+                self.log(
+                    "ERROR: Both 'Init_Returns_Impulse' and 'GetWave_Exists' are False!\n \
 I cannot continue.\nYou will have to select a different model.",
-                    alert=True
+                    alert=True,
                 )
                 return
             elif not self.tx_use_getwave:
                 self.status = "Simulation Error."
-                self.log( "ERROR: You have elected not to use GetWave for a model, which does not return an impulse response!\n \
+                self.log(
+                    "ERROR: You have elected not to use GetWave for a model, which does not return an impulse response!\n \
 I cannot continue.\nPlease, select 'Use GetWave' and try again.",
-                    alert=True
+                    alert=True,
                 )
                 return
             if self.tx_use_getwave:
@@ -335,7 +337,7 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
                 self.log(
                     "ERROR: Both 'Init_Returns_Impulse' and 'GetWave_Exists' are False!\n \
 I cannot continue.\nYou will have to select a different model.",
-                    alert=True
+                    alert=True,
                 )
                 return
             elif not self.rx_use_getwave:
@@ -343,7 +345,7 @@ I cannot continue.\nYou will have to select a different model.",
                 self.log(
                     "ERROR: You have elected not to use GetWave for a model, which does not return an impulse response!\n \
 I cannot continue.\nPlease, select 'Use GetWave' and try again.",
-                    alert=True
+                    alert=True,
                 )
                 return
             if self.rx_use_getwave:

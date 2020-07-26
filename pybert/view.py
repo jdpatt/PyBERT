@@ -7,31 +7,32 @@ Original date:   August 24, 2014 (Copied from pybert.py, as part of a major code
 
 Copyright (c) 2014 David Banas; all rights reserved World wide.
 """
-import yaml
 import pickle
 from threading import Thread
 
+import yaml
 from enable.component_editor import ComponentEditor
 from pyface.api import OK, FileDialog
 from pyface.image_resource import ImageResource
-from traits.api import Instance, HasTraits
+from traits.api import Instance
 from traitsui.api import (
     Action,
     CheckListEditor,
+    EnumEditor,
     FileEditor,
     Group,
     Handler,
     HGroup,
     Item,
+    Label,
     ObjectColumn,
     TableEditor,
     TextEditor,
     VGroup,
     View,
-    Label,
-    EnumEditor,
     spring,
 )
+
 from pybert.configuration import PyBertCfg
 from pybert.controller import my_run_sweeps
 from pybert.results import PyBertData
@@ -79,8 +80,8 @@ class MyHandler(Handler):
                 the_pybert.log(f"Configuration saved to {the_pybert.cfg_file}")
             except Exception as err:
                 error_message = f"The following error occured:\n\t{err}\nThe configuration was NOT saved."
-                the_pybert.log("Exception raised by pybert.view.MyHandler.do_save_cfg().",
-                    exception=RuntimeError(error_message)
+                the_pybert.log(
+                    "Exception raised by pybert.view.MyHandler.do_save_cfg().", exception=RuntimeError(error_message)
                 )
 
     def do_load_cfg(self, info):
@@ -108,8 +109,8 @@ class MyHandler(Handler):
                 the_pybert.log(f"Configuration loaded from {the_pybert.cfg_file}")
             except Exception as err:
                 error_message = f"The following error occured:\n\t{err}\nThe configuration was NOT loaded."
-                the_pybert.log("Exception raised by pybert.view.MyHandler.do_load_cfg().",
-                    exception=RuntimeError(error_message)
+                the_pybert.log(
+                    "Exception raised by pybert.view.MyHandler.do_load_cfg().", exception=RuntimeError(error_message)
                 )
 
     def do_save_data(self, info):
@@ -124,8 +125,8 @@ class MyHandler(Handler):
                 the_pybert.data_file = dlg.path
             except Exception as err:
                 error_message = f"The following error occured:\n\t{err}\nThe data was NOT saved."
-                the_pybert.log("Exception raised by pybert.view.MyHandler.do_save_data().",
-                    exception=RuntimeError(error_message)
+                the_pybert.log(
+                    "Exception raised by pybert.view.MyHandler.do_save_data().", exception=RuntimeError(error_message)
                 )
 
     def do_load_data(self, info):
@@ -196,9 +197,10 @@ class MyHandler(Handler):
             except Exception as err:
                 error_message = f"The following error occured while processing item: {item_name}:\n \
 \t{err}\nThe configuration was NOT saved."
-                the_pybert.log("Exception raised by pybert.view.MyHandler.do_load_data().",
-                    exception=RuntimeError(error_message)
+                the_pybert.log(
+                    "Exception raised by pybert.view.MyHandler.do_load_data().", exception=RuntimeError(error_message)
                 )
+
 
 # These are the "globally applicable" buttons referred to in pybert.py,
 # just above the button definitions (approx. line 580).
@@ -296,7 +298,8 @@ traits_view = View(
                     VGroup(
                         HGroup(
                             Item(
-                                name="tx_ibis_file", label="File",
+                                name="tx_ibis_file",
+                                label="File",
                                 springy=True,
                                 editor=FileEditor(dialog_style="open", filter=["*.ibs"]),
                             ),
@@ -312,16 +315,8 @@ traits_view = View(
                         show_border=True,
                     ),
                     VGroup(
-                        Item(
-                            name="rs",
-                            label="Tx_Rs (Ohms)",
-                            tooltip="Tx differential source impedance",
-                        ),
-                        Item(
-                            name="cout",
-                            label="Tx_Cout (pF)",
-                            tooltip="Tx parasitic output capacitance (each pin)",
-                        ),
+                        Item(name="rs", label="Tx_Rs (Ohms)", tooltip="Tx differential source impedance",),
+                        Item(name="cout", label="Tx_Cout (pF)", tooltip="Tx parasitic output capacitance (each pin)",),
                         label="Native",
                         show_border=True,
                         enabled_when="tx_use_ibis == False",
@@ -334,33 +329,20 @@ traits_view = View(
                         VGroup(
                             HGroup(
                                 Item(
-                                    name="ch_file", label="File",
-                                    springy=True,
-                                    editor=FileEditor(dialog_style="open"),
+                                    name="ch_file", label="File", springy=True, editor=FileEditor(dialog_style="open"),
                                 ),
                             ),
                             HGroup(
-                                Item(
-                                    name="use_ch_file",
-                                    label="Use file",
-                                ),
+                                Item(name="use_ch_file", label="Use file",),
                                 spring,
-                                Item(name="padded",   label="Zero-padded", enabled_when="use_ch_file == True"),
-                                Item(name="windowed", label="Windowed",    enabled_when="use_ch_file == True"),
+                                Item(name="padded", label="Zero-padded", enabled_when="use_ch_file == True"),
+                                Item(name="windowed", label="Windowed", enabled_when="use_ch_file == True"),
                             ),
                         ),
                         HGroup(
-                            Item(
-                                name="Zref",
-                                label="Zref",
-                                tooltip="Reference Impedance.",
-                            ),
+                            Item(name="Zref", label="Zref", tooltip="Reference Impedance.",),
                             Item(label="Ohms"),
-                            Item(
-                                name="f_step",
-                                label="f_step",
-                                tooltip="Frequency step to use in generating H(f).",
-                            ),
+                            Item(name="f_step", label="f_step", tooltip="Frequency step to use in generating H(f).",),
                             Item(label="MHz"),
                             enabled_when="use_ch_file == True",
                         ),
@@ -369,43 +351,15 @@ traits_view = View(
                     ),
                     HGroup(  # Native (i.e. - Howard Johnson's) interconnect model.
                         VGroup(
-                            Item(
-                                name="l_ch",
-                                label="Length (m)",
-                                tooltip="interconnect length",
-                            ),
-                            Item(
-                                name="Theta0",
-                                label="Loss Tan.",
-                                tooltip="dielectric loss tangent",
-                            ),
-                            Item(
-                                name="Z0",
-                                label="Z0 (Ohms)",
-                                tooltip="characteristic differential impedance",
-                            ),
-                            Item(
-                                name="v0",
-                                label="v_rel (c)",
-                                tooltip="normalized propagation velocity",
-                            ),
+                            Item(name="l_ch", label="Length (m)", tooltip="interconnect length",),
+                            Item(name="Theta0", label="Loss Tan.", tooltip="dielectric loss tangent",),
+                            Item(name="Z0", label="Z0 (Ohms)", tooltip="characteristic differential impedance",),
+                            Item(name="v0", label="v_rel (c)", tooltip="normalized propagation velocity",),
                         ),
                         VGroup(
-                            Item(
-                                name="Rdc",
-                                label="Rdc (Ohms)",
-                                tooltip="d.c. resistance",
-                            ),
-                            Item(
-                                name="w0",
-                                label="w0 (rads./s)",
-                                tooltip="transition frequency",
-                            ),
-                            Item(
-                                name="R0",
-                                label="R0 (Ohms)",
-                                tooltip="skin effect resistance",
-                            ),
+                            Item(name="Rdc", label="Rdc (Ohms)", tooltip="d.c. resistance",),
+                            Item(name="w0", label="w0 (rads./s)", tooltip="transition frequency",),
+                            Item(name="R0", label="R0 (Ohms)", tooltip="skin effect resistance",),
                         ),
                         label="Native",
                         show_border=True,
@@ -418,7 +372,8 @@ traits_view = View(
                     VGroup(
                         HGroup(
                             Item(
-                                name="rx_ibis_file", label="File",
+                                name="rx_ibis_file",
+                                label="File",
                                 springy=True,
                                 editor=FileEditor(dialog_style="open", filter=["*.ibs"]),
                             ),
@@ -434,21 +389,9 @@ traits_view = View(
                         show_border=True,
                     ),
                     VGroup(
-                        Item(
-                            name="rin",
-                            label="Rx_Rin (Ohms)",
-                            tooltip="Rx differential input impedance",
-                        ),
-                        Item(
-                            name="cin",
-                            label="Rx_Cin (pF)",
-                            tooltip="Rx parasitic input capacitance (each pin)",
-                        ),
-                        Item(
-                            name="cac",
-                            label="Rx_Cac (uF)",
-                            tooltip="Rx a.c. coupling capacitance (each pin)",
-                        ),
+                        Item(name="rin", label="Rx_Rin (Ohms)", tooltip="Rx differential input impedance",),
+                        Item(name="cin", label="Rx_Cin (pF)", tooltip="Rx parasitic input capacitance (each pin)",),
+                        Item(name="cac", label="Rx_Cac (uF)", tooltip="Rx a.c. coupling capacitance (each pin)",),
                         label="Native",
                         show_border=True,
                         enabled_when="rx_use_ibis == False",
@@ -577,8 +520,12 @@ traits_view = View(
                                         label="fromFile",
                                         tooltip="Select CTLE impulse/step response from file.",
                                     ),
-                                    Item(name="ctle_file", label="Filename", enabled_when="use_ctle_file == True",
-                                        editor=FileEditor(dialog_style="open"),),
+                                    Item(
+                                        name="ctle_file",
+                                        label="Filename",
+                                        enabled_when="use_ctle_file == True",
+                                        editor=FileEditor(dialog_style="open"),
+                                    ),
                                 ),
                                 HGroup(
                                     Item(
@@ -615,14 +562,18 @@ traits_view = View(
                                         enabled_when='ctle_mode == "Manual"',
                                     ),
                                 ),
-                            label="CTLE",
-                            show_border=True,
-                            enabled_when="rx_use_ami == False",
+                                label="CTLE",
+                                show_border=True,
+                                enabled_when="rx_use_ami == False",
                             ),
                         ),
                         HGroup(
                             VGroup(
-                                Item(name="delta_t", label="Delta-t (ps)", tooltip="magnitude of CDR proportional branch"),
+                                Item(
+                                    name="delta_t",
+                                    label="Delta-t (ps)",
+                                    tooltip="magnitude of CDR proportional branch",
+                                ),
                                 Item(name="alpha", label="Alpha", tooltip="relative magnitude of CDR integral branch"),
                                 Item(
                                     name="n_lock_ave",
@@ -630,7 +581,9 @@ traits_view = View(
                                     tooltip="# of UI estimates to average, when determining lock",
                                 ),
                                 Item(
-                                    name="rel_lock_tol", label="Lock Tol.", tooltip="relative tolerance for determining lock"
+                                    name="rel_lock_tol",
+                                    label="Lock Tol.",
+                                    tooltip="relative tolerance for determining lock",
                                 ),
                                 Item(
                                     name="lock_sustain",
@@ -639,7 +592,7 @@ traits_view = View(
                                 ),
                                 label="CDR",
                                 show_border=True,
-                                enabled_when='rx_use_ami == False or rx_use_getwave == False',
+                                enabled_when="rx_use_ami == False or rx_use_getwave == False",
                             ),
                             VGroup(
                                 HGroup(
@@ -679,8 +632,7 @@ traits_view = View(
                 ),
                 springy=True,
             ),
-            HGroup(
-            ),
+            HGroup(),
             label="Equalization",
             id="channel",
         ),
@@ -714,40 +666,33 @@ traits_view = View(
                     springy=True,
                 ),
                 # HGroup(
-                    VGroup(
+                VGroup(
+                    Item(
+                        name="peak_mag_tune",
+                        label="CTLE: boost (dB)",
+                        tooltip="CTLE peaking magnitude (dB)",
+                        format_str="%4.1f",
+                    ),
+                    HGroup(
+                        Item(name="peak_freq_tune", label="fp (GHz)", tooltip="CTLE peaking frequency (GHz)"),
+                        Item(name="rx_bw_tune", label="BW (GHz)", tooltip="unequalized signal path bandwidth (GHz).",),
+                    ),
+                    HGroup(
+                        Item(name="ctle_mode_tune", label="mode", tooltip="CTLE Operating Mode"),
                         Item(
-                            name="peak_mag_tune",
-                            label="CTLE: boost (dB)",
-                            tooltip="CTLE peaking magnitude (dB)",
-                            format_str="%4.1f",
+                            name="ctle_offset_tune",
+                            tooltip="CTLE d.c. offset (dB)",
+                            show_label=False,
+                            enabled_when='ctle_mode_tune == "Manual"',
                         ),
-                        HGroup(
-                            Item(name="peak_freq_tune",
-                                 label="fp (GHz)",
-                                 tooltip="CTLE peaking frequency (GHz)"
-                            ),
-                            Item(
-                                name="rx_bw_tune",
-                                label="BW (GHz)",
-                                tooltip="unequalized signal path bandwidth (GHz).",
-                            ),
-                        ),
-                        HGroup(
-                            Item(name="ctle_mode_tune", label="mode", tooltip="CTLE Operating Mode"),
-                            Item(
-                                name="ctle_offset_tune",
-                                tooltip="CTLE d.c. offset (dB)",
-                                show_label=False,
-                                enabled_when='ctle_mode_tune == "Manual"',
-                            ),
-                        ),
-                        HGroup(
-                            Item(name="use_dfe_tune", label="DFE: Enable", tooltip="Include ideal DFE in optimization."),
-                            Item(name="n_taps_tune", label="Taps", tooltip="Number of DFE taps."),
-                        ),
+                    ),
+                    HGroup(
+                        Item(name="use_dfe_tune", label="DFE: Enable", tooltip="Include ideal DFE in optimization."),
+                        Item(name="n_taps_tune", label="Taps", tooltip="Number of DFE taps."),
+                    ),
                     label="Rx Equalization",
                     show_border=True,
-                    ),
+                ),
                 # ),
                 VGroup(
                     Item(
@@ -794,19 +739,21 @@ traits_view = View(
             Group(Item("plots_s", editor=ComponentEditor(), show_label=False), label="Steps", id="plots_s"),
             Group(Item("plots_p", editor=ComponentEditor(), show_label=False), label="Pulses", id="plots_p"),
             Group(Item("plots_H", editor=ComponentEditor(), show_label=False), label="Freq. Resp.", id="plots_H"),
-            layout='tabbed',
-            label='Responses',
-            id='responses'
+            layout="tabbed",
+            label="Responses",
+            id="responses",
         ),
         Group(  # Results
             Group(Item("plots_dfe", editor=ComponentEditor(), show_label=False), label="DFE", id="plots_dfe"),
             Group(Item("plots_out", editor=ComponentEditor(), show_label=False), label="Outputs", id="plots_out"),
             Group(Item("plots_eye", editor=ComponentEditor(), show_label=False), label="Eyes", id="plots_eye"),
-            Group(Item("plots_bathtub", editor=ComponentEditor(), show_label=False), label="Bathtubs", id="plots_bathtub"),
+            Group(
+                Item("plots_bathtub", editor=ComponentEditor(), show_label=False), label="Bathtubs", id="plots_bathtub"
+            ),
             Group(Item("sweep_info", style="readonly", show_label=False), label="Sweep Info"),
-            layout='tabbed',
-            label='Results',
-            id='results'
+            layout="tabbed",
+            label="Results",
+            id="results",
         ),
         Group(  # Jitter
             Group(
@@ -820,9 +767,9 @@ traits_view = View(
                 id="plots_jitter_spec",
             ),
             Group(Item("jitter_info", style="readonly", show_label=False), label="Jitter Info"),
-            layout='tabbed',
-            label='Jitter',
-            id='jitter'
+            layout="tabbed",
+            label="Jitter",
+            id="jitter",
         ),
         Group(  # Help
             Group(
@@ -832,9 +779,9 @@ traits_view = View(
             ),
             Group(Item("instructions", style="readonly", show_label=False), label="Guide"),
             Group(Item("console_log", show_label=False, style="custom"), label="Console", id="console"),
-            layout='tabbed',
-            label='Help',
-            id='help'
+            layout="tabbed",
+            label="Help",
+            id="help",
         ),
         layout="tabbed",
         springy=True,
