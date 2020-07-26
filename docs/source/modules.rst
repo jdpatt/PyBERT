@@ -8,60 +8,60 @@ pybert - Main *PyBERT* class definition, as well as some helper classes.
 
 .. autoclass:: pybert.pybert.StoppableThread
    :members:
-   
+
 .. autoclass:: pybert.pybert.TxOptThread
    :members:
-   
+
 .. autoclass:: pybert.pybert.RxOptThread
    :members:
-   
+
 .. autoclass:: pybert.pybert.CoOptThread
    :members:
-   
+
 .. autoclass:: pybert.pybert.TxTapTuner
    :members:
-   
+
 .. autoclass:: pybert.pybert.PyBERT
    :members:
 
-pybert_cntrl - Model control logic.
+controller - Model control logic.
 ***********************************
 
-.. automodule:: pybert.pybert_cntrl
+.. automodule:: pybert.controller
    :members: my_run_sweeps, my_run_simulation, update_results, update_eyes
 
-pybert_view - Main GUI window layout definition.
+view - Main GUI window layout definition.
 ************************************************
 
-.. automodule:: pybert.pybert_view
+.. automodule:: pybert.view
    :members: MyHandler, RunSimThread
 
-pybert_util - Various utilities used by other modules.
+utility - Various utilities used by other modules.
 ******************************************************
 
-.. automodule:: pybert.pybert_util
+.. automodule:: pybert.utility
    :members: moving_average, find_crossing_times, find_crossings, calc_jitter, make_uniform, calc_gamma, calc_G, calc_eye, make_ctle, trim_impulse, import_channel, interp_time, import_time, sdd_21, import_freq, lfsr_bits, safe_log10, pulse_center
 
-pybert_plot - Plot definitions for the *PyBERT* GUI.
+plots - Plot definitions for the *PyBERT* GUI.
 ****************************************************
 
-.. automodule:: pybert.pybert_plot
+.. automodule:: pybert.plots
 
-pybert_help - Contents of the *Help* tab of the *PyBERT* GUI.
+help - Contents of the *Help* tab of the *PyBERT* GUI.
 *************************************************************
 
-.. automodule:: pybert.pybert_help
+.. automodule:: pybert.help
 
-pybert_cfg - Data structure for saving *PyBERT* configuration.
+configuration - Data structure for saving *PyBERT* configuration.
 **************************************************************
 
-.. automodule:: pybert.pybert_cfg
+.. automodule:: pybert.configuration
    :members:
 
-pybert_data - Data structure for saving *PyBERT* results.
+results - Data structure for saving *PyBERT* results.
 *********************************************************
 
-.. automodule:: pybert.pybert_data
+.. automodule:: pybert.results
    :members:
 
 dfe - DFE behavioral model.
@@ -75,4 +75,3 @@ cdr - CDR behavioral model.
 
 .. automodule:: pybert.cdr
    :members: CDR
-
