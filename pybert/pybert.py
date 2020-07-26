@@ -19,7 +19,7 @@ Copyright (c) 2014 by David Banas; All rights reserved World wide.
 # ETSConfig.toolkit = "wx"
 
 from datetime import datetime
-import platform
+import logging
 from threading import Event, Thread
 from time import sleep
 
@@ -50,7 +50,6 @@ from traits.api import (
     cached_property,
     Trait,
 )
-from traitsui.message import message
 
 from pyibisami.ami_parse import AMIParamConfigurator
 from pyibisami.ami_model import AMIModel
@@ -61,6 +60,7 @@ from pybert import __date__ as DATE
 from pybert import __authors__ as AUTHORS
 from pybert import __copy__ as COPY
 
+from pybert.logger import setup_logger
 from pybert.pybert_cntrl import my_run_simulation
 from pybert.pybert_help import help_str
 from pybert.pybert_plot import make_plots
@@ -74,6 +74,7 @@ from pybert.pybert_util import (
     safe_log10,
     trim_impulse,
     submodules,
+    alert_user
 )
 from pybert.pybert_view import traits_view
 
@@ -588,20 +589,6 @@ class PyBERT(HasTraits):
     btn_view_tx = Button(label="View")      # View IBIS model.
     btn_view_rx = Button(label="View")
 
-    # Logger & Pop-up
-    def log(self, msg, alert=False, exception=None):
-        """Log a message to the console and, optionally, to terminal and/or pop-up dialog."""
-        _msg = msg.strip()
-        txt = "\n[{}]: {}\n".format(datetime.now(), _msg)
-        if self.debug:
-            ## In case PyBERT crashes, before we can read this in its `Console` tab:
-            print(txt)
-        self.console_log += txt
-        if exception:
-            raise exception
-        if alert:
-            message(_msg, "PyBERT Alert")
-
     # Default initialization
     def __init__(self, run_simulation=True):
         """
@@ -623,10 +610,8 @@ class PyBERT(HasTraits):
         # to get all the Traits/UI machinery setup correctly.
         super(PyBERT, self).__init__()
 
-        self.log("Started.")
-        self.log_information()
-        if self.debug:
-            self.log("Debug Mode Enabled.")
+        self.log = setup_logger(self, debug=self.debug)
+        self.log.info("Started.")
 
         if run_simulation:
             # Running the simulation will fill in the required data structure.
@@ -635,6 +620,14 @@ class PyBERT(HasTraits):
             make_plots(self, n_dfe_taps=gNtaps)
         else:
             self.calc_chnl_h()  # Prevents missing attribute error in _get_ctle_out_h_tune().
+
+    def _debug_changed(self, checked):
+        """The Debug checkbox changed, update the logging level."""
+        if checked:
+            self.log.setLevel(logging.DEBUG)
+            self.log.info("Debug Mode Enabled.")
+        else:
+            self.log.setLevel(logging.INFO)
 
     # Custom button handlers
     def _btn_rst_eq_fired(self):
@@ -1288,7 +1281,7 @@ class PyBERT(HasTraits):
 
         tx_out_h = convolve(tx_h, chnl_h)
         return(convolve(ctle_h, tx_out_h))
-        
+
     @cached_property
     def _get_cost(self):
         nspui = self.nspui
@@ -1359,7 +1352,7 @@ class PyBERT(HasTraits):
     # Changed property handlers.
     def _status_str_changed(self):
         if gDebugStatus:
-            print(self.status_str)
+            self.log.info(self.status_str)
 
     def _use_dfe_changed(self, new_value):
         if not new_value:
@@ -1382,9 +1375,9 @@ class PyBERT(HasTraits):
         try:
             self.tx_ibis_valid = False
             self.tx_use_ami = False
-            self.log(f"Parsing Tx IBIS file, '{new_value}'...")
+            self.log.info(f"Parsing Tx IBIS file, '{new_value}'...")
             ibis = IBISModel(new_value, True)
-            self.log(f"  Result:\n{ibis.ibis_parsing_errors}")
+            self.log.info(f"  Result:\n{ibis.ibis_parsing_errors}")
             self._tx_ibis = ibis
             self.tx_ibis_valid = True
             dName = dirname(new_value)
@@ -1397,23 +1390,26 @@ class PyBERT(HasTraits):
         except Exception as err:
             self.status = "IBIS file parsing error!"
             error_message = "Failed to open and/or parse IBIS file!\n{}".format(err)
-            self.log(error_message, alert=True, exception=err)
+            self.log.error(error_message)
+            alert_user(error_message)
+            raise
         self._tx_ibis_dir = dName
         self.status = "Done."
-        
+
     def _tx_ami_file_changed(self, new_value):
         try:
             self.tx_ami_valid = False
             if new_value:
                 with open(new_value) as pfile:
                     pcfg = AMIParamConfigurator(pfile.read())
-                self.log("Parsing Tx AMI file, '{}'...\n{}".format(new_value, pcfg.ami_parsing_errors))
+                self.log.info("Parsing Tx AMI file, '{}'...\n{}".format(new_value, pcfg.ami_parsing_errors))
                 self.tx_has_getwave = pcfg.fetch_param_val(["Reserved_Parameters", "GetWave_Exists"])
                 self._tx_cfg = pcfg
                 self.tx_ami_valid = True
         except Exception as err:
             error_message = "Failed to open and/or parse AMI file!\n{}".format(err)
-            self.log(error_message, alert=True)
+            self.log.error(error_message)
+            alert_user(error_message)
 
     def _tx_dll_file_changed(self, new_value):
         try:
@@ -1424,16 +1420,17 @@ class PyBERT(HasTraits):
                 self.tx_dll_valid = True
         except Exception as err:
             error_message = "Failed to open DLL/SO file!\n{}".format(err)
-            self.log(error_message, alert=True)
+            self.log.error(error_message)
+            alert_user(error_message)
 
     def _rx_ibis_file_changed(self, new_value):
         self.status = f"Parsing IBIS file: {new_value}"
         try:
             self.rx_ibis_valid = False
             self.rx_use_ami = False
-            self.log(f"Parsing Rx IBIS file, '{new_value}'...")
+            self.log.info(f"Parsing Rx IBIS file, '{new_value}'...")
             ibis = IBISModel(new_value, self.debug)
-            self.log(f"  Result:\n{ibis.ibis_parsing_errors}")
+            self.log.info(f"  Result:\n{ibis.ibis_parsing_errors}")
             self._rx_ibis = ibis
             self.rx_ibis_valid = True
             dName = dirname(new_value)
@@ -1446,7 +1443,8 @@ class PyBERT(HasTraits):
         except Exception as err:
             self.status = "IBIS file parsing error!"
             error_message = "Failed to open and/or parse IBIS file!\n{}".format(err)
-            self.log(error_message, alert=True)
+            self.log.error(error_message)
+            alert_user(error_message)
         self._rx_ibis_dir = dName
         self.status = "Done."
 
@@ -1456,13 +1454,14 @@ class PyBERT(HasTraits):
             if new_value:
                 with open(new_value) as pfile:
                     pcfg = AMIParamConfigurator(pfile.read())
-                self.log("Parsing Rx AMI file, '{}'...\n{}".format(new_value, pcfg.ami_parsing_errors))
+                self.log.info("Parsing Rx AMI file, '{}'...\n{}".format(new_value, pcfg.ami_parsing_errors))
                 self.rx_has_getwave = pcfg.fetch_param_val(["Reserved_Parameters", "GetWave_Exists"])
                 self._rx_cfg = pcfg
                 self.rx_ami_valid = True
         except Exception as err:
             error_message = "Failed to open and/or parse AMI file!\n{}".format(err)
-            self.log(error_message, alert=True)
+            self.log.error(error_message)
+            alert_user(error_message)
 
     def _rx_dll_file_changed(self, new_value):
         try:
@@ -1473,7 +1472,8 @@ class PyBERT(HasTraits):
                 self.rx_dll_valid = True
         except Exception as err:
             error_message = "Failed to open DLL/SO file!\n{}".format(err)
-            self.log(error_message, alert=True)
+            self.log.error(error_message)
+            alert_user(error_message)
 
     # This function has been pulled outside of the standard Traits/UI "depends_on / @cached_property" mechanism,
     # in order to more tightly control when it executes. I wasn't able to get truly lazy evaluation, and
@@ -1562,9 +1562,3 @@ class PyBERT(HasTraits):
         self.chnl_p = chnl_p
 
         return chnl_h
-
-    def log_information(self):
-        """Log the system information."""
-        self.log(f"System: {platform.system()} {platform.release()}")
-        self.log(f"Python Version: {platform.python_version()}")
-        self.log(f"PyBERT Version: {VERSION}")
