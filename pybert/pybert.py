@@ -65,10 +65,10 @@ from pybert import __date__ as DATE
 from pybert import __authors__ as AUTHORS
 from pybert import __copy__ as COPY
 
-from pybert.pybert_cntrl import my_run_simulation
-from pybert.pybert_help import help_str
-from pybert.pybert_plot import make_plots
-from pybert.pybert_util import (
+from pybert.control import my_run_simulation
+from pybert.help import help_str
+from pybert.plot import make_plots
+from pybert.utility import (
     calc_G,
     calc_gamma,
     import_channel,
@@ -85,7 +85,7 @@ from pybert.pybert_util import (
     interp_s2p,
     renorm_s2p,
 )
-from pybert.pybert_view import traits_view
+from pybert.view import traits_view
 
 gDebugStatus = False
 gDebugOptimize = False
@@ -1311,7 +1311,7 @@ class PyBERT(HasTraits):
 
         tx_out_h = convolve(tx_h, chnl_h)
         return(convolve(ctle_h, tx_out_h))
-        
+
     @cached_property
     def _get_cost(self):
         nspui = self.nspui
@@ -1424,7 +1424,7 @@ class PyBERT(HasTraits):
             self.log(error_message, alert=True, exception=err)
         self._tx_ibis_dir = dName
         self.status = "Done."
-        
+
     def _tx_ami_file_changed(self, new_value):
         try:
             self.tx_ami_valid = False

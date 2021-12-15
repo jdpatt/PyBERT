@@ -3,7 +3,7 @@ General purpose utilities for PyBERT.
 
 Original author: David Banas <capn.freako@gmail.com>
 
-Original date:   September 27, 2014 (Copied from pybert_cntrl.py.)
+Original date:   September 27, 2014 (Copied from control.py.)
 
 Copyright (c) 2014 David Banas; all rights reserved World wide.
 """
@@ -187,7 +187,7 @@ def find_crossings(
         [float]: The signal threshold crossing times.
     """
 
-    assert mod_type >= 0 and mod_type <= 2, "ERROR: pybert_util.find_crossings(): Unknown modulation type: {}".format(
+    assert mod_type >= 0 and mod_type <= 2, "ERROR: utility.find_crossings(): Unknown modulation type: {}".format(
         mod_type
     )
 
@@ -298,7 +298,7 @@ def calc_jitter(ui, nui, pattern_len, ideal_xings, actual_xings, rel_thresh=6, n
         print("len(ideal_xings):", len(ideal_xings))
         print("min(ideal_xings):", min(ideal_xings))
         print("max(ideal_xings):", max(ideal_xings))
-        raise AssertionError("pybert_util.calc_jitter(): Odd number of (or, no) crossings per pattern detected!")
+        raise AssertionError("utility.calc_jitter(): Odd number of (or, no) crossings per pattern detected!")
     num_patterns = nui // pattern_len
 
     # Assemble the TIE track.
@@ -743,7 +743,7 @@ def make_ctle(rx_bw, peak_freq, peak_mag, w, mode="Passive", dc_offset=0):
     elif mode in ("Manual", "AGC"):
         H *= pow(10.0, dc_offset / 20.0) / abs(H[0])  # Enforce d.c. offset.
     else:
-        raise RuntimeError("pybert_util.make_ctle(): Unrecognized value for 'mode' parameter: {}.".format(mode))
+        raise RuntimeError("utility.make_ctle(): Unrecognized value for 'mode' parameter: {}.".format(mode))
 
     return (w, H)
 
@@ -964,12 +964,12 @@ def se2mm(ntwk, norm=0.5):
     (fs, rs, cs) = ntwk.s.shape
     assert (rs == cs), "Non-square Touchstone file S-matrix!"
     assert (rs == 4),  "Touchstone file must have 4 ports!"
-    
+
     # Detect/correct "1 => 3" port numbering.
     ix = ntwk.s.shape[0] // 5  # So as not to be fooled by d.c. blocking.
     if abs(ntwk.s21.s[ix, 0, 0]) < abs(ntwk.s31.s[ix, 0, 0]):  # 1 ==> 3 port numbering?
         ntwk.renumber((1, 2), (2, 1))
-    
+
     # Convert S-parameter data.
     s = np.zeros(ntwk.s.shape, dtype=complex)
     s[:,0,0] = norm * (ntwk.s11 - ntwk.s13 - ntwk.s31 + ntwk.s33).s.flatten()
@@ -1169,7 +1169,7 @@ def interp_s2p(ntwk, f):
     (fs, rs, cs) = ntwk.s.shape
     assert (rs == cs), "Non-square Touchstone file S-matrix!"
     assert (rs == 2),  "Touchstone file must have 2 ports!"
-    
+
     extrap = ntwk.interpolate(f/1e9, fill_value="extrapolate", coords="polar", assume_sorted=True )
     s11 = cap_mag(extrap.s[:, 0, 0])
     s22 = cap_mag(extrap.s[:, 1, 1])

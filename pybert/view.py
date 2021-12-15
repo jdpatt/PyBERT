@@ -32,9 +32,9 @@ from traitsui.api import (
     EnumEditor,
     spring,
 )
-from pybert.pybert_cfg import PyBertCfg
-from pybert.pybert_cntrl import my_run_sweeps
-from pybert.pybert_data import PyBertData
+from pybert.configuration import PyBertCfg
+from pybert.control import my_run_sweeps
+from pybert.results import PyBertData
 
 USE_YAML = True  # `true`: yaml; `false`: pickle
 
@@ -87,7 +87,7 @@ class MyHandler(Handler):
                 the_pybert.log(f"Configuration saved to {the_pybert.cfg_file}")
             except Exception as err:
                 error_message = f"The following error occured:\n\t{err}\nThe configuration was NOT saved."
-                the_pybert.log("Exception raised by pybert.pybert_view.MyHandler.do_save_cfg().",
+                the_pybert.log("Exception raised by pybert.view.MyHandler.do_save_cfg().",
                     exception=RuntimeError(error_message)
                 )
 
@@ -123,7 +123,7 @@ class MyHandler(Handler):
                 the_pybert.log(f"Configuration loaded from {the_pybert.cfg_file}")
             except Exception as err:
                 error_message = f"The following error occured:\n\t{err}\nThe configuration was NOT loaded."
-                the_pybert.log("Exception raised by pybert.pybert_view.MyHandler.do_load_cfg().",
+                the_pybert.log("Exception raised by pybert.view.MyHandler.do_load_cfg().",
                     exception=RuntimeError(error_message)
                 )
 
@@ -139,7 +139,7 @@ class MyHandler(Handler):
                 the_pybert.data_file = dlg.path
             except Exception as err:
                 error_message = f"The following error occured:\n\t{err}\nThe data was NOT saved."
-                the_pybert.log("Exception raised by pybert.pybert_view.MyHandler.do_save_data().",
+                the_pybert.log("Exception raised by pybert.view.MyHandler.do_save_data().",
                     exception=RuntimeError(error_message)
                 )
 
@@ -211,7 +211,7 @@ class MyHandler(Handler):
             except Exception as err:
                 error_message = f"The following error occured while processing item: {item_name}:\n \
 \t{err}\nThe configuration was NOT saved."
-                the_pybert.log("Exception raised by pybert.pybert_view.MyHandler.do_load_data().",
+                the_pybert.log("Exception raised by pybert.view.MyHandler.do_load_data().",
                     exception=RuntimeError(error_message)
                 )
 
