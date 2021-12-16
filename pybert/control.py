@@ -696,11 +696,11 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
                 update_eyes(self)
 
         self.plotting_perf = nbits * nspb / (clock() - split_time)
+        self._log.info("Simulation Complete.")
         self.status = "Ready."
     except Exception:
         self.status = "Exception: plotting"
         raise
-
 
 # Plot updating
 def update_results(self):

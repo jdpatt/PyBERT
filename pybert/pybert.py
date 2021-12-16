@@ -14,9 +14,10 @@ can be used to explore the concepts of serial communication link design.
 
 Copyright (c) 2014 by David Banas; All rights reserved World wide.
 """
+import logging
 from traits.etsconfig.api import ETSConfig
 # ETSConfig.toolkit = 'qt.celiagg'  # Yields unacceptably small font sizes in plot axis labels.
-ETSConfig.toolkit = 'qt.qpainter'  # Was causing crash on Mac.
+# ETSConfig.toolkit = 'qt.qpainter'  # Was causing crash on Mac.
 
 from datetime import datetime
 import platform
@@ -51,7 +52,6 @@ from traits.api import (
     cached_property,
     Trait,
 )
-from traitsui.message import message
 
 import skrf as rf
 
@@ -67,6 +67,7 @@ from pybert import __copy__ as COPY
 
 from pybert.control import my_run_simulation
 from pybert.help import help_str
+from pybert.logger import ConsoleTextLogHandler
 from pybert.plot import make_plots
 from pybert.utility import (
     calc_G,
@@ -601,22 +602,8 @@ class PyBERT(HasTraits):
     btn_view_tx = Button(label="View")      # View IBIS model.
     btn_view_rx = Button(label="View")
 
-    # Logger & Pop-up
-    def log(self, msg, alert=False, exception=None):
-        """Log a message to the console and, optionally, to terminal and/or pop-up dialog."""
-        _msg = msg.strip()
-        txt = "\n[{}]: PyBERT: {}\n".format(datetime.now(), _msg)
-        if self.debug:
-            ## In case PyBERT crashes, before we can read this in its `Console` tab:
-            print(txt)
-        self.console_log += txt
-        if exception:
-            raise exception
-        if alert and self.GUI:
-            message(_msg, "PyBERT Alert")
-
     # Default initialization
-    def __init__(self, run_simulation=True, gui=True):
+    def __init__(self, run_simulation:bool=True, gui:bool=True):
         """
         Initial plot setup occurs here.
 
@@ -637,11 +624,14 @@ class PyBERT(HasTraits):
         # to get all the Traits/UI machinery setup correctly.
         super(PyBERT, self).__init__()
 
-        self.GUI = gui
-        self.log("Started.")
-        self.log_information()
-        if self.debug:
-            self.log("Debug Mode Enabled.")
+        self.has_gui = gui
+
+        self._console_log_handler = ConsoleTextLogHandler(self)
+        logging.getLogger().addHandler(self._console_log_handler)
+
+        self._log = logging.getLogger("pybert")
+        self.log_system_information()
+        self._log.debug("Debug Mode: " + str(self.debug))
 
         if run_simulation:
             # Running the simulation will fill in the required data structure.
@@ -1381,8 +1371,17 @@ class PyBERT(HasTraits):
 
     # Changed property handlers.
     def _status_str_changed(self):
-        if gDebugStatus:
-            print(self.status_str)
+        self._log.info(self.status)
+
+    def _debug_changed(self, enable_debug):
+        """If the user enables debug, turn up the verbosity of the logger."""
+        if enable_debug:
+            logging.getLogger().setLevel(logging.DEBUG)
+            self._console_log_handler.setLevel(logging.DEBUG)
+            self._log.debug("Debug mode enabled.")
+        else:
+            logging.getLogger().setLevel(logging.INFO)
+            self._console_log_handler.setLevel(logging.INFO)
 
     def _use_dfe_changed(self, new_value):
         if not new_value:
@@ -1406,9 +1405,9 @@ class PyBERT(HasTraits):
         try:
             self.tx_ibis_valid = False
             self.tx_use_ami    = False
-            self.log(f"Parsing Tx IBIS file, '{new_value}'...")
-            ibis = IBISModel(new_value, True, debug=self.debug, gui=self.GUI)
-            self.log(f"  Result:\n{ibis.ibis_parsing_errors}")
+            self._log.info(f"Parsing Tx IBIS file, '{new_value}'...")
+            ibis = IBISModel(new_value, True, debug=self.debug, gui=self.has_gui)
+            self._log.info(f"  Result:\n{ibis.ibis_parsing_errors}")
             self._tx_ibis = ibis
             self.tx_ibis_valid = True
             dName = dirname(new_value)
@@ -1421,7 +1420,7 @@ class PyBERT(HasTraits):
         except Exception as err:
             self.status = "IBIS file parsing error!"
             error_message = "Failed to open and/or parse IBIS file!\n{}".format(err)
-            self.log(error_message, alert=True, exception=err)
+            self._log.error(error_message, extra={"alert":True}, exc_info=True)
         self._tx_ibis_dir = dName
         self.status = "Done."
 
@@ -1466,7 +1465,7 @@ class PyBERT(HasTraits):
             self.rx_ibis_valid = False
             self.rx_use_ami = False
             self.log(f"Parsing Rx IBIS file, '{new_value}'...")
-            ibis = IBISModel(new_value, False, self.debug, gui=self.GUI)
+            ibis = IBISModel(new_value, False, self.debug, gui=self.has_gui)
             self.log(f"  Result:\n{ibis.ibis_parsing_errors}")
             self._rx_ibis = ibis
             self.rx_ibis_valid = True
@@ -1624,8 +1623,7 @@ class PyBERT(HasTraits):
             Cp = model.ccomp[0] / 2
             self.RL = RL  # Primarily for debugging.
             self.Cp = Cp
-            if self.debug:
-                print(f"RL: {RL}, Cp: {Cp}")
+            self._log.debug(f"RL: {RL}, Cp: {Cp}")
             if self.rx_use_ts4:
                 fname  = join(self._rx_ibis_dir, self._rx_cfg.fetch_param_val(["Reserved_Parameters","Ts4file"])[0])
                 ch_s2p, ts4N, ntwk = add_ondie_s(ch_s2p, fname, isRx=True)
@@ -1677,12 +1675,12 @@ class PyBERT(HasTraits):
 
         return chnl_h
 
-    def log_information(self):
+    def log_system_information(self):
         """Log the system information."""
-        self.log(f"System: {platform.system()} {platform.release()}")
-        self.log(f"Python Version: {platform.python_version()}")
-        self.log(f"PyBERT Version: {VERSION}")
-        self.log(f"PyAMI Version: {PyAMI_VERSION}")
-        self.log(f"GUI Toolkit: {ETSConfig.toolkit}")
-        self.log(f"Kiva Backend: {ETSConfig.kiva_backend}")
-        # self.log(f"Pixel Scale: {self.trait_view().window.base_pixel_scale}")
+        self._log.info(f"System: {platform.system()} {platform.release()}")
+        self._log.info(f"Python Version: {platform.python_version()}")
+        self._log.info(f"PyBERT Version: {VERSION}")
+        self._log.info(f"PyAMI Version: {PyAMI_VERSION}")
+        self._log.debug(f"GUI Toolkit: {ETSConfig.toolkit}")
+        self._log.debug(f"Kiva Backend: {ETSConfig.kiva_backend}")
+        # self._log.debug(f"Pixel Scale: {self.trait_view().window.base_pixel_scale}")

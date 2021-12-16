@@ -7,6 +7,7 @@ Original date:   September 27, 2014 (Copied from control.py.)
 
 Copyright (c) 2014 David Banas; all rights reserved World wide.
 """
+import logging
 import os.path
 import re
 from functools import reduce
@@ -47,7 +48,7 @@ from cmath import rect, phase
 debug = False
 gDebugOptimize = False
 gMaxCTLEPeak = 20  # max. allowed CTLE peaking (dB) (when optimizing, only)
-
+log = logging.getLogger("pybert.utility")
 
 def moving_average(a, n=3):
     """
@@ -106,7 +107,7 @@ def find_crossing_times(
     try:
         max_mag_x = max(abs(x))
     except:
-        print("len(x):", len(x))
+        log.error("len(x):", len(x))
         raise
     min_mag_x = min_init_dev * max_mag_x
     i = 0
@@ -133,22 +134,21 @@ def find_crossing_times(
         while xings[i] < min_delay:
             i += 1
 
-    if debug:
-        print("min_delay: {}".format(min_delay))
-        print("rising_first: {}".format(rising_first))
-        print("i: {}".format(i))
-        print("max_mag_x: {}".format(max_mag_x))
-        print("min_mag_x: {}".format(min_mag_x))
-        print("xings[0]: {}".format(xings[0]))
-        print("xings[i]: {}".format(xings[i]))
+    log.debug(f"{min_delay=}")
+    log.debug(f"{rising_first=}")
+    log.debug(f"{i=}")
+    log.debug(f"{max_mag_x=}")
+    log.debug(f"{min_mag_x=}")
+    log.debug(f"{xings[0]=}")
+    log.debug(f"{xings[i]=}")
 
     try:
         if rising_first and diff_sign_x[xing_ix[i]] < 0.0:
             i += 1
     except:
-        print("len(diff_sign_x):", len(diff_sign_x))
-        print("len(xing_ix):", len(xing_ix))
-        print("i:", i)
+        log.error("len(diff_sign_x):", len(diff_sign_x))
+        log.error("len(xing_ix):", len(xing_ix))
+        log.error("i:", i)
         raise
 
     return array(xings[i:])
@@ -294,10 +294,10 @@ def calc_jitter(ui, nui, pattern_len, ideal_xings, actual_xings, rel_thresh=6, n
     actual_xings = array(actual_xings) - (actual_xings[0] - ui / 2.0)
     xings_per_pattern = where(ideal_xings > (pattern_len * ui))[0][0]
     if xings_per_pattern % 2 or not xings_per_pattern:
-        print("xings_per_pattern:", xings_per_pattern)
-        print("len(ideal_xings):", len(ideal_xings))
-        print("min(ideal_xings):", min(ideal_xings))
-        print("max(ideal_xings):", max(ideal_xings))
+        log.debug(f"{xings_per_pattern=}")
+        log.debug(f"{len(ideal_xings)=}")
+        log.debug(f"{min(ideal_xings)=}")
+        log.debug(f"{max(ideal_xings)=}")
         raise AssertionError("utility.calc_jitter(): Odd number of (or, no) crossings per pattern detected!")
     num_patterns = nui // pattern_len
 
@@ -335,9 +335,8 @@ def calc_jitter(ui, nui, pattern_len, ideal_xings, actual_xings, rel_thresh=6, n
         t_jitter.append(ideal_xing)
     jitter = array(jitter)
 
-    if debug:
-        print("mean(jitter):", mean(jitter))
-        print("len(jitter):", len(jitter))
+    log.debug(f"{mean(jitter)=}")
+    log.debug(f"{len(jitter)=}")
 
     if zero_mean:
         jitter -= mean(jitter)
@@ -357,8 +356,8 @@ def calc_jitter(ui, nui, pattern_len, ideal_xings, actual_xings, rel_thresh=6, n
         tie_fallings_ave = tie_fallings.mean(axis=0)
         isi = max(tie_risings_ave.ptp(), tie_fallings_ave.ptp())
     except:
-        print("xings_per_pattern:", xings_per_pattern)
-        print("len(ideal_xings):", len(ideal_xings))
+        log.error("xings_per_pattern:", xings_per_pattern)
+        log.error("len(ideal_xings):", len(ideal_xings))
         raise
     isi = min(isi, ui)  # Cap the ISI at the unit interval.
     dcd = abs(mean(tie_risings_ave) - mean(tie_fallings_ave))
@@ -911,7 +910,7 @@ def import_time(filename, sample_per):
                 ts.append(tmp[0])
                 xs.append(tmp[1])
             except:
-                # print(f"vals: {vals}; tmp: {tmp}; len(ts): {len(ts)}")
+                # log.error(f"vals: {vals}; tmp: {tmp}; len(ts): {len(ts)}")
                 continue
 
     return interp_time(ts, xs, sample_per)
