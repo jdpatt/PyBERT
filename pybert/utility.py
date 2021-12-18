@@ -7,14 +7,16 @@ Original date:   September 27, 2014 (Copied from control.py.)
 
 Copyright (c) 2014 David Banas; all rights reserved World wide.
 """
+import importlib
 import logging
 import os.path
-import re
-from functools import reduce
 import pkgutil
-import importlib
+import re
+from cmath import phase, rect
+from functools import reduce
 
 import numpy as np
+import skrf as rf
 from numpy import (
     array,
     concatenate,
@@ -39,11 +41,9 @@ from numpy import (
     zeros,
 )
 from numpy.fft import fft, ifft
-from scipy.signal import freqs, get_window, invres
-from scipy.stats import norm
 from scipy.linalg import inv
-import skrf as rf
-from cmath import rect, phase
+from scipy.signal import freqs, invres
+from scipy.stats import norm
 
 debug = False
 gDebugOptimize = False

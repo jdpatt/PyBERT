@@ -11,7 +11,7 @@ integration into the larger *PyBERT* framework.
 
 Copyright (c) 2019 by David Banas; All rights reserved World wide.
 """
-from typing import Sequence, Tuple, List
+from typing import List, Sequence, Tuple
 
 from numpy import array, mean, sign, where
 

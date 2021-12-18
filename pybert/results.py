@@ -48,7 +48,7 @@ class PyBertData:
         "ctle_out_H",
         "dfe_out_H",
         "tx_out",
-        "rx_in",
+        # "rx_in", # TODO: There is no plot for this which crashes loading results.
     ]
 
     def __init__(self, the_PyBERT):

@@ -1,13 +1,14 @@
 """The logging and debug functionality of pybert."""
+import json
 import logging
+import time
 from logging import Logger
 from pathlib import Path
-import json
-import time
 
 from traitsui.message import message
 
-def setup_logging() -> Logger:
+
+def setup_logging(verbose=False) -> Logger:
     """Create a console and file handler with the level set to Debug."""
     log = logging.getLogger()
 
@@ -16,7 +17,10 @@ def setup_logging() -> Logger:
     ch_format = logging.Formatter("%(levelname)s - %(message)s")
 
     console_handler.setFormatter(ch_format)
-    console_handler.setLevel(logging.ERROR)
+    if verbose:
+        console_handler.setLevel(logging.DEBUG)
+    else:
+        console_handler.setLevel(logging.ERROR)
 
     # Setup a File Logger
     log_file = Path.cwd().joinpath("pybert.log")
@@ -30,7 +34,11 @@ def setup_logging() -> Logger:
 
     log.addHandler(console_handler)
     log.addHandler(file_handler)
-    log.setLevel(logging.INFO)
+    if verbose:
+        log.setLevel(logging.DEBUG)
+    else:
+        log.setLevel(logging.INFO)
+
     log.info(f"Log file created at: {log_file}")
 
     return log
@@ -54,7 +62,7 @@ class ConsoleTextLogHandler(logging.Handler):
         self.application.console_log += f"{msg}\n"
 
         show_user_alert = False
-        if isinstance(record.args, dict):
+        if isinstance(record.args, dict): # if no kwargs are passed, record.args is an empty tuple.
             show_user_alert = record.args.get("alert", False)
         if self.application.has_gui and show_user_alert:
             message(msg, "PyBERT Alert")

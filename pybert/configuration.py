@@ -12,8 +12,6 @@ configuration could be saved and later restored.
 
 Copyright (c) 2017 by David Banas; All rights reserved World wide.
 """
-
-
 class PyBertCfg:
     """
     PyBERT simulation configuration data encapsulation class.
@@ -23,11 +21,14 @@ class PyBertCfg:
     clicks the "Save Config." button.
     """
 
-    def __init__(self, the_PyBERT):
+    def __init__(self, the_PyBERT, timestamp, version):
         """
         Copy just that subset of the supplied PyBERT instance's
         __dict__, which should be saved during pickling.
         """
+        # Generic Information
+        self.date_created = timestamp
+        self.version = version
 
         # Simulation Control
         self.bit_rate = the_PyBERT.bit_rate

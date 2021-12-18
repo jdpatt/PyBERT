@@ -8,15 +8,15 @@ Original date:   August 24, 2014 (Copied from pybert.py, as part of a major code
 Copyright (c) 2014 David Banas; all rights reserved World wide.
 """
 from time import perf_counter
+
 clock = perf_counter
 
+import numpy as np
 from chaco.api import Plot
 from chaco.tools.api import PanTool, ZoomTool
-import numpy as np
 from numpy import (
     arange,
     array,
-    concatenate,
     convolve,
     correlate,
     cumsum,
@@ -26,7 +26,6 @@ from numpy import (
     mean,
     ones,
     pad,
-    real,
     repeat,
     resize,
     std,
@@ -38,7 +37,6 @@ from numpy.fft import fft, irfft
 from numpy.random import normal
 from scipy.signal import iirfilter, lfilter
 from scipy.signal.windows import hann
-from pyibisami.ami_model import AMIModel, AMIModelInitializer
 
 from pybert.dfe import DFE
 from pybert.utility import (
@@ -50,6 +48,7 @@ from pybert.utility import (
     safe_log10,
     trim_impulse,
 )
+from pyibisami.ami_model import AMIModel, AMIModelInitializer
 
 DEBUG = False
 MIN_BATHTUB_VAL = 1.0e-18

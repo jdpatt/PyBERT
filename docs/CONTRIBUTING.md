@@ -41,4 +41,4 @@ will be run with `make tests`.
 
 The easiest way to install and test the `pybert` command is to run `pip install -e .` which will update the script link without having to rebuild and reinstall the conda package.  This
 works only because the `install_requires` field is commented out otherwise pip would try and
-fail into install the traits infrastructure.  Alternatively, the normal way of calling the package still works: `python -m pybert`.
+fail to install the traits infrastructure.  This does not change the behavior of `python -m pybert`.
