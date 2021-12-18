@@ -13,7 +13,7 @@ format:
 	--ignore-init-module-imports --recursive pybert/ tests/; isort pybert/ tests/; black pybert/ tests/
 
 tests:
-	pytest -vv -n 4 tests/
+	pytest -vv -n 4 --disable-pytest-warnings tests/
 
 clean:
 	rm -rf .pytest_cache .tox htmlcov *.egg-info .coverage
