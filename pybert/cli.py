@@ -1,7 +1,6 @@
 """Command Line Interface for pybert."""
-from pathlib import Path
-import logging
 import sys
+from pathlib import Path
 
 import click
 
@@ -35,6 +34,7 @@ def cli(ctx, config, results, verbose):
         # Create the GUI.
         pybert.configure_traits(view=traits_view)
 
+
 @cli.command(context_settings=dict(help_option_names=["-h", "--help"]))
 @click.argument("config", type=click.Path(exists=True))
 @click.option("--verbose", "-v", is_flag=True, help="Enable debug printing.")
@@ -48,6 +48,7 @@ def simulate(config, verbose):
     pybert.load_configuration(config)
     my_run_simulation(pybert, initial_run=True, update_plots=False)
     pybert.save_results(Path(config).with_suffix(".pybert_data"))
+
 
 if __name__ == "__main__":
     sys.exit(cli())  # pragma: no cover
