@@ -79,7 +79,7 @@ class MyHandler(Handler):
                 # Store all the instance variables from `the_PyBertCfg` into the selected file.
                 if USE_YAML:
                     with open(dlg.path, "wt") as the_file:
-                        yaml.dump(the_PyBertCfg, the_file)  # David Patterson's suggestion.
+                        yaml.dump(the_PyBertCfg, the_file)
                 else:
                     with open(dlg.path, "wb") as the_file:
                         pickle.dump(the_PyBertCfg, the_file)

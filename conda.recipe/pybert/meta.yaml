@@ -17,7 +17,7 @@ build:
   noarch: "python"
   script: "{{ PYTHON }} -m pip install . --no-deps --ignore-installed -vv "
   entry_points:
-    - pybert = pybert.__main__:main
+    - pybert = pybert.cli:cli
 
 requirements:
   run:
@@ -29,6 +29,7 @@ requirements:
     - pyside2
     - pyyaml
     - importlib_resources
+    - click=8.0.3
   build:
     - python =3.8
     - setuptools
@@ -38,7 +39,8 @@ requirements:
     - scikit-rf
     - pyside2
     - pyyaml
-    
+    - click=8.0.3
+
 test:
   imports:
     - pybert

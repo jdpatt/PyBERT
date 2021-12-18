@@ -1,22 +1,23 @@
-.PHONY: tox clean test lint etags conda-build conda-skeleton chaco enable pyibis-ami pybert
+.PHONY: all lint format tests clean etags conda-build conda-skeleton chaco enable pyibis-ami pybert
 
-tox:
-	tox
+all: tests tests-ami format lint
 
 lint:
-	tox -e pylint
+	pylint pybert/ tests/; mypy -p pybert --ignore-missing-imports
 
-test:
-	tox -e py37
+format:
+	autoflake --in-place --remove-all-unused-imports --expand-star-imports \
+	--ignore-init-module-imports --recursive pybert/ tests/; isort pybert/ tests/; black pybert/ tests/
 
-docs:
-	# Docs doesn't rely on docker but does require tox to be installed via pip.
-	tox -e docs
+tests:
+	pytest -vv -n 4 tests/ PyAMI/tests/
 
 clean:
-	rm -rf .tox docs/_build/ .pytest_cache .venv
+	rm -rf .pytest_cache .tox htmlcov *.egg-info .coverage
 
-conda-build:
+# Packing Conda commands ----------------------------------------------------------
+
+conda-build: tests
 	conda build conda.recipe/pybert
 
 conda-skeleton:
@@ -34,7 +35,7 @@ enable:
 	conda build --numpy=1.16 conda.recipe/enable
 	conda install --use-local enable
 
-pyibis-ami:
+pyibis-ami: tests
 	conda build --numpy=1.16 conda.recipe/pyibis-ami
 
 pyibis-ami_dev:
@@ -42,11 +43,15 @@ pyibis-ami_dev:
 	conda develop -n pybert64 PyAMI/
 
 pybert: pybert_bld pybert_inst
+
 pybert_bld:
 	conda build --numpy=1.16 conda.recipe/pybert
+
 pybert_inst:
 	conda install --use-local pybert
 
 pybert_dev: pybert_bld
 	conda install -n pybert64 --use-local --only-deps pybert
 	conda develop -n pybert64 .
+
+# Packing Conda commands ----------------------------------------------------------
