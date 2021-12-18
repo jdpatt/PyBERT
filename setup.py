@@ -18,22 +18,24 @@ setup(
     url="https://github.com/capn-freako/PyBERT/wiki",
     author="David Banas",
     author_email="capn.freako@gmail.com",
-    install_requires=[
-        "chaco",
-        "enable>=4.8.1",
-        "kiwisolver",
-        "numpy",
-        "scikit-rf",
-        "scipy",
-        "traits",
-        "traitsui",
-        "PyIBIS-AMI>=3.3.3",
-        "pyyaml",
-        "pyside2",
-    ],
+    #! Note: pybert is managed by conda and some of its dependencies are not pip installable.
+    # install_requires=[
+    #     "click==8.0.3",
+    #     "chaco",
+    #     "enable>=4.8.1",
+    #     "kiwisolver",
+    #     "numpy",
+    #     "scikit-rf",
+    #     "scipy",
+    #     "traits",
+    #     "traitsui",
+    #     "PyIBIS-AMI>=3.3.3",
+    #     "pyyaml==6.0",
+    #     "pyside2",
+    # ],
     entry_points={
         "console_scripts": [
-            "pybert = pybert.pybert:main",
+            "pybert = pybert.cli:cli",
         ]
     },
     keywords=["bert", "communication", "simulator"],
