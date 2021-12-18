@@ -15,6 +15,7 @@ Initialization of the Simbeor solver consists of:
 
 Copyright (c) 2019 by David Banas; all rights reserved World wide.
 """
+import logging
 import os
 import os.path as osp
 import numpy as np
@@ -33,6 +34,7 @@ class Solver(slvr.Solver):
 
     def __init__(self):
         super().__init__()
+        self._log = logging.getLogger("pybert.simbeor")
 
     def solve(
         self,
@@ -128,7 +130,7 @@ class Solver(slvr.Solver):
         else:
             zresult, result = simbeor.CalcDiffTLine_Z(prj_name, tline)
         # simbeor.CheckResult(result, "calculating Zo")
-        print(tline, zresult, "Forward")
+        self._log.info(tline, zresult, "Forward")
 
         # Calculate frequency-dependent loss.
         # - Examples from Simbeor `test_zcalc.py` file.
