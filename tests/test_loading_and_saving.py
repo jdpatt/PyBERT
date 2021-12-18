@@ -1,8 +1,8 @@
 import logging
 import pickle
 
-import pytest
 import numpy as np
+import pytest
 import yaml
 
 from pybert.pybert import VERSION, PyBERT

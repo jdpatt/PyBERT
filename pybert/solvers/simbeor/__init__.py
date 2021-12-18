@@ -18,7 +18,9 @@ Copyright (c) 2019 by David Banas; all rights reserved World wide.
 import logging
 import os
 import os.path as osp
+
 import numpy as np
+
 import pybert.solver as slvr
 
 sdkdir = os.environ.get("SIMBEOR_SDK")

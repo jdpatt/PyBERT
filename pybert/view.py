@@ -12,7 +12,7 @@ from pathlib import Path
 from enable.component_editor import ComponentEditor
 from pyface.api import OK, FileDialog
 from pyface.image_resource import ImageResource
-from traits.api import Instance, HasTraits
+from traits.api import Instance
 from traitsui.api import (
     Action,
     CheckListEditor,
@@ -26,13 +26,10 @@ from traitsui.api import (
     TextEditor,
     VGroup,
     View,
-    Label,
-    EnumEditor,
     spring,
 )
 
 from pybert.threads import RunSimThread
-
 
 
 class MyHandler(Handler):

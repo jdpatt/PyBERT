@@ -3,6 +3,8 @@ line-length = 119
 
 [tool.isort]
 profile = "black"
+known_first_party = ["pybert", "pyibisami"]
+known_third_party = ["traits", "traitsui", "chaco", "enable"]
 
 [tool.pytest.ini_options]
 minversion = "6.0"

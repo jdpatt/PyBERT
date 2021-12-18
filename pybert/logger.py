@@ -1,11 +1,12 @@
 """The logging and debug functionality of pybert."""
+import json
 import logging
+import time
 from logging import Logger
 from pathlib import Path
-import json
-import time
 
 from traitsui.message import message
+
 
 def setup_logging(verbose=False) -> Logger:
     """Create a console and file handler with the level set to Debug."""

@@ -1,10 +1,11 @@
-from click.testing import CliRunner
-import pytest
 import logging
 
+from click.testing import CliRunner
+
+from pybert import __version__
 from pybert.cli import cli
 from pybert.pybert import PyBERT
-from pybert import __version__
+
 
 def test_cli_version(tmp_path):
     """Make sure that the command line interface functions enough to print a version."""
