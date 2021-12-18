@@ -54,7 +54,7 @@ class ConsoleTextLogHandler(logging.Handler):
         self.application.console_log += f"{msg}\n"
 
         show_user_alert = False
-        if isinstance(record.args, dict):
+        if isinstance(record.args, dict): # if no kwargs are passed, record.args is an empty tuple.
             show_user_alert = record.args.get("alert", False)
         if self.application.has_gui and show_user_alert:
             message(msg, "PyBERT Alert")

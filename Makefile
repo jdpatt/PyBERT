@@ -5,17 +5,20 @@ all: tests tests-ami format lint
 lint:
 	pylint pybert/ tests/; mypy -p pybert --ignore-missing-imports
 
+lint:
+	pylint pybert/ tests/
+
 format:
 	autoflake --in-place --remove-all-unused-imports --expand-star-imports \
 	--ignore-init-module-imports --recursive pybert/ tests/; isort pybert/ tests/; black pybert/ tests/
 
 tests:
-	pytest -vv -n 4 tests/ PyAMI/tests/
+	pytest -vv -n 4 tests/
 
 clean:
 	rm -rf .pytest_cache .tox htmlcov *.egg-info .coverage
 
-# Packing Conda commands ----------------------------------------------------------
+# Conda Packaging Commands ----------------------------------------------------------
 
 conda-build: tests
 	conda build conda.recipe/pybert
@@ -54,4 +57,4 @@ pybert_dev: pybert_bld
 	conda install -n pybert64 --use-local --only-deps pybert
 	conda develop -n pybert64 .
 
-# Packing Conda commands ----------------------------------------------------------
+# End Conda Packaging Commands ----------------------------------------------------------

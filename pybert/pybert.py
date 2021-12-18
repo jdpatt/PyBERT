@@ -21,6 +21,9 @@ from traits.etsconfig.api import ETSConfig
 
 from datetime import datetime
 import platform
+import time
+from os.path import dirname, join
+from pathlib import Path
 from threading import Event, Thread
 from time import sleep
 
@@ -52,6 +55,9 @@ from traits.api import (
     cached_property,
     Trait,
 )
+from traits.etsconfig.api import ETSConfig
+import yaml
+import pickle
 
 import skrf as rf
 
@@ -64,11 +70,15 @@ from pybert import __version__ as VERSION
 from pybert import __date__ as DATE
 from pybert import __authors__ as AUTHORS
 from pybert import __copy__ as COPY
-
+from pybert import __date__ as DATE
+from pybert import __version__ as VERSION
+from pybert.configuration import PyBertCfg
 from pybert.control import my_run_simulation
 from pybert.help import help_str
 from pybert.logger import ConsoleTextLogHandler
 from pybert.plot import make_plots
+from pybert.results import PyBertData
+from pybert.threads import CoOptThread, RxOptThread, TxOptThread, TxTapTuner
 from pybert.utility import (
     calc_G,
     calc_gamma,
@@ -1684,3 +1694,142 @@ class PyBERT(HasTraits):
         self._log.debug(f"GUI Toolkit: {ETSConfig.toolkit}")
         self._log.debug(f"Kiva Backend: {ETSConfig.kiva_backend}")
         # self._log.debug(f"Pixel Scale: {self.trait_view().window.base_pixel_scale}")
+
+    def load_configuration(self, filepath:Path):
+        """Load in a configuration into pybert.
+
+        Support both file formats either yaml or pickle.
+        """
+        try:
+            if filepath.suffix == ".yaml":
+                with open(filepath, "rt") as the_file:
+                    user_config = yaml.load(the_file, Loader=yaml.Loader)
+            elif filepath.suffix == ".pybert_cfg":
+                with open(filepath, "rb") as the_file:
+                    user_config = pickle.load(the_file)
+            else:
+                self._log.error("Pybert does not support this file type.", {"alert":True})
+                return
+
+            if not isinstance(user_config, PyBertCfg):
+                raise ValueError("The data structure read in is NOT of type: PyBertCfg!")
+
+            for prop, value in vars(user_config).items():
+                if prop == "tx_taps":
+                    for count, (enabled, val) in enumerate(value):
+                        setattr(self.tx_taps[count], "enabled", enabled)
+                        setattr(self.tx_taps[count], "value", val)
+                elif prop == "tx_tap_tuners":
+                    for count, (enabled, val) in enumerate(value):
+                        setattr(self.tx_tap_tuners[count], "enabled", enabled)
+                        setattr(self.tx_tap_tuners[count], "value", val)
+                elif prop == "version" or prop == "timestamp":
+                    pass # Just including it for some good housekeeping.  Not currently used.
+                else:
+                    setattr(self, prop, value)
+            self.cfg_file = filepath
+            self.status = f"Loaded configuration."
+        except Exception as err:
+            self._log.error("Failed to load configuration. Enable debug and try again for more detail.")
+            self._log.debug(err, exc_info=True)
+
+    def save_configuration(self, filepath:Path):
+        """Save out a configuration from pybert.
+
+        Support both file formats either yaml or pickle.
+        """
+        current_config = PyBertCfg(self, time.asctime(), VERSION)
+        try:
+            if filepath.suffix == ".yaml":
+                with open(filepath, "wt") as the_file:
+                    yaml.dump(current_config, the_file)
+            elif filepath.suffix == ".pybert_cfg":
+                with open(filepath, "wb") as the_file:
+                    pickle.dump(current_config, the_file)
+            else:
+                self._log.error("Pybert does not support this file type.", {"alert":True})
+                return
+
+            self.cfg_file = filepath  # Preserve the user-selected directory/file, for next time.
+            self.status = f"Configuration saved."
+        except Exception as err:
+            self._log.error("Failed to save current user configuration. Enable debug and try again for more detail.")
+            self._log.debug(err, exc_info=True)
+
+    def load_results(self, filepath:Path):
+        """Load results from a file into pybert."""
+        try:
+            with open(filepath, "rb") as the_file:
+                user_results = pickle.load(the_file)
+            if not isinstance(user_results, PyBertData):
+                raise Exception("The data structure read in is NOT of type: ArrayPlotData!")
+            for prop, value in user_results.the_data.arrays.items():
+                self.plotdata.set_data(prop + "_ref", value)
+            self.data_file = filepath
+
+            # Add reference plots, if necessary.
+            # - time domain
+            for (container, suffix, has_both) in [
+                (self.plots_h.component_grid.flat, "h", False),
+                (self.plots_s.component_grid.flat, "s", True),
+                (self.plots_p.component_grid.flat, "p", False),
+            ]:
+                if "Reference" not in container[0].plots:
+                    (ix, prefix) = (0, "chnl")
+                    item_name = prefix + "_" + suffix + "_ref"
+                    container[ix].plot(("t_ns_chnl", item_name), type="line", color="darkcyan", name="Inc_ref")
+                    for (ix, prefix) in [(1, "tx"), (2, "ctle"), (3, "dfe")]:
+                        item_name = prefix + "_out_" + suffix + "_ref"
+                        container[ix].plot(
+                            ("t_ns_chnl", item_name), type="line", color="darkmagenta", name="Cum_ref"
+                        )
+                    if has_both:
+                        for (ix, prefix) in [(1, "tx"), (2, "ctle"), (3, "dfe")]:
+                            item_name = prefix + "_" + suffix + "_ref"
+                            container[ix].plot(
+                                ("t_ns_chnl", item_name), type="line", color="darkcyan", name="Inc_ref"
+                            )
+
+            # - frequency domain
+            for (container, suffix, has_both) in [(self.plots_H.component_grid.flat, "H", True)]:
+                if "Reference" not in container[0].plots:
+                    (ix, prefix) = (0, "chnl")
+                    item_name = prefix + "_" + suffix + "_ref"
+                    container[ix].plot(
+                        ("f_GHz", item_name), type="line", color="darkcyan", name="Inc_ref", index_scale="log"
+                    )
+                    for (ix, prefix) in [(1, "tx"), (2, "ctle"), (3, "dfe")]:
+                        item_name = prefix + "_out_" + suffix + "_ref"
+                        container[ix].plot(
+                            ("f_GHz", item_name),
+                            type="line",
+                            color="darkmagenta",
+                            name="Cum_ref",
+                            index_scale="log",
+                        )
+                    if has_both:
+                        for (ix, prefix) in [(1, "tx"), (2, "ctle"), (3, "dfe")]:
+                            item_name = prefix + "_" + suffix + "_ref"
+                            container[ix].plot(
+                                ("f_GHz", item_name),
+                                type="line",
+                                color="darkcyan",
+                                name="Inc_ref",
+                                index_scale="log",
+                            )
+            self.status = f"Loaded results."
+        except Exception as err:
+            self._log.error("Failed to load results from file. Enable debug and try again for more detail.")
+            self._log.debug(err, exc_info=True)
+
+    def save_results(self, filepath:Path):
+        """Save the existing results to a pickle file."""
+        try:
+            plotdata = PyBertData(self)
+            with open(filepath, "wb") as the_file:
+                pickle.dump(plotdata, the_file)
+            self.data_file = filepath
+            self.status = f"Saved results."
+        except Exception as err:
+            self._log.error("Failed to save results to file. Enable debug and try again for more detail.")
+            self._log.debug(err, exc_info=True)
