@@ -1701,6 +1701,7 @@ class PyBERT(HasTraits):
         Support both file formats either yaml or pickle.
         """
         try:
+            filepath = Path(filepath)
             if filepath.suffix == ".yaml":
                 with open(filepath, "rt") as the_file:
                     user_config = yaml.load(the_file, Loader=yaml.Loader)
@@ -1740,6 +1741,7 @@ class PyBERT(HasTraits):
         """
         current_config = PyBertCfg(self, time.asctime(), VERSION)
         try:
+            filepath = Path(filepath)
             if filepath.suffix == ".yaml":
                 with open(filepath, "wt") as the_file:
                     yaml.dump(current_config, the_file)
@@ -1759,6 +1761,7 @@ class PyBERT(HasTraits):
     def load_results(self, filepath:Path):
         """Load results from a file into pybert."""
         try:
+            filepath = Path(filepath)
             with open(filepath, "rb") as the_file:
                 user_results = pickle.load(the_file)
             if not isinstance(user_results, PyBertData):

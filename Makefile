@@ -5,9 +5,6 @@ all: tests tests-ami format lint
 lint:
 	pylint pybert/ tests/; mypy -p pybert --ignore-missing-imports
 
-lint:
-	pylint pybert/ tests/
-
 format:
 	autoflake --in-place --remove-all-unused-imports --expand-star-imports \
 	--ignore-init-module-imports --recursive pybert/ tests/; isort pybert/ tests/; black pybert/ tests/

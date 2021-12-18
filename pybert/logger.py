@@ -7,7 +7,7 @@ import time
 
 from traitsui.message import message
 
-def setup_logging() -> Logger:
+def setup_logging(verbose=False) -> Logger:
     """Create a console and file handler with the level set to Debug."""
     log = logging.getLogger()
 
@@ -16,7 +16,10 @@ def setup_logging() -> Logger:
     ch_format = logging.Formatter("%(levelname)s - %(message)s")
 
     console_handler.setFormatter(ch_format)
-    console_handler.setLevel(logging.ERROR)
+    if verbose:
+        console_handler.setLevel(logging.DEBUG)
+    else:
+        console_handler.setLevel(logging.ERROR)
 
     # Setup a File Logger
     log_file = Path.cwd().joinpath("pybert.log")
@@ -30,7 +33,11 @@ def setup_logging() -> Logger:
 
     log.addHandler(console_handler)
     log.addHandler(file_handler)
-    log.setLevel(logging.INFO)
+    if verbose:
+        log.setLevel(logging.DEBUG)
+    else:
+        log.setLevel(logging.INFO)
+
     log.info(f"Log file created at: {log_file}")
 
     return log
