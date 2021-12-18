@@ -3,10 +3,11 @@ General purpose utilities for PyBERT.
 
 Original author: David Banas <capn.freako@gmail.com>
 
-Original date:   September 27, 2014 (Copied from pybert_cntrl.py.)
+Original date:   September 27, 2014 (Copied from control.py.)
 
 Copyright (c) 2014 David Banas; all rights reserved World wide.
 """
+import logging
 import os.path
 import re
 from functools import reduce
@@ -47,7 +48,7 @@ from cmath import rect, phase
 debug = False
 gDebugOptimize = False
 gMaxCTLEPeak = 20  # max. allowed CTLE peaking (dB) (when optimizing, only)
-
+log = logging.getLogger("pybert.utility")
 
 def moving_average(a, n=3):
     """
@@ -106,7 +107,7 @@ def find_crossing_times(
     try:
         max_mag_x = max(abs(x))
     except:
-        print("len(x):", len(x))
+        log.error("len(x):", len(x))
         raise
     min_mag_x = min_init_dev * max_mag_x
     i = 0
@@ -133,22 +134,21 @@ def find_crossing_times(
         while xings[i] < min_delay:
             i += 1
 
-    if debug:
-        print("min_delay: {}".format(min_delay))
-        print("rising_first: {}".format(rising_first))
-        print("i: {}".format(i))
-        print("max_mag_x: {}".format(max_mag_x))
-        print("min_mag_x: {}".format(min_mag_x))
-        print("xings[0]: {}".format(xings[0]))
-        print("xings[i]: {}".format(xings[i]))
+    log.debug(f"{min_delay=}")
+    log.debug(f"{rising_first=}")
+    log.debug(f"{i=}")
+    log.debug(f"{max_mag_x=}")
+    log.debug(f"{min_mag_x=}")
+    log.debug(f"{xings[0]=}")
+    log.debug(f"{xings[i]=}")
 
     try:
         if rising_first and diff_sign_x[xing_ix[i]] < 0.0:
             i += 1
     except:
-        print("len(diff_sign_x):", len(diff_sign_x))
-        print("len(xing_ix):", len(xing_ix))
-        print("i:", i)
+        log.error("len(diff_sign_x):", len(diff_sign_x))
+        log.error("len(xing_ix):", len(xing_ix))
+        log.error("i:", i)
         raise
 
     return array(xings[i:])
@@ -187,7 +187,7 @@ def find_crossings(
         [float]: The signal threshold crossing times.
     """
 
-    assert mod_type >= 0 and mod_type <= 2, "ERROR: pybert_util.find_crossings(): Unknown modulation type: {}".format(
+    assert mod_type >= 0 and mod_type <= 2, "ERROR: utility.find_crossings(): Unknown modulation type: {}".format(
         mod_type
     )
 
@@ -294,11 +294,11 @@ def calc_jitter(ui, nui, pattern_len, ideal_xings, actual_xings, rel_thresh=6, n
     actual_xings = array(actual_xings) - (actual_xings[0] - ui / 2.0)
     xings_per_pattern = where(ideal_xings > (pattern_len * ui))[0][0]
     if xings_per_pattern % 2 or not xings_per_pattern:
-        print("xings_per_pattern:", xings_per_pattern)
-        print("len(ideal_xings):", len(ideal_xings))
-        print("min(ideal_xings):", min(ideal_xings))
-        print("max(ideal_xings):", max(ideal_xings))
-        raise AssertionError("pybert_util.calc_jitter(): Odd number of (or, no) crossings per pattern detected!")
+        log.debug(f"{xings_per_pattern=}")
+        log.debug(f"{len(ideal_xings)=}")
+        log.debug(f"{min(ideal_xings)=}")
+        log.debug(f"{max(ideal_xings)=}")
+        raise AssertionError("utility.calc_jitter(): Odd number of (or, no) crossings per pattern detected!")
     num_patterns = nui // pattern_len
 
     # Assemble the TIE track.
@@ -335,9 +335,8 @@ def calc_jitter(ui, nui, pattern_len, ideal_xings, actual_xings, rel_thresh=6, n
         t_jitter.append(ideal_xing)
     jitter = array(jitter)
 
-    if debug:
-        print("mean(jitter):", mean(jitter))
-        print("len(jitter):", len(jitter))
+    log.debug(f"{mean(jitter)=}")
+    log.debug(f"{len(jitter)=}")
 
     if zero_mean:
         jitter -= mean(jitter)
@@ -357,8 +356,8 @@ def calc_jitter(ui, nui, pattern_len, ideal_xings, actual_xings, rel_thresh=6, n
         tie_fallings_ave = tie_fallings.mean(axis=0)
         isi = max(tie_risings_ave.ptp(), tie_fallings_ave.ptp())
     except:
-        print("xings_per_pattern:", xings_per_pattern)
-        print("len(ideal_xings):", len(ideal_xings))
+        log.error("xings_per_pattern:", xings_per_pattern)
+        log.error("len(ideal_xings):", len(ideal_xings))
         raise
     isi = min(isi, ui)  # Cap the ISI at the unit interval.
     dcd = abs(mean(tie_risings_ave) - mean(tie_fallings_ave))
@@ -743,7 +742,7 @@ def make_ctle(rx_bw, peak_freq, peak_mag, w, mode="Passive", dc_offset=0):
     elif mode in ("Manual", "AGC"):
         H *= pow(10.0, dc_offset / 20.0) / abs(H[0])  # Enforce d.c. offset.
     else:
-        raise RuntimeError("pybert_util.make_ctle(): Unrecognized value for 'mode' parameter: {}.".format(mode))
+        raise RuntimeError("utility.make_ctle(): Unrecognized value for 'mode' parameter: {}.".format(mode))
 
     return (w, H)
 
@@ -911,7 +910,7 @@ def import_time(filename, sample_per):
                 ts.append(tmp[0])
                 xs.append(tmp[1])
             except:
-                # print(f"vals: {vals}; tmp: {tmp}; len(ts): {len(ts)}")
+                # log.error(f"vals: {vals}; tmp: {tmp}; len(ts): {len(ts)}")
                 continue
 
     return interp_time(ts, xs, sample_per)
@@ -964,12 +963,12 @@ def se2mm(ntwk, norm=0.5):
     (fs, rs, cs) = ntwk.s.shape
     assert (rs == cs), "Non-square Touchstone file S-matrix!"
     assert (rs == 4),  "Touchstone file must have 4 ports!"
-    
+
     # Detect/correct "1 => 3" port numbering.
     ix = ntwk.s.shape[0] // 5  # So as not to be fooled by d.c. blocking.
     if abs(ntwk.s21.s[ix, 0, 0]) < abs(ntwk.s31.s[ix, 0, 0]):  # 1 ==> 3 port numbering?
         ntwk.renumber((1, 2), (2, 1))
-    
+
     # Convert S-parameter data.
     s = np.zeros(ntwk.s.shape, dtype=complex)
     s[:,0,0] = norm * (ntwk.s11 - ntwk.s13 - ntwk.s31 + ntwk.s33).s.flatten()
@@ -1169,7 +1168,7 @@ def interp_s2p(ntwk, f):
     (fs, rs, cs) = ntwk.s.shape
     assert (rs == cs), "Non-square Touchstone file S-matrix!"
     assert (rs == 2),  "Touchstone file must have 2 ports!"
-    
+
     extrap = ntwk.interpolate(f/1e9, fill_value="extrapolate", coords="polar", assume_sorted=True )
     s11 = cap_mag(extrap.s[:, 0, 0])
     s22 = cap_mag(extrap.s[:, 1, 1])
