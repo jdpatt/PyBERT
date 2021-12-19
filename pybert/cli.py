@@ -47,3 +47,14 @@ def simulate(config, verbose):
     pybert.load_configuration(config)
     my_run_simulation(pybert, initial_run=True, update_plots=False)
     pybert.save_results(Path(config).with_suffix(".pybert_data"))
+
+
+@cli.command(context_settings=dict(help_option_names=["-h", "--help"]))
+@click.argument("filepath", type=click.Path(exists=False))
+@click.option("--verbose", "-v", is_flag=True, help="Enable debug printing.")
+def config(filepath, verbose):
+    """Save out the default configuration to a file."""
+    setup_logging(verbose)
+    pybert = PyBERT(run_simulation=False, gui=False)
+    pybert.save_configuration(filepath)
+    click.echo(f"Saved default config to {filepath}")
