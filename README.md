@@ -2,6 +2,8 @@
 
 PyBERT is a serial communication link bit error rate tester simulator with a graphical user interface (GUI).
 
+![screenshot](pybert/screen_shot.png)
+
 It uses the Traits/UI package of the Enthought Python Distribution (EPD) <http://www.enthought.com/products/epd.php>,
 as well as the NumPy and SciPy packages.
 
@@ -18,6 +20,7 @@ PyBERT documentation exists in 2 separate forms:
 ### For developers
 
 - pybert/doc/build/html/index.html
+- [Contributing.md](docs/CONTRIBUTING.md)
 
 ### For users
 
