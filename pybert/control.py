@@ -46,9 +46,8 @@ from pybert.utility import (
     safe_log10,
     trim_impulse,
 )
-from pyibisami.ami_model import AMIModel, AMIModelInitializer
+from pyibisami.ami import AMIModel, AMIModelInitializer
 
-DEBUG = False
 MIN_BATHTUB_VAL = 1.0e-18
 
 gFc = 1.0e6  # Corner frequency of high-pass filter used to model capacitive coupling of periodic noise.

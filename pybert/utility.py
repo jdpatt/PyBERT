@@ -44,9 +44,6 @@ from scipy.linalg import inv
 from scipy.signal import freqs, invres
 from scipy.stats import norm
 
-debug = False
-gDebugOptimize = False
-gMaxCTLEPeak = 20  # max. allowed CTLE peaking (dB) (when optimizing, only)
 log = logging.getLogger("pybert.utility")
 
 def moving_average(a, n=3):

@@ -1,8 +1,0 @@
-autoflake
-black
-flake8
-mypy
-pylint
-pytest
-pytest-cov
-pytest-xdist

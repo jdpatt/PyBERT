@@ -73,10 +73,8 @@ from pybert.utility import (
     trim_impulse,
 )
 from pyibisami import __version__ as PyAMI_VERSION
-from pyibisami.ami_model import AMIModel
-from pyibisami.ami_parse import AMIParamConfigurator
-from pyibisami.ibis_file import IBISModel
-
+from pyibisami.ami import AMIModel, AMIParamConfigurator
+from pyibisami.ibis import IBISModel
 
 
 gDebugStatus = False
@@ -1224,8 +1222,7 @@ class PyBERT(HasTraits):
             self.tx_ami_valid = False
             if new_value:
                 self._log.info("Parsing Tx AMI file, %s", new_value)
-                with open(new_value, encoding="UTF-8") as pfile:
-                    pcfg = AMIParamConfigurator(pfile.read())
+                pcfg = AMIParamConfigurator(new_value)
                 if pcfg.ami_parsing_errors:
                     self._log.warning("Non-fatal parsing errors:\n %s", pcfg.ami_parsing_errors)
                 else:
@@ -1281,8 +1278,7 @@ class PyBERT(HasTraits):
         try:
             self.rx_ami_valid = False
             if new_value:
-                with open(new_value, encoding="UTF-8") as pfile:
-                    pcfg = AMIParamConfigurator(pfile.read())
+                pcfg = AMIParamConfigurator(new_value)
                 self._log.info("Parsing Rx AMI file, %s...\n%s", new_value, pcfg.ami_parsing_errors)
                 self.rx_has_getwave = pcfg.fetch_param_val(["Reserved_Parameters", "GetWave_Exists"])
                 if pcfg.fetch_param_val(["Reserved_Parameters", "Ts4file"]):

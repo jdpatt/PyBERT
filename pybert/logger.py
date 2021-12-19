@@ -29,8 +29,8 @@ def setup_logging(verbose=False) -> Logger:
     file_handler.setFormatter(fh_format)
     file_handler.setLevel(logging.DEBUG)
 
-    # Remove pyami's NullHandler
-    logging.getLogger("pyami").removeHandler(logging.NullHandler())
+    # Remove pyibisami's NullHandler
+    logging.getLogger("pyibisami").removeHandler(logging.NullHandler())
 
     log.addHandler(console_handler)
     log.addHandler(file_handler)

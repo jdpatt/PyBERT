@@ -1,0 +1,17 @@
+# Developer tooling
+name: pybert
+
+channels:
+  - conda-forge
+  - defaults
+
+dependencies:
+ - autoflake
+ - black
+ - flake8
+ - isort
+ - mypy
+ - pylint
+ - pytest
+ - pytest-cov
+ - pytest-xdist

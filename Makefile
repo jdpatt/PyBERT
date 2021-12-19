@@ -1,4 +1,4 @@
-.PHONY: all lint format tests clean etags conda-build conda-skeleton chaco enable pyibis-ami pybert
+.PHONY: all lint format tests clean dev-tools etags conda-build conda-skeleton chaco enable pyibis-ami pybert
 
 all: format tests lint
 
@@ -10,7 +10,8 @@ format:
 	--ignore-init-module-imports --recursive pybert/ tests/; isort pybert/ tests/; black pybert/ tests/
 
 tests:
-	pytest -vv -n 4 --disable-pytest-warnings tests/ PyAMI/tests/
+	pytest -vv -n 4 --disable-pytest-warnings tests/
+	pytest -vv -n 4 --disable-pytest-warnings PyAMI/tests
 
 clean:
 	rm -rf .pytest_cache .tox htmlcov *.egg-info .coverage
@@ -55,3 +56,6 @@ pybert_dev: pybert_bld
 	conda develop -n pybert64 .
 
 # End Conda Packaging Commands ----------------------------------------------------------
+
+dev-tools:
+	conda env update --file environment.yml 
