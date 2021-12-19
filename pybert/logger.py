@@ -39,9 +39,10 @@ def setup_logging(verbose=False) -> Logger:
     else:
         log.setLevel(logging.INFO)
 
-    log.info(f"Log file created at: {log_file}")
+    log.info("Log file created at: %s", log_file)
 
     return log
+
 
 class ConsoleTextLogHandler(logging.Handler):
     """A Log Handler that uses pybert's log console."""
@@ -49,25 +50,24 @@ class ConsoleTextLogHandler(logging.Handler):
     def __init__(self, application):
         super().__init__()
         self.application = application
-        self.setFormatter(
-            logging.Formatter(
-                "%(asctime)s - %(levelname)s - %(name)s -  %(message)s"
-            )
-        )
+        self.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(name)s -  %(message)s"))
         self.setLevel(logging.INFO)
 
     def emit(self, record, **kwargs):
         """Emit a new record with the level before the message."""
+        # pylint: disable=unused-argument
         msg = self.format(record)
         self.application.console_log += f"{msg}\n"
 
         show_user_alert = False
-        if isinstance(record.args, dict): # if no kwargs are passed, record.args is an empty tuple.
+        if isinstance(record.args, dict):  # if no kwargs are passed, record.args is an empty tuple.
             show_user_alert = record.args.get("alert", False)
         if self.application.has_gui and show_user_alert:
-            message(msg, "PyBERT Alert")
+            message(msg, f"PyBERT Alert: {record.levelname}")
+
 
 class StructuredLogger(logging.Formatter):
+    """Log formatter that will change the logging.LogRecord into a json format."""
     def format(self, record: logging.LogRecord) -> str:
         """Convert the record into a json string."""
         payload = self.record_to_dict(record)

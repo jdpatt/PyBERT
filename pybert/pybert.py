@@ -152,7 +152,7 @@ class TxTapTuner(HasTraits):
 
         # Super-class initialization is ABSOLUTELY NECESSARY, in order
         # to get all the Traits/UI machinery setup correctly.
-        super(TxTapTuner, self).__init__()
+        super().__init__()
 
         self.name = name
         self.enabled = enabled
@@ -326,13 +326,11 @@ class PyBERT(HasTraits):
     # About
     perf_info = Property(String, depends_on=["total_perf"])
     ident = String(
-        '<H1>PyBERT v{} - a serial communication link design tool, written in Python.</H1>\n\n \
-    {}<BR>\n \
-    {}<BR><BR>\n\n \
-    {};<BR>\n \
-    All rights reserved World wide.'.format(
-            VERSION, AUTHORS, DATE, COPY
-        )
+        f"<H1>PyBERT v{VERSION} - a serial communication link design tool, written in Python.</H1>\n\n \
+    {AUTHORS}<BR>\n \
+    {DATE}<BR><BR>\n\n \
+    {COPY};<BR>\n \
+    All rights reserved World wide."
     )
 
     # Help
@@ -416,7 +414,7 @@ class PyBERT(HasTraits):
 
         # Super-class initialization is ABSOLUTELY NECESSARY, in order
         # to get all the Traits/UI machinery setup correctly.
-        super(PyBERT, self).__init__()
+        super().__init__()
 
         self.has_gui = gui
 
@@ -425,7 +423,7 @@ class PyBERT(HasTraits):
 
         self._log = logging.getLogger("pybert")
         self.log_system_information()
-        self._log.debug("Debug Mode: " + str(self.debug))
+        self._log.debug("Debug Mode: %s", str(self.debug))
 
         if run_simulation:
             # Running the simulation will fill in the required data structure.
@@ -465,8 +463,8 @@ class PyBERT(HasTraits):
     def _btn_opt_tx_fired(self):
         if (
             self.tx_opt_thread
-            and self.tx_opt_thread.isAlive()
-            or not any([self.tx_tap_tuners[i].enabled for i in range(len(self.tx_tap_tuners))])
+            and self.tx_opt_thread.is_alive()
+            or not any(self.tx_tap_tuners[i].enabled for i in range(len(self.tx_tap_tuners)))
         ):
             pass
         else:
@@ -479,7 +477,7 @@ class PyBERT(HasTraits):
         self.tx_opt_thread.start()
 
     def _btn_opt_rx_fired(self):
-        if self.rx_opt_thread and self.rx_opt_thread.isAlive() or self.ctle_mode_tune == "Off":
+        if self.rx_opt_thread and self.rx_opt_thread.is_alive() or self.ctle_mode_tune == "Off":
             pass
         else:
             self.rx_opt_thread = RxOptThread()
@@ -487,7 +485,7 @@ class PyBERT(HasTraits):
             self.rx_opt_thread.start()
 
     def _btn_coopt_fired(self):
-        if self.coopt_thread and self.coopt_thread.isAlive():
+        if self.coopt_thread and self.coopt_thread.is_alive():
             pass
         else:
             self.coopt_thread = CoOptThread()
@@ -495,13 +493,13 @@ class PyBERT(HasTraits):
             self.coopt_thread.start()
 
     def _btn_abort_fired(self):
-        if self.coopt_thread and self.coopt_thread.isAlive():
+        if self.coopt_thread and self.coopt_thread.is_alive():
             self.coopt_thread.stop()
             self.coopt_thread.join(10)
-        if self.tx_opt_thread and self.tx_opt_thread.isAlive():
+        if self.tx_opt_thread and self.tx_opt_thread.is_alive():
             self.tx_opt_thread.stop()
             self.tx_opt_thread.join(10)
-        if self.rx_opt_thread and self.rx_opt_thread.isAlive():
+        if self.rx_opt_thread and self.rx_opt_thread.is_alive():
             self.rx_opt_thread.stop()
             self.rx_opt_thread.join(10)
 
@@ -856,10 +854,10 @@ class PyBERT(HasTraits):
             )
             info_str += "</TR>\n"
             info_str += '<TR align="right">\n'
-            info_str += '<TD align="center">Pj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>n/a</TD>\n' % (pj_chnl, pj_tx,)
+            info_str += f'<TD align="center">Pj</TD><TD>{pj_chnl:6.3f}</TD><TD>{pj_tx:6.3f}</TD><TD>n/a</TD>\n'
             info_str += "</TR>\n"
             info_str += '<TR align="right">\n'
-            info_str += '<TD align="center">Rj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>n/a</TD>\n' % (rj_chnl, rj_tx,)
+            info_str += f'<TD align="center">Rj</TD><TD>{rj_chnl:6.3f}</TD><TD>{rj_tx:6.3f}</TD><TD>n/a</TD>\n'
             info_str += "</TR>\n"
             info_str += "</TABLE>\n"
 
@@ -982,19 +980,19 @@ class PyBERT(HasTraits):
         info_str += "      <TH>Component</TH><TH>Performance (Msmpls./min.)</TH>\n"
         info_str += "    </TR>\n"
         info_str += '    <TR align="right">\n'
-        info_str += '      <TD align="center">Channel</TD><TD>%6.3f</TD>\n' % (self.channel_perf * 60.0e-6)
+        info_str += f'      <TD align="center">Channel</TD><TD>{self.channel_perf * 6e-05:6.3f}</TD>\n'
         info_str += "    </TR>\n"
         info_str += '    <TR align="right">\n'
-        info_str += '      <TD align="center">Tx Preemphasis</TD><TD>%6.3f</TD>\n' % (self.tx_perf * 60.0e-6)
+        info_str += f'      <TD align="center">Tx Preemphasis</TD><TD>{self.tx_perf * 6e-05:6.3f}</TD>\n'
         info_str += "    </TR>\n"
         info_str += '    <TR align="right">\n'
-        info_str += '      <TD align="center">CTLE</TD><TD>%6.3f</TD>\n' % (self.ctle_perf * 60.0e-6)
+        info_str += f'      <TD align="center">CTLE</TD><TD>{self.ctle_perf * 6e-05:6.3f}</TD>\n'
         info_str += "    </TR>\n"
         info_str += '    <TR align="right">\n'
-        info_str += '      <TD align="center">DFE</TD><TD>%6.3f</TD>\n' % (self.dfe_perf * 60.0e-6)
+        info_str += f'      <TD align="center">DFE</TD><TD>{self.dfe_perf * 6e-05:6.3f}</TD>\n'
         info_str += "    </TR>\n"
         info_str += '    <TR align="right">\n'
-        info_str += '      <TD align="center">Jitter Analysis</TD><TD>%6.3f</TD>\n' % (self.jitter_perf * 60.0e-6)
+        info_str += f'      <TD align="center">Jitter Analysis</TD><TD>{self.jitter_perf * 6e-05:6.3f}</TD>\n'
         info_str += "    </TR>\n"
         info_str += '    <TR align="right">\n'
         info_str += '      <TD align="center"><strong>TOTAL</strong></TD><TD><strong>%6.3f</strong></TD>\n' % (
@@ -1002,7 +1000,7 @@ class PyBERT(HasTraits):
         )
         info_str += "    </TR>\n"
         info_str += '    <TR align="right">\n'
-        info_str += '      <TD align="center">Plotting</TD><TD>%6.3f</TD>\n' % (self.plotting_perf * 60.0e-6)
+        info_str += f'      <TD align="center">Plotting</TD><TD>{self.plotting_perf * 6e-05:6.3f}</TD>\n'
         info_str += "    </TR>\n"
         info_str += "  </TABLE>\n"
 
@@ -1036,9 +1034,9 @@ class PyBERT(HasTraits):
     @cached_property
     def _get_status_str(self):
         status_str = "%-20s | Perf. (Msmpls./min.):  %4.1f" % (self.status, self.total_perf * 60.0e-6,)
-        dly_str = "         | ChnlDly (ns):    %5.3f" % (self.chnl_dly * 1.0e9)
-        err_str = "         | BitErrs: %d" % self.bit_errs
-        pwr_str = "         | TxPwr (W): %4.2f" % self.rel_power
+        dly_str = f"         | ChnlDly (ns):    {self.chnl_dly * 1000000000.0:5.3f}"
+        err_str = f"         | BitErrs: {self.bit_errs}"
+        pwr_str = f"         | TxPwr (W): {self.rel_power:4.2f}"
         status_str += dly_str + err_str + pwr_str
 
         try:
@@ -1094,7 +1092,7 @@ class PyBERT(HasTraits):
         ctle_h = self.ctle_h_tune
 
         tx_out_h = convolve(tx_h, chnl_h)
-        return(convolve(ctle_h, tx_out_h))
+        return convolve(ctle_h, tx_out_h)
 
     @cached_property
     def _get_cost(self):
@@ -1199,9 +1197,9 @@ class PyBERT(HasTraits):
         try:
             self.tx_ibis_valid = False
             self.tx_use_ami    = False
-            self._log.info(f"Parsing Tx IBIS file, '{new_value}'...")
+            self._log.info("Parsing Tx IBIS file: %s", new_value)
             ibis = IBISModel(new_value, True, debug=self.debug, gui=self.has_gui)
-            self._log.info(f"  Result:\n{ibis.ibis_parsing_errors}")
+            self._log.info("  Result:\n %s", ibis.ibis_parsing_errors)
             self._tx_ibis = ibis
             self.tx_ibis_valid = True
             dName = dirname(new_value)
@@ -1213,7 +1211,7 @@ class PyBERT(HasTraits):
                 self.tx_ami_file = ""
         except Exception as err:
             self.status = "IBIS file parsing error!"
-            error_message = "Failed to open and/or parse IBIS file!\n{}".format(err)
+            error_message = f"Failed to open and/or parse IBIS file!\n{err}"
             self._log.error(error_message, extra={"alert":True}, exc_info=True)
         self._tx_ibis_dir = dName
         self.status = "Done."
@@ -1222,13 +1220,13 @@ class PyBERT(HasTraits):
         try:
             self.tx_ami_valid = False
             if new_value:
-                self.log(f"Parsing Tx AMI file, '{new_value}'...")
-                with open(new_value) as pfile:
+                self._log.info("Parsing Tx AMI file, %s", new_value)
+                with open(new_value, encoding="UTF-8") as pfile:
                     pcfg = AMIParamConfigurator(pfile.read())
                 if pcfg.ami_parsing_errors:
-                    self.log(f"Non-fatal parsing errors:\n{pcfg.ami_parsing_errors}")
+                    self._log.warning("Non-fatal parsing errors:\n %s", pcfg.ami_parsing_errors)
                 else:
-                    self.log("Success.")
+                    self._log.info("Success.")
                 self.tx_has_getwave = pcfg.fetch_param_val(["Reserved_Parameters", "GetWave_Exists"])
                 if pcfg.fetch_param_val(["Reserved_Parameters", "Ts4file"]):
                     self.tx_has_ts4 = True
@@ -1236,10 +1234,10 @@ class PyBERT(HasTraits):
                     self.tx_has_ts4 = False
                 self._tx_cfg = pcfg
                 self.tx_ami_valid = True
-        except Exception as err:
+        except Exception as error:
+            self._log.error("Failed to open and/or parse AMI file!", alert=True)
+            self._log.debug(error)
             raise
-            error_message = "Failed to open and/or parse AMI file!\n{}".format(err)
-            self.log(error_message, alert=True)
 
     def _tx_dll_file_changed(self, new_value):
         try:
@@ -1249,8 +1247,7 @@ class PyBERT(HasTraits):
                 self._tx_model = model
                 self.tx_dll_valid = True
         except Exception as err:
-            error_message = "Failed to open DLL/SO file!\n{}".format(err)
-            self.log(error_message, alert=True)
+            self._log.error("Failed to open DLL/SO file!\n %s", err, alert=True)
 
     def _rx_ibis_file_changed(self, new_value):
         self.status = f"Parsing IBIS file: {new_value}"
@@ -1258,9 +1255,9 @@ class PyBERT(HasTraits):
         try:
             self.rx_ibis_valid = False
             self.rx_use_ami = False
-            self.log(f"Parsing Rx IBIS file, '{new_value}'...")
+            self._log.info("Parsing Rx IBIS file, %s", new_value)
             ibis = IBISModel(new_value, False, self.debug, gui=self.has_gui)
-            self.log(f"  Result:\n{ibis.ibis_parsing_errors}")
+            self._log.warning("  Result:\n %s", ibis.ibis_parsing_errors)
             self._rx_ibis = ibis
             self.rx_ibis_valid = True
             dName = dirname(new_value)
@@ -1272,8 +1269,7 @@ class PyBERT(HasTraits):
                 self.rx_ami_file = ""
         except Exception as err:
             self.status = "IBIS file parsing error!"
-            error_message = "Failed to open and/or parse IBIS file!\n{}".format(err)
-            self.log(error_message, alert=True)
+            self._log.info("Failed to open and/or parse IBIS file!\n %s", err, alert=True)
             raise
         self._rx_ibis_dir = dName
         self.status = "Done."
@@ -1282,9 +1278,9 @@ class PyBERT(HasTraits):
         try:
             self.rx_ami_valid = False
             if new_value:
-                with open(new_value) as pfile:
+                with open(new_value, encoding="UTF-8") as pfile:
                     pcfg = AMIParamConfigurator(pfile.read())
-                self.log("Parsing Rx AMI file, '{}'...\n{}".format(new_value, pcfg.ami_parsing_errors))
+                self._log.info("Parsing Rx AMI file, %s...\n%s", new_value, pcfg.ami_parsing_errors)
                 self.rx_has_getwave = pcfg.fetch_param_val(["Reserved_Parameters", "GetWave_Exists"])
                 if pcfg.fetch_param_val(["Reserved_Parameters", "Ts4file"]):
                     self.rx_has_ts4 = True
@@ -1293,8 +1289,7 @@ class PyBERT(HasTraits):
                 self._rx_cfg = pcfg
                 self.rx_ami_valid = True
         except Exception as err:
-            error_message = "Failed to open and/or parse AMI file!\n{}".format(err)
-            self.log(error_message, alert=True)
+            self._log.info("Failed to open and/or parse AMI file!\n%s", err, alert=True)
 
     def _rx_dll_file_changed(self, new_value):
         try:
@@ -1304,11 +1299,10 @@ class PyBERT(HasTraits):
                 self._rx_model = model
                 self.rx_dll_valid = True
         except Exception as err:
-            error_message = "Failed to open DLL/SO file!\n{}".format(err)
-            self.log(error_message, alert=True)
+            self._log.info("Failed to open DLL/SO file!\n %s", err, alert=True)
 
     def _rx_use_ami_changed(self, new_value):
-        if(new_value == True):
+        if new_value == True:
             self.use_dfe = False
 
     # This function has been pulled outside of the standard Traits/UI "depends_on / @cached_property" mechanism,
@@ -1417,7 +1411,7 @@ class PyBERT(HasTraits):
             Cp = model.ccomp[0] / 2
             self.RL = RL  # Primarily for debugging.
             self.Cp = Cp
-            self._log.debug(f"RL: {RL}, Cp: {Cp}")
+            self._log.debug("RL: %d, Cp: %d", RL, Cp)
             if self.rx_use_ts4:
                 fname  = join(self._rx_ibis_dir, self._rx_cfg.fetch_param_val(["Reserved_Parameters","Ts4file"])[0])
                 ch_s2p, ts4N, ntwk = add_ondie_s(ch_s2p, fname, isRx=True)
@@ -1471,13 +1465,13 @@ class PyBERT(HasTraits):
 
     def log_system_information(self):
         """Log the system information."""
-        self._log.info(f"System: {platform.system()} {platform.release()}")
-        self._log.info(f"Python Version: {platform.python_version()}")
-        self._log.info(f"PyBERT Version: {VERSION}")
-        self._log.info(f"PyAMI Version: {PyAMI_VERSION}")
-        self._log.debug(f"GUI Toolkit: {ETSConfig.toolkit}")
-        self._log.debug(f"Kiva Backend: {ETSConfig.kiva_backend}")
-        # self._log.debug(f"Pixel Scale: {self.trait_view().window.base_pixel_scale}")
+        self._log.info("System: %s %s", platform.system(), platform.release())
+        self._log.info("Python Version:  %s", platform.python_version())
+        self._log.info("PyBERT Version:  %s", VERSION)
+        self._log.info("PyAMI Version:  %s", PyAMI_VERSION)
+        self._log.debug("GUI Toolkit:  %s", ETSConfig.toolkit)
+        self._log.debug("Kiva Backend:  %s", ETSConfig.kiva_backend)
+        # self._log.debug("Pixel Scale:  %s", self.trait_view().window.base_pixel_scale)
 
     def load_configuration(self, filepath:Path):
         """Load in a configuration into pybert.
@@ -1487,11 +1481,11 @@ class PyBERT(HasTraits):
         try:
             filepath = Path(filepath)
             if filepath.suffix == ".yaml":
-                with open(filepath, "rt") as the_file:
-                    user_config = yaml.load(the_file, Loader=yaml.Loader)
+                with open(filepath, "r", encoding="UTF-8") as yaml_file:
+                    user_config = yaml.load(yaml_file, Loader=yaml.Loader)
             elif filepath.suffix == ".pybert_cfg":
-                with open(filepath, "rb") as the_file:
-                    user_config = pickle.load(the_file)
+                with open(filepath, "rb") as pickle_file:
+                    user_config = pickle.load(pickle_file)
             else:
                 self._log.error("Pybert does not support this file type.", {"alert":True})
                 return
@@ -1513,7 +1507,7 @@ class PyBERT(HasTraits):
                 else:
                     setattr(self, prop, value)
             self.cfg_file = filepath
-            self.status = f"Loaded configuration."
+            self.status = "Loaded configuration."
         except Exception as err:
             self._log.error("Failed to load configuration. Enable debug and try again for more detail.")
             self._log.debug(err, exc_info=True)
@@ -1527,17 +1521,17 @@ class PyBERT(HasTraits):
         try:
             filepath = Path(filepath)
             if filepath.suffix == ".yaml":
-                with open(filepath, "wt") as the_file:
-                    yaml.dump(current_config, the_file)
+                with open(filepath, "w", encoding="UTF-8") as yaml_file:
+                    yaml.dump(current_config, yaml_file)
             elif filepath.suffix == ".pybert_cfg":
-                with open(filepath, "wb") as the_file:
-                    pickle.dump(current_config, the_file)
+                with open(filepath, "wb") as pickle_file:
+                    pickle.dump(current_config, pickle_file)
             else:
                 self._log.error("Pybert does not support this file type.", {"alert":True})
                 return
 
             self.cfg_file = filepath  # Preserve the user-selected directory/file, for next time.
-            self.status = f"Configuration saved."
+            self.status = "Configuration saved."
         except Exception as err:
             self._log.error("Failed to save current user configuration. Enable debug and try again for more detail.")
             self._log.debug(err, exc_info=True)
@@ -1604,7 +1598,7 @@ class PyBERT(HasTraits):
                                 name="Inc_ref",
                                 index_scale="log",
                             )
-            self.status = f"Loaded results."
+            self.status = "Loaded results."
         except Exception as err:
             self._log.error("Failed to load results from file. Enable debug and try again for more detail.")
             self._log.debug(err, exc_info=True)
@@ -1616,7 +1610,7 @@ class PyBERT(HasTraits):
             with open(filepath, "wb") as the_file:
                 pickle.dump(plotdata, the_file)
             self.data_file = filepath
-            self.status = f"Saved results."
+            self.status = "Saved results."
         except Exception as err:
             self._log.error("Failed to save results to file. Enable debug and try again for more detail.")
             self._log.debug(err, exc_info=True)

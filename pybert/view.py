@@ -16,6 +16,7 @@ from traits.api import Instance
 from traitsui.api import (
     Action,
     CheckListEditor,
+    CodeEditor,
     FileEditor,
     Group,
     Handler,
@@ -40,7 +41,7 @@ class MyHandler(Handler):
     def run_simulation_clicked(self, info):
         """Spawn a simulation thread and run with the current settings."""
         the_pybert = info.object
-        if self.run_sim_thread and self.run_sim_thread.isAlive():
+        if self.run_sim_thread and self.run_sim_thread.is_alive():
             pass
         else:
             self.run_sim_thread = RunSimThread()
@@ -49,11 +50,12 @@ class MyHandler(Handler):
 
     def stop_simulation_clicked(self):
         """Kill the simulation thread."""
-        if self.run_sim_thread and self.run_sim_thread.isAlive():
+        if self.run_sim_thread and self.run_sim_thread.is_alive():
             self.run_sim_thread.stop()
 
     def save_config_clicked(self, info):
         """Prompt the user to choose where to save the config and save it."""
+        # pylint: disable=no-self-use
         pybert = info.object
         dialog = FileDialog(
             action="save as",
@@ -65,6 +67,7 @@ class MyHandler(Handler):
 
     def load_config_clicked(self, info):
         """Prompt the user to choose where to load the config from and load it."""
+        # pylint: disable=no-self-use
         pybert = info.object
         dialog = FileDialog(
             action="open",
@@ -76,6 +79,7 @@ class MyHandler(Handler):
 
     def save_data_clicked(self, info):
         """Prompt the user to choose where to save the results and save it."""
+        # pylint: disable=no-self-use
         pybert = info.object
         dialog = FileDialog(action="save as", wildcard="*.pybert_data", default_path=pybert.data_file)
         if dialog.open() == OK:
@@ -83,6 +87,7 @@ class MyHandler(Handler):
 
     def load_data_clicked(self, info):
         """Prompt the user to choose where to load the results from and load it."""
+        # pylint: disable=no-self-use
         pybert = info.object
         dialog = FileDialog(action="open", wildcard="*.pybert_data", default_path=pybert.data_file)
         if dialog.open() == OK:
@@ -716,7 +721,7 @@ traits_view = View(
                 label="About",
             ),
             Group(Item("instructions", style="readonly", show_label=False), label="Guide"),
-            Group(Item("console_log",  style="readonly",   show_label=False), label="Console", id="console"),
+            Group(Item("console_log", editor=CodeEditor(), style="readonly",   show_label=False), label="Console", id="console"),
             layout='tabbed',
             label='Help',
             id='help'

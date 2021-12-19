@@ -23,7 +23,6 @@ from numpy import (
     convolve,
     cumsum,
     diff,
-    float,
     histogram,
     insert,
     log10,
@@ -99,7 +98,7 @@ def find_crossing_times(
     """
 
     if len(t) != len(x):
-        raise ValueError("len(t) (%d) and len(x) (%d) need to be the same." % (len(t), len(x)))
+        raise ValueError(f"len(t) ({len(t)}) and len(x) ({len(x)}) need to be the same.")
 
     t = array(t)
     x = array(x)
@@ -107,7 +106,7 @@ def find_crossing_times(
     try:
         max_mag_x = max(abs(x))
     except:
-        log.error("len(x):", len(x))
+        log.error("len(x): %d", len(x))
         raise
     min_mag_x = min_init_dev * max_mag_x
     i = 0
@@ -128,27 +127,25 @@ def find_crossing_times(
 
     i = 0
     if min_delay:
-        assert min_delay < xings[-1], "min_delay ({}) must be less than last crossing time ({}).".format(
-            min_delay, xings[-1]
-        )
+        assert min_delay < xings[-1], f"min_delay ({min_delay}) must be less than last crossing time ({xings[-1]})."
         while xings[i] < min_delay:
             i += 1
 
-    log.debug(f"{min_delay=}")
-    log.debug(f"{rising_first=}")
-    log.debug(f"{i=}")
-    log.debug(f"{max_mag_x=}")
-    log.debug(f"{min_mag_x=}")
-    log.debug(f"{xings[0]=}")
-    log.debug(f"{xings[i]=}")
+    log.debug("min_delay: %d", min_delay)
+    log.debug("rising_first: %d", rising_first)
+    log.debug("i: %d", i)
+    log.debug("max_mag_x: %d", max_mag_x)
+    log.debug("min_mag_x: %d", min_mag_x)
+    log.debug("xings[0]: %d", xings[0])
+    log.debug("xings[i]: %d", xings[i])
 
     try:
         if rising_first and diff_sign_x[xing_ix[i]] < 0.0:
             i += 1
     except:
-        log.error("len(diff_sign_x):", len(diff_sign_x))
-        log.error("len(xing_ix):", len(xing_ix))
-        log.error("i:", i)
+        log.error("len(diff_sign_x): %d", len(diff_sign_x))
+        log.error("len(xing_ix): %d", len(xing_ix))
+        log.error("i: %d", i)
         raise
 
     return array(xings[i:])
@@ -187,9 +184,7 @@ def find_crossings(
         [float]: The signal threshold crossing times.
     """
 
-    assert mod_type >= 0 and mod_type <= 2, "ERROR: utility.find_crossings(): Unknown modulation type: {}".format(
-        mod_type
-    )
+    assert mod_type >= 0 and mod_type <= 2, f"ERROR: utility.find_crossings(): Unknown modulation type: {mod_type}"
 
     xings = []
     if mod_type == 0:  # NRZ
@@ -294,10 +289,10 @@ def calc_jitter(ui, nui, pattern_len, ideal_xings, actual_xings, rel_thresh=6, n
     actual_xings = array(actual_xings) - (actual_xings[0] - ui / 2.0)
     xings_per_pattern = where(ideal_xings > (pattern_len * ui))[0][0]
     if xings_per_pattern % 2 or not xings_per_pattern:
-        log.debug(f"{xings_per_pattern=}")
-        log.debug(f"{len(ideal_xings)=}")
-        log.debug(f"{min(ideal_xings)=}")
-        log.debug(f"{max(ideal_xings)=}")
+        log.debug("xings_per_pattern: %d", xings_per_pattern)
+        log.debug("len(ideal_xings): %d", len(ideal_xings))
+        log.debug("min(ideal_xings): %d", min(ideal_xings))
+        log.debug("max(ideal_xings): %d", max(ideal_xings))
         raise AssertionError("utility.calc_jitter(): Odd number of (or, no) crossings per pattern detected!")
     num_patterns = nui // pattern_len
 
@@ -335,8 +330,8 @@ def calc_jitter(ui, nui, pattern_len, ideal_xings, actual_xings, rel_thresh=6, n
         t_jitter.append(ideal_xing)
     jitter = array(jitter)
 
-    log.debug(f"{mean(jitter)=}")
-    log.debug(f"{len(jitter)=}")
+    log.debug("mean(jitter): %d", mean(jitter))
+    log.debug("len(jitter): %d", len(jitter))
 
     if zero_mean:
         jitter -= mean(jitter)
@@ -356,8 +351,8 @@ def calc_jitter(ui, nui, pattern_len, ideal_xings, actual_xings, rel_thresh=6, n
         tie_fallings_ave = tie_fallings.mean(axis=0)
         isi = max(tie_risings_ave.ptp(), tie_fallings_ave.ptp())
     except:
-        log.error("xings_per_pattern:", xings_per_pattern)
-        log.error("len(ideal_xings):", len(ideal_xings))
+        log.error("xings_per_pattern: %d", xings_per_pattern)
+        log.error("len(ideal_xings): %d", len(ideal_xings))
         raise
     isi = min(isi, ui)  # Cap the ISI at the unit interval.
     dcd = abs(mean(tie_risings_ave) - mean(tie_fallings_ave))
@@ -555,8 +550,8 @@ def calc_gamma_RLGC(R, L, G, C, ws):
     if w[0] == 0:
         w[0] = 1.0e-12
 
-    gamma = sqrt((1j * w * L0 + R) * (1j * w * C + G))  # propagation constant (nepers/m)
-    Zc = sqrt((1j * w * L0 + R) / (1j * w * C + G))  # characteristic impedance (Ohms)
+    gamma = sqrt((1j * w * L + R) * (1j * w * C + G))  # propagation constant (nepers/m)
+    Zc = sqrt((1j * w * L + R) / (1j * w * C + G))  # characteristic impedance (Ohms)
 
     return (gamma, Zc)
 
@@ -742,7 +737,7 @@ def make_ctle(rx_bw, peak_freq, peak_mag, w, mode="Passive", dc_offset=0):
     elif mode in ("Manual", "AGC"):
         H *= pow(10.0, dc_offset / 20.0) / abs(H[0])  # Enforce d.c. offset.
     else:
-        raise RuntimeError("utility.make_ctle(): Unrecognized value for 'mode' parameter: {}.".format(mode))
+        raise RuntimeError(f"utility.make_ctle(): Unrecognized value for 'mode' parameter: {mode}.")
 
     return (w, H)
 
@@ -849,7 +844,7 @@ def import_channel(filename, sample_per, fs, zref=100):
             being imported when using time domain channel description files.
     """
     extension = os.path.splitext(filename)[1][1:]
-    if re.search("^s\d+p$", extension, re.ASCII | re.IGNORECASE):  # Touchstone file?
+    if re.search(r"^s\d+p$", extension, re.ASCII | re.IGNORECASE):  # Touchstone file?
         ts2N = interp_s2p(import_freq(filename), fs)
     else:  # simple 2-column time domain description (impulse or step).
         h = import_time(filename, sample_per)
@@ -910,7 +905,7 @@ def import_time(filename, sample_per):
                 ts.append(tmp[0])
                 xs.append(tmp[1])
             except:
-                # log.error(f"vals: {vals}; tmp: {tmp}; len(ts): {len(ts)}")
+                # self._log.error(f"vals: {vals}; tmp: {tmp}; len(ts): {len(ts)}")
                 continue
 
     return interp_time(ts, xs, sample_per)
@@ -960,7 +955,7 @@ def se2mm(ntwk, norm=0.5):
             Scd21  Scd22  Scc21  Scc22
     """
     # Confirm correct network dimmensions.
-    (fs, rs, cs) = ntwk.s.shape
+    (_, rs, cs) = ntwk.s.shape
     assert (rs == cs), "Non-square Touchstone file S-matrix!"
     assert (rs == 4),  "Touchstone file must have 4 ports!"
 
@@ -1019,17 +1014,19 @@ def import_freq(filename):
     """
     # Import and sanity check the Touchstone file.
     ntwk = rf.Network(filename)
-    (fs, rs, cs) = ntwk.s.shape
+    (_, rs, cs) = ntwk.s.shape
     assert (rs == cs), "Non-square Touchstone file S-matrix!"
     assert (rs in (1, 2, 4)), "Touchstone file must have 1, 2, or 4 ports!"
 
     # Convert to a 2-port network.
     if rs == 4:  # 4-port Touchstone files are assumed single-ended!
-        return sdd_21(ntwk)
+        two_port_network = sdd_21(ntwk)
     elif rs == 2:
-        return ntwk
+        two_port_network = ntwk
     else:  # rs == 1
-        return rf.network.one_port_2_two_port(ntwk)
+        two_port_network = rf.network.one_port_2_two_port(ntwk)
+
+    return two_port_network
 
 def lfsr_bits(taps, seed):
     """
@@ -1107,8 +1104,8 @@ def submodules(package):
     """Find all sub-modules of a package."""
     rst = {}
 
-    for imp, name, _ in pkgutil.iter_modules(package.__path__):
-        fullModuleName = "{0}.{1}".format(package.__name__, name)
+    for _, name, _ in pkgutil.iter_modules(package.__path__):
+        fullModuleName = f"{package.__name__}.{name}"
         mod = importlib.import_module(fullModuleName, package=package.__path__)
         rst[name] = mod
 
@@ -1128,7 +1125,7 @@ def cap_mag(zs, maxMag=1.0):
     Notes:
         1. Any pre-existing shape of the input will be preserved.
     """
-    orig_shape = zs.shape
+    # orig_shape = zs.shape
     zs_flat = zs.flatten()
     subs = [rect(maxMag, phase(z)) for z in zs_flat]
     return where(abs(zs_flat) > maxMag, subs, zs_flat).reshape(zs.shape)
@@ -1144,7 +1141,7 @@ def mon_mag(zs):
     Notes:
         1. Any pre-existing shape of the input will be preserved.
     """
-    orig_shape = zs.shape
+    # orig_shape = zs.shape
     zs_flat = zs.flatten()
     for ix in range(1, len(zs_flat)):
         zs_flat[ix] = rect(min(abs(zs_flat[ix-1]), abs(zs_flat[ix])), phase(zs_flat[ix]))
@@ -1165,7 +1162,7 @@ def interp_s2p(ntwk, f):
     Raises:
         ValueError: If `ntwk` is _not_ a 2-port network.
     """
-    (fs, rs, cs) = ntwk.s.shape
+    (_, rs, cs) = ntwk.s.shape
     assert (rs == cs), "Non-square Touchstone file S-matrix!"
     assert (rs == 2),  "Touchstone file must have 2 ports!"
 
@@ -1234,4 +1231,4 @@ def renorm_s2p(ntwk, zs):
     Sn = []
     for z in Zn:
         Sn.append(inv(z + I).dot(z - I))
-    return(rf.Network(s=Sn, f=ntwk.f/1e9, z0=zs))
+    return rf.Network(s=Sn, f=ntwk.f/1e9, z0=zs)

@@ -1,5 +1,7 @@
 [tool.black]
 line-length = 119
+extend-exclude="view.py"
+# Avoid auto formatting view.py for readability.
 
 [tool.isort]
 profile = "black"
@@ -9,7 +11,18 @@ known_third_party = ["traits", "traitsui", "chaco", "enable"]
 [tool.pytest.ini_options]
 minversion = "6.0"
 addopts = "-vv"
+xfail_strict=true
+
+[tool.mypy]
+exclude="solvers"
+plugins="numpy.typing.mypy_plugin"
 
 [tool.pylint.'MESSAGES CONTROL']
 max-line-length = 119
-disable="C0301,invalid-name,wrong-import-position"
+fail-under = 9.0
+disable= [
+    "C0301",
+    "invalid-name",
+    "wrong-import-order",
+    "wrong-import-position"
+]

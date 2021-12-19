@@ -14,21 +14,18 @@ Copyright (c) 2019 by David Banas; all rights reserved World wide.
 """
 from abc import ABC, abstractmethod
 from enum import Enum
+from typing import Any, Optional, Tuple
 
 ChType = Enum("ChType", "microstrip_se microstrip_diff stripline_se stripline_diff")
 
 
 class Solver(ABC):
-    """Abstract base class providing a consistent interface to channel solver.
-    """
-
-    def __init__(self):
-        super().__init__()
+    """Abstract base class providing a consistent interface to channel solver."""
 
     @abstractmethod
     def solve(
         self,
-        ch_type: ChType = "microstrip_se",  #: Channel cross-sectional configuration.
+        ch_type: str = "microstrip_se",  #: Channel cross-sectional configuration.
         diel_const: float = 4.3,  #: Dielectric constant of substrate at ``des_freq`` (rel.).
         loss_tan: float = 0.02,  #: Loss tangent at ``des_freq``.
         des_freq: float = 1.0e9,  #: Frequency at which ``diel_const`` and ``loss_tan`` are quoted (Hz).
@@ -37,11 +34,11 @@ class Solver(ABC):
         height: float = 0.127,  #: Trace height above/below ground plane (mm).
         separation: float = 0.508,  #: Trace separation (mm).
         roughness: float = 0.004,  #: Trace surface roughness (mm-rms).
-        fs: [float] = None,  #: Angular frequency sample points (Hz).
+        fs: Optional[float] = None,  #: Angular frequency sample points (Hz).
         lic_path: str = "",  #: Path to license file.
         lic_name: str = "",  #: Name of license type (if needed by solver).
         prj_name: str = "",  #: Name of project (if needed by solver).
-    ) -> tuple(([complex], [complex], [float])):
+    ) -> Tuple[Any, Any, float]:
         """Solves a particular channel cross-section.
 
         Returns:

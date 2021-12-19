@@ -1,6 +1,6 @@
 .PHONY: all lint format tests clean etags conda-build conda-skeleton chaco enable pyibis-ami pybert
 
-all: tests tests-ami format lint
+all: format tests lint
 
 lint:
 	pylint pybert/ tests/; mypy -p pybert --ignore-missing-imports
@@ -10,7 +10,7 @@ format:
 	--ignore-init-module-imports --recursive pybert/ tests/; isort pybert/ tests/; black pybert/ tests/
 
 tests:
-	pytest -vv -n 4 --disable-pytest-warnings tests/
+	pytest -vv -n 4 --disable-pytest-warnings tests/ PyAMI/tests/
 
 clean:
 	rm -rf .pytest_cache .tox htmlcov *.egg-info .coverage
@@ -44,7 +44,7 @@ pyibis-ami_dev:
 
 pybert: pybert_bld pybert_inst
 
-pybert_bld:
+pybert_bld: tests
 	conda build --numpy=1.16 conda.recipe/pybert
 
 pybert_inst:

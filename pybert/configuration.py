@@ -12,6 +12,8 @@ configuration could be saved and later restored.
 
 Copyright (c) 2017 by David Banas; All rights reserved World wide.
 """
+
+
 class PyBertCfg:
     """
     PyBERT simulation configuration data encapsulation class.

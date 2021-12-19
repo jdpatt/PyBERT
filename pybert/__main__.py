@@ -5,9 +5,11 @@ from pybert.view import traits_view
 
 
 def main():
+    """Setup the logging infrastructure and kick off the GUI."""
     setup_logging()
     app = PyBERT()
     app.configure_traits(view=traits_view)
 
-if __name__ == '__main__':
-	main()
+
+if __name__ == "__main__":
+    main()

@@ -9,8 +9,6 @@ Copyright (c) 2014 David Banas; all rights reserved World wide.
 """
 from time import perf_counter
 
-clock = perf_counter
-
 import numpy as np
 from chaco.api import Plot
 from chaco.tools.api import PanTool, ZoomTool
@@ -120,8 +118,8 @@ def my_run_simulation(self, initial_run=False, update_plots=True):
     num_sweeps = self.num_sweeps
     sweep_num = self.sweep_num
 
-    start_time = clock()
-    self.status = "Running channel...(sweep %d of %d)" % (sweep_num, num_sweeps)
+    start_time = perf_counter()
+    self.status = f"Running channel...(sweep {sweep_num} of {num_sweeps})"
 
     self.run_count += 1  # Force regeneration of bit stream.
 
@@ -190,9 +188,9 @@ def my_run_simulation(self, initial_run=False, update_plots=True):
         chnl_h = self.calc_chnl_h()
         chnl_out = convolve(self.x, chnl_h)[: len(t)]
 
-        self.channel_perf = nbits * nspb / (clock() - start_time)
-        split_time = clock()
-        self.status = "Running Tx...(sweep %d of %d)" % (sweep_num, num_sweeps)
+        self.channel_perf = nbits * nspb / (perf_counter() - start_time)
+        split_time = perf_counter()
+        self.status = f"Running Tx...(sweep {sweep_num} of {num_sweeps})"
     except Exception:
         self.status = "Exception: channel"
         raise
@@ -217,25 +215,24 @@ def my_run_simulation(self, initial_run=False, update_plots=True):
             tx_model_init.bit_time = ui
             tx_model = AMIModel(self.tx_dll_file)
             tx_model.initialize(tx_model_init)
-            self.log(
-                "Tx IBIS-AMI model initialization results:\nInput parameters: {}\nOutput parameters: {}\nMessage: {}".format(
-                    tx_model.ami_params_in.decode('utf-8'),
-                    tx_model.ami_params_out.decode('utf-8'),
-                    tx_model.msg.decode('utf-8')
-                )
+            self._log.info(
+                "Tx IBIS-AMI model initialization results:\nInput parameters: %s\nOutput parameters: %s\nMessage: %s",
+                tx_model.ami_params_in.decode('utf-8'),
+                tx_model.ami_params_out.decode('utf-8'),
+                tx_model.msg.decode('utf-8')
             )
             if tx_cfg.fetch_param_val(["Reserved_Parameters", "Init_Returns_Impulse"]):
                 tx_h = array(tx_model.initOut) * ts
             elif not tx_cfg.fetch_param_val(["Reserved_Parameters", "GetWave_Exists"]):
                 self.status = "Simulation Error."
-                self.log( "ERROR: Both 'Init_Returns_Impulse' and 'GetWave_Exists' are False!\n \
+                self._log.error( "Both 'Init_Returns_Impulse' and 'GetWave_Exists' are False!\n \
 I cannot continue.\nYou will have to select a different model.",
                     alert=True
                 )
                 return
             elif not self.tx_use_getwave:
                 self.status = "Simulation Error."
-                self.log( "ERROR: You have elected not to use GetWave for a model, which does not return an impulse response!\n \
+                self._log.error( "You have elected not to use GetWave for a model, which does not return an impulse response!\n \
 I cannot continue.\nPlease, select 'Use GetWave' and try again.",
                     alert=True
                 )
@@ -256,7 +253,7 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
                     n_tries += 1
                 if n_tries == max_tries:
                     self.status = "Tx GetWave() Error."
-                    self.log("ERROR: Never saw a rising step come out of Tx GetWave()!", alert=True)
+                    self._log.error("Never saw a rising step come out of Tx GetWave()!", alert=True)
                     return
                 # Make one more call, just to ensure a sufficient "tail".
                 tmp, _    = tx_model.getWave(tmp)
@@ -322,9 +319,9 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
         self.tx_out_H = tx_out_H
         self.tx_out_h = tx_out_h
 
-        self.tx_perf = nbits * nspb / (clock() - split_time)
-        split_time = clock()
-        self.status = "Running CTLE...(sweep %d of %d)" % (sweep_num, num_sweeps)
+        self.tx_perf = nbits * nspb / (perf_counter() - split_time)
+        split_time = perf_counter()
+        self.status = f"Running CTLE...(sweep {sweep_num} of {num_sweeps})"
     except Exception:
         self.status = "Exception: Tx"
         raise
@@ -342,37 +339,34 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
             rx_model_init.bit_time = ui
             rx_model = AMIModel(self.rx_dll_file)
             rx_model.initialize(rx_model_init)
-            self.log(
-                "Rx IBIS-AMI model initialization results:\nInput parameters: {}\nMessage: {}\nOutput parameters: {}".format(
-                    rx_model.ami_params_in.decode('utf-8'),
-                    rx_model.msg.decode('utf-8'),
-                    rx_model.ami_params_out.decode('utf-8')
-                )
+            self._log.info(
+                "Rx IBIS-AMI model initialization results:\nInput parameters: %s\nMessage: %s\nOutput parameters: %s",
+                rx_model.ami_params_in.decode('utf-8'),
+                rx_model.msg.decode('utf-8'),
+                rx_model.ami_params_out.decode('utf-8')
             )
             if rx_cfg.fetch_param_val(["Reserved_Parameters", "Init_Returns_Impulse"]):
                 ctle_out_h = array(rx_model.initOut) * ts
             elif not rx_cfg.fetch_param_val(["Reserved_Parameters", "GetWave_Exists"]):
                 self.status = "Simulation Error."
-                self.log(
-                    "ERROR: Both 'Init_Returns_Impulse' and 'GetWave_Exists' are False!\n \
+                self._log.error(
+                    "Both 'Init_Returns_Impulse' and 'GetWave_Exists' are False!\n \
 I cannot continue.\nYou will have to select a different model.",
                     alert=True
                 )
                 return
             elif not self.rx_use_getwave:
                 self.status = "Simulation Error."
-                self.log(
-                    "ERROR: You have elected not to use GetWave for a model, which does not return an impulse response!\n \
+                self._log.error(
+                    "You have elected not to use GetWave for a model, which does not return an impulse response!\n \
 I cannot continue.\nPlease, select 'Use GetWave' and try again.",
                     alert=True
                 )
                 return
             if self.rx_use_getwave:
-                if False:
-                    ctle_out, clock_times = rx_model.getWave(rx_in, 32)
-                else:
-                    ctle_out, clock_times = rx_model.getWave(rx_in, len(rx_in))
-                self.log(rx_model.ami_params_out.decode('utf-8'))
+                # ctle_out, clock_times = rx_model.getWave(rx_in, 32)
+                ctle_out, clock_times = rx_model.getWave(rx_in, len(rx_in))
+                self._log.info(rx_model.ami_params_out.decode('utf-8'))
 
                 ctle_H = fft(ctle_out * hann(len(ctle_out))) / fft(rx_in * hann(len(rx_in)))
                 ctle_h = irfft(ctle_H)
@@ -435,9 +429,9 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
         self.conv_dly = conv_dly
         self.conv_dly_ix = conv_dly_ix
 
-        self.ctle_perf = nbits * nspb / (clock() - split_time)
-        split_time = clock()
-        self.status = "Running DFE/CDR...(sweep %d of %d)" % (sweep_num, num_sweeps)
+        self.ctle_perf = nbits * nspb / (perf_counter() - split_time)
+        split_time = perf_counter()
+        self.status = f"Running DFE/CDR...(sweep {sweep_num} of {num_sweeps})"
     except Exception:
         self.status = "Exception: Rx"
         raise
@@ -516,9 +510,9 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
         self.dfe_out_s = dfe_out_s
         self.dfe_out = dfe_out
 
-        self.dfe_perf = nbits * nspb / (clock() - split_time)
-        split_time = clock()
-        self.status = "Analyzing jitter...(sweep %d of %d)" % (sweep_num, num_sweeps)
+        self.dfe_perf = nbits * nspb / (perf_counter() - split_time)
+        split_time = perf_counter()
+        self.status = f"Analyzing jitter...(sweep {sweep_num} of {num_sweeps})"
     except Exception:
         self.status = "Exception: DFE"
         raise
@@ -679,10 +673,10 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
         dfe_spec = self.jitter_spectrum_dfe
         self.jitter_rejection_ratio = zeros(len(dfe_spec))
 
-        self.jitter_perf = nbits * nspb / (clock() - split_time)
-        self.total_perf = nbits * nspb / (clock() - start_time)
-        split_time = clock()
-        self.status = "Updating plots...(sweep %d of %d)" % (sweep_num, num_sweeps)
+        self.jitter_perf = nbits * nspb / (perf_counter() - split_time)
+        self.total_perf = nbits * nspb / (perf_counter() - start_time)
+        split_time = perf_counter()
+        self.status = f"Updating plots...(sweep {sweep_num} of {num_sweeps})"
     except Exception:
         self.status = "Exception: jitter"
         # raise
@@ -694,7 +688,7 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
             if not initial_run:
                 update_eyes(self)
 
-        self.plotting_perf = nbits * nspb / (clock() - split_time)
+        self.plotting_perf = nbits * nspb / (perf_counter() - split_time)
         self._log.info("Simulation Complete.")
         self.status = "Ready."
     except Exception:
@@ -739,7 +733,7 @@ def update_results(self):
     tap_weights = transpose(array(self.adaptation))
     i = 1
     for tap_weight in tap_weights:
-        self.plotdata.set_data("tap%d_weights" % i, tap_weight)
+        self.plotdata.set_data(f"tap{i}_weights", tap_weight)
         i += 1
     self.plotdata.set_data("tap_weight_index", list(range(len(tap_weight))))
     if self._old_n_taps != n_taps:
@@ -748,7 +742,7 @@ def update_results(self):
         )
         for i in range(self.n_taps):
             new_plot.plot(
-                ("tap_weight_index", "tap%d_weights" % (i + 1)), type="line", color="auto", name="tap%d" % (i + 1),
+                ("tap_weight_index", f"tap{i + 1}_weights"), type="line", color="auto", name=f"tap{i + 1}",
             )
         new_plot.title = "DFE Adaptation"
         new_plot.tools.append(PanTool(new_plot, constrain=True, constrain_key=None, constrain_direction="x"))

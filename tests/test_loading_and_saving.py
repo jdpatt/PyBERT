@@ -1,8 +1,9 @@
+"""Unit test coverage to make sure that the pybert can correctly save and load files."""
+
 import logging
 import pickle
 
 import numpy as np
-import pytest
 import yaml
 
 from pybert.pybert import VERSION, PyBERT
@@ -16,7 +17,7 @@ def test_save_config_as_yaml(tmp_path):
 
     assert save_file.exists()  # File was created.
 
-    with open(save_file, "r") as saved_config_file:
+    with open(save_file, "r", encoding="UTF-8") as saved_config_file:
         user_config = yaml.load(saved_config_file, Loader=yaml.Loader)
         assert user_config.version == VERSION
 
@@ -67,10 +68,10 @@ def test_load_config_from_yaml(tmp_path):
     TEST_NUMBER_OF_BITS = 1234
 
     # Modify the saved yaml file.
-    with open(save_file, "r") as saved_config_file:
+    with open(save_file, "r", encoding="UTF-8") as saved_config_file:
         user_config = yaml.load(saved_config_file, Loader=yaml.Loader)
         user_config.nbits = TEST_NUMBER_OF_BITS  # Normally, 8000
-    with open(save_file, "w") as saved_config_file:
+    with open(save_file, "w", encoding="UTF-8") as saved_config_file:
         yaml.dump(user_config, saved_config_file)
 
     app.load_configuration(save_file)
@@ -105,7 +106,7 @@ def test_load_config_from_invalid(tmp_path, caplog):
 
     assert "Pybert does not support this file type." in caplog.text
 
-@pytest.mark.xfail
+
 def test_load_results_from_pickle(tmp_path, caplog):
     """Make sure that pybert can correctly load a pickle file."""
     caplog.set_level(logging.DEBUG)
@@ -122,4 +123,6 @@ def test_load_results_from_pickle(tmp_path, caplog):
 
     caplog.clear()
     app.load_results(save_file)
-    assert app.plotdata.get_data("chnl_h").size == 4
+    # pybert doesn't directly reload the waveform back into the same plot.
+    # instead if creates a reference plot to compare old vs. new.
+    assert app.plotdata.get_data("chnl_h_ref").size == 4

@@ -15,6 +15,8 @@ Initialization of the Simbeor solver consists of:
 
 Copyright (c) 2019 by David Banas; all rights reserved World wide.
 """
+# pylint: skip-file
+
 import logging
 import os
 import os.path as osp
@@ -49,7 +51,7 @@ class Solver(slvr.Solver):
         height: float = 0.127,  #: Trace height above/below ground plane (mm).
         separation: float = 0.508,  #: Trace separation (mm).
         roughness: float = 0.004,  #: Trace surface roughness (mm-rms).
-        fs: [float] = None,  #: Angular frequency sample points (Hz).
+        fs: float = None,  #: Angular frequency sample points (Hz).
         lic_path: str = "",
         lic_name: str = "simbeor_complete",
         prj_name: str = "SimbeorPyBERT",
@@ -163,7 +165,7 @@ class Solver(slvr.Solver):
         frqCount = simbeor.GetFrequencyPointsCount(ModelName)  # get number of computed frequency points
         if frqCount != len(fs):
             raise RuntimeError(
-                "Simbeor channel simulation returned wrong number of frequency points: {}".format(frqCount)
+                f"Simbeor channel simulation returned wrong number of frequency points: {frqCount}"
             )
         pfrqs = simbeor.GetFrequencyPoints(ModelName)  # get all frequency points
         if (pfrqs != fs).any():

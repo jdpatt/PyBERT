@@ -1,5 +1,4 @@
 """Command Line Interface for pybert."""
-import sys
 from pathlib import Path
 
 import click
@@ -48,7 +47,3 @@ def simulate(config, verbose):
     pybert.load_configuration(config)
     my_run_simulation(pybert, initial_run=True, update_plots=False)
     pybert.save_results(Path(config).with_suffix(".pybert_data"))
-
-
-if __name__ == "__main__":
-    sys.exit(cli())  # pragma: no cover

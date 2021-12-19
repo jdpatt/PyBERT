@@ -8,13 +8,6 @@ from pybert.control import my_run_sweeps
 gDebugOptimize = False
 gMaxCTLEPeak = 20.0  # max. allowed CTLE peaking (dB) (when optimizing, only)
 
-class RunSimThread(Thread):
-    """Used to run the simulation in its own thread, in order to preserve GUI responsiveness."""
-
-    def run(self):
-        """Run the simulation(s)."""
-        my_run_sweeps(self.the_pybert)
-
 class StoppableThread(Thread):
     """
     Thread class with a stop() method.
@@ -25,7 +18,7 @@ class StoppableThread(Thread):
     """
 
     def __init__(self):
-        super(StoppableThread, self).__init__()
+        super().__init__()
         self._stop_event = Event()
 
     def stop(self):
@@ -38,6 +31,12 @@ class StoppableThread(Thread):
         """
         return self._stop_event.is_set()
 
+class RunSimThread(StoppableThread):
+    """Used to run the simulation in its own thread, in order to preserve GUI responsiveness."""
+
+    def run(self):
+        """Run the simulation(s)."""
+        my_run_sweeps(self.the_pybert)
 
 class TxOptThread(StoppableThread):
     """Used to run Tx tap weight optimization in its own thread,
@@ -89,7 +88,7 @@ class TxOptThread(StoppableThread):
                 if res["success"]:
                     pybert.status = "Optimization succeeded."
                 else:
-                    pybert.status = "Optimization failed: {}".format(res["message"])
+                    pybert.status = f"Optimization failed: {res['message']}"
 
         except Exception as err:
             pybert.status = err
@@ -142,7 +141,7 @@ class RxOptThread(StoppableThread):
             if res["success"]:
                 pybert.status = "Optimization succeeded."
             else:
-                pybert.status = "Optimization failed: {}".format(res["message"])
+                pybert.status = f"Optimization failed: {res['message']}"
 
         except Exception as err:
             pybert.status = err
@@ -189,7 +188,7 @@ class CoOptThread(StoppableThread):
             if res["success"]:
                 pybert.status = "Optimization succeeded."
             else:
-                pybert.status = "Optimization failed: {}".format(res["message"])
+                pybert.status = f"Optimization failed: {res['message']}"
 
         except Exception as err:
             pybert.status = err
