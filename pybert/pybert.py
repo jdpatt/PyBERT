@@ -136,6 +136,9 @@ gLockSustain = 500
 # - Analysis
 gThresh = 6  # threshold for identifying periodic jitter spectral elements (sigma)
 
+class InvalidFileExtension(Exception):
+    """Exception for when a user tries to save or load a file type that isn't supported."""
+    pass
 
 class TxTapTuner(HasTraits):
     """Object used to populate the rows of the Tx FFE tap tuning table."""
@@ -1212,7 +1215,7 @@ class PyBERT(HasTraits):
         except Exception as err:
             self.status = "IBIS file parsing error!"
             error_message = f"Failed to open and/or parse IBIS file!\n{err}"
-            self._log.error(error_message, extra={"alert":True}, exc_info=True)
+            self._log.error(error_message, exc_info=True, extra={"alert":True})
         self._tx_ibis_dir = dName
         self.status = "Done."
 
@@ -1235,7 +1238,7 @@ class PyBERT(HasTraits):
                 self._tx_cfg = pcfg
                 self.tx_ami_valid = True
         except Exception as error:
-            self._log.error("Failed to open and/or parse AMI file!", alert=True)
+            self._log.error("Failed to open and/or parse AMI file!", extra={"alert":True})
             self._log.debug(error)
             raise
 
@@ -1247,7 +1250,7 @@ class PyBERT(HasTraits):
                 self._tx_model = model
                 self.tx_dll_valid = True
         except Exception as err:
-            self._log.error("Failed to open DLL/SO file!\n %s", err, alert=True)
+            self._log.error("Failed to open DLL/SO file!\n %s", err, extra={"alert":True})
 
     def _rx_ibis_file_changed(self, new_value):
         self.status = f"Parsing IBIS file: {new_value}"
@@ -1269,7 +1272,7 @@ class PyBERT(HasTraits):
                 self.rx_ami_file = ""
         except Exception as err:
             self.status = "IBIS file parsing error!"
-            self._log.info("Failed to open and/or parse IBIS file!\n %s", err, alert=True)
+            self._log.info("Failed to open and/or parse IBIS file!\n %s", err, extra={"alert":True})
             raise
         self._rx_ibis_dir = dName
         self.status = "Done."
@@ -1289,7 +1292,7 @@ class PyBERT(HasTraits):
                 self._rx_cfg = pcfg
                 self.rx_ami_valid = True
         except Exception as err:
-            self._log.info("Failed to open and/or parse AMI file!\n%s", err, alert=True)
+            self._log.info("Failed to open and/or parse AMI file!\n%s", err, extra={"alert":True})
 
     def _rx_dll_file_changed(self, new_value):
         try:
@@ -1299,7 +1302,7 @@ class PyBERT(HasTraits):
                 self._rx_model = model
                 self.rx_dll_valid = True
         except Exception as err:
-            self._log.info("Failed to open DLL/SO file!\n %s", err, alert=True)
+            self._log.info("Failed to open DLL/SO file!\n %s", err, extra={"alert":True})
 
     def _rx_use_ami_changed(self, new_value):
         if new_value == True:
@@ -1487,8 +1490,7 @@ class PyBERT(HasTraits):
                 with open(filepath, "rb") as pickle_file:
                     user_config = pickle.load(pickle_file)
             else:
-                self._log.error("Pybert does not support this file type.", {"alert":True})
-                return
+                raise InvalidFileExtension("Pybert does not support this file type.")
 
             if not isinstance(user_config, PyBertCfg):
                 raise ValueError("The data structure read in is NOT of type: PyBertCfg!")
@@ -1508,9 +1510,8 @@ class PyBERT(HasTraits):
                     setattr(self, prop, value)
             self.cfg_file = filepath
             self.status = "Loaded configuration."
-        except Exception as err:
-            self._log.error("Failed to load configuration. Enable debug and try again for more detail.")
-            self._log.debug(err, exc_info=True)
+        except Exception:
+            self._log.error("Failed to load configuration.", exc_info=True, extra={"alert":True})
 
     def save_configuration(self, filepath:Path):
         """Save out a configuration from pybert.
@@ -1527,14 +1528,12 @@ class PyBERT(HasTraits):
                 with open(filepath, "wb") as pickle_file:
                     pickle.dump(current_config, pickle_file)
             else:
-                self._log.error("Pybert does not support this file type.", {"alert":True})
-                return
+                raise InvalidFileExtension("Pybert does not support this file type.")
 
             self.cfg_file = filepath  # Preserve the user-selected directory/file, for next time.
             self.status = "Configuration saved."
-        except Exception as err:
-            self._log.error("Failed to save current user configuration. Enable debug and try again for more detail.")
-            self._log.debug(err, exc_info=True)
+        except Exception:
+            self._log.error("Failed to save current user configuration.", exc_info=True, extra={"alert":True})
 
     def load_results(self, filepath:Path):
         """Load results from a file into pybert."""
@@ -1599,9 +1598,8 @@ class PyBERT(HasTraits):
                                 index_scale="log",
                             )
             self.status = "Loaded results."
-        except Exception as err:
-            self._log.error("Failed to load results from file. Enable debug and try again for more detail.")
-            self._log.debug(err, exc_info=True)
+        except Exception:
+            self._log.error("Failed to load results from file.", exc_info=True, extra={"alert":True})
 
     def save_results(self, filepath:Path):
         """Save the existing results to a pickle file."""
@@ -1611,6 +1609,5 @@ class PyBERT(HasTraits):
                 pickle.dump(plotdata, the_file)
             self.data_file = filepath
             self.status = "Saved results."
-        except Exception as err:
-            self._log.error("Failed to save results to file. Enable debug and try again for more detail.")
-            self._log.debug(err, exc_info=True)
+        except Exception:
+            self._log.error("Failed to save results to file.", exc_info=True, extra={"alert":True})

@@ -23,5 +23,6 @@ fail-under = 9.0
 disable= [
     "invalid-name",
     "wrong-import-order",
-    "wrong-import-position"
+    "wrong-import-position",
+    "broad-except"
 ]

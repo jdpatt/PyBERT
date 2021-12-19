@@ -227,14 +227,14 @@ def my_run_simulation(self, initial_run=False, update_plots=True):
                 self.status = "Simulation Error."
                 self._log.error( "Both 'Init_Returns_Impulse' and 'GetWave_Exists' are False!\n \
 I cannot continue.\nYou will have to select a different model.",
-                    alert=True
+                    extra={"alert":True}
                 )
                 return
             elif not self.tx_use_getwave:
                 self.status = "Simulation Error."
                 self._log.error( "You have elected not to use GetWave for a model, which does not return an impulse response!\n \
 I cannot continue.\nPlease, select 'Use GetWave' and try again.",
-                    alert=True
+                    extra={"alert":True}
                 )
                 return
             if self.tx_use_getwave:
@@ -253,7 +253,7 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
                     n_tries += 1
                 if n_tries == max_tries:
                     self.status = "Tx GetWave() Error."
-                    self._log.error("Never saw a rising step come out of Tx GetWave()!", alert=True)
+                    self._log.error("Never saw a rising step come out of Tx GetWave()!", extra={"alert":True})
                     return
                 # Make one more call, just to ensure a sufficient "tail".
                 tmp, _    = tx_model.getWave(tmp)
@@ -352,7 +352,7 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
                 self._log.error(
                     "Both 'Init_Returns_Impulse' and 'GetWave_Exists' are False!\n \
 I cannot continue.\nYou will have to select a different model.",
-                    alert=True
+                    extra={"alert":True}
                 )
                 return
             elif not self.rx_use_getwave:
@@ -360,7 +360,7 @@ I cannot continue.\nYou will have to select a different model.",
                 self._log.error(
                     "You have elected not to use GetWave for a model, which does not return an impulse response!\n \
 I cannot continue.\nPlease, select 'Use GetWave' and try again.",
-                    alert=True
+                    extra={"alert":True}
                 )
                 return
             if self.rx_use_getwave:

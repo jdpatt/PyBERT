@@ -37,7 +37,7 @@ def test_save_config_as_pickle(tmp_path):
 
 def test_save_config_as_invalid(tmp_path, caplog):
     """When given an unsupported file suffix, no file should be generated and an message logged."""
-    caplog.set_level(logging.INFO)
+    caplog.set_level(logging.DEBUG)
 
     app = PyBERT(run_simulation=False, gui=False)
     save_file = tmp_path.joinpath("config.json")
@@ -98,7 +98,7 @@ def test_load_config_from_pickle(tmp_path):
 
 def test_load_config_from_invalid(tmp_path, caplog):
     """When given an unsupported file suffix, no file should be read and an message logged."""
-    caplog.set_level(logging.INFO)
+    caplog.set_level(logging.DEBUG)
 
     app = PyBERT(run_simulation=False, gui=False)
     save_file = tmp_path.joinpath("config.json")

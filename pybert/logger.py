@@ -54,20 +54,46 @@ class ConsoleTextLogHandler(logging.Handler):
         self.setLevel(logging.INFO)
 
     def emit(self, record, **kwargs):
-        """Emit a new record with the level before the message."""
+        """Emit a new record to be displayed in the GUI.
+
+        When running headless, this Handler doesn't do anything. You can use any of the logging
+        features and they will show up in the GUI. *Note*, if debug is disabled in the GUI only
+        messages INFO and higher will be shown.
+        See the [documentation](https://docs.python.org/3/library/logging.html#logging-levels) for
+        more infomation.
+
+        If you want a pop-up warning, you need to add alert to the LogRecord.  You can do this by
+        adding `extra={"alert":True})` to the function call.  If you want to include the exception
+        traceback, you can also include `exc_info=True`.
+
+        Examples:
+        --------
+        ```python
+        # Simple logging
+        logging.info("This will show up everywhere.")
+
+        # Prompt the user only if debug is enabled.
+        self._log.debug("%s reached uncharted waters.", username, extra={"alert":True}))
+
+        # Include the exception traceback of the last exception raised.
+        raise InvalidFileExtension("Pybert does not support this file type.")
+        self._log.error("Failed to load configuration.\n", exc_info=True, extra={"alert":True})
+        ```
+        """
         # pylint: disable=unused-argument
         msg = self.format(record)
         self.application.console_log += f"{msg}\n"
-
         show_user_alert = False
-        if isinstance(record.args, dict):  # if no kwargs are passed, record.args is an empty tuple.
-            show_user_alert = record.args.get("alert", False)
+
+        if "alert" in record.__dict__:  # alert gets added  when using extra={"alert":True}
+            show_user_alert = record.alert
         if self.application.has_gui and show_user_alert:
             message(msg, f"PyBERT Alert: {record.levelname}")
 
 
 class StructuredLogger(logging.Formatter):
     """Log formatter that will change the logging.LogRecord into a json format."""
+
     def format(self, record: logging.LogRecord) -> str:
         """Convert the record into a json string."""
         payload = self.record_to_dict(record)

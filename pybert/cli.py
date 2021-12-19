@@ -52,7 +52,7 @@ def simulate(config, verbose):
 @cli.command(context_settings=dict(help_option_names=["-h", "--help"]))
 @click.argument("filepath", type=click.Path(exists=False))
 @click.option("--verbose", "-v", is_flag=True, help="Enable debug printing.")
-def config(filepath, verbose):
+def example_config(filepath, verbose):
     """Save out the default configuration to a file."""
     setup_logging(verbose)
     pybert = PyBERT(run_simulation=False, gui=False)
