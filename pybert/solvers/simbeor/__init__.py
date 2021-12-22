@@ -164,9 +164,7 @@ class Solver(slvr.Solver):
         # - Sanity check the results.
         frqCount = simbeor.GetFrequencyPointsCount(ModelName)  # get number of computed frequency points
         if frqCount != len(fs):
-            raise RuntimeError(
-                f"Simbeor channel simulation returned wrong number of frequency points: {frqCount}"
-            )
+            raise RuntimeError(f"Simbeor channel simulation returned wrong number of frequency points: {frqCount}")
         pfrqs = simbeor.GetFrequencyPoints(ModelName)  # get all frequency points
         if (pfrqs != fs).any():
             raise RuntimeError("Simbeor channel simulation returned different set of frequency points!")

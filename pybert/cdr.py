@@ -42,7 +42,7 @@ class CDR:
             rel_lock_tol(Optional, float): Lock tolerance, relative to
                 *delta_t*. Defaults to 0.01.
             lock_sustain(Optional, int): Length of lock sustain vector
-                used to provide histerysis. Defaults to 500.
+                used to provide hysteresis. Defaults to 500.
 
         Notes:
             The code does not care what units are actually used for

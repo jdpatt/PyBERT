@@ -60,7 +60,7 @@ class MyHandler(Handler):
         dialog = FileDialog(
             action="save as",
             wildcard="Yaml Config (*.yaml)|*.yaml|Pickle Config (*.pybert_cfg)|*.pybert_cfg|All Files|*",
-            default_path=pybert.cfg_file
+            default_path=pybert.cfg_file,
         )
         if dialog.open() == OK:
             pybert.save_configuration(Path(dialog.path))
@@ -72,7 +72,7 @@ class MyHandler(Handler):
         dialog = FileDialog(
             action="open",
             wildcard="Yaml Config (*.yaml)|*.yaml|Pickle Config (*.pybert_cfg)|*.pybert_cfg|All Files|*",
-            default_path=pybert.cfg_file
+            default_path=pybert.cfg_file,
         )
         if dialog.open() == OK:
             pybert.load_configuration(Path(dialog.path))
@@ -93,6 +93,7 @@ class MyHandler(Handler):
         if dialog.open() == OK:
             pybert.load_results(Path(dialog.path))
 
+
 # These are the "globally applicable" buttons referred to in pybert.py,
 # just above the button definitions (approx. line 580).
 run_sim = Action(name="Run", action="run_simulation_clicked")
@@ -102,6 +103,7 @@ load_data = Action(name="Load Results", action="load_data_clicked")
 save_cfg = Action(name="Save Config.", action="save_config_clicked")
 load_cfg = Action(name="Load Config.", action="load_config_clicked")
 
+# fmt: off
 # Main window layout definition.
 traits_view = View(
     Group(
@@ -739,3 +741,4 @@ traits_view = View(
     # height=0.9,
     icon=ImageResource("icon.png"),
 )
+# fmt: on
