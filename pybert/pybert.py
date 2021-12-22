@@ -82,58 +82,6 @@ gDebugOptimize = False
 gMaxCTLEPeak = 20.0  # max. allowed CTLE peaking (dB) (when optimizing, only)
 gMaxCTLEFreq = 20.0  # max. allowed CTLE peak frequency (GHz) (when optimizing, only)
 
-# Default model parameters - Modify these to customize the default simulation.
-# - Simulation Control
-gBitRate = 10  # (Gbps)
-gNbits = 8000  # number of bits to run
-gPatLen = 127  # repeating bit pattern length
-gNspb = 32  # samples per bit
-gNumAve = 1  # Number of bit error samples to average, when sweeping.
-# - Channel Control
-#     - parameters for Howard Johnson's "Metallic Transmission Model"
-#     - (See "High Speed Signal Propagation", Sec. 3.1.)
-#     - ToDo: These are the values for 24 guage twisted copper pair; need to add other options.
-gRdc = 0.1876  # Ohms/m
-gw0 = 10.0e6  # 10 MHz is recommended in Ch. 8 of his second book, in which UTP is described in detail.
-gR0 = 1.452  # skin-effect resistance (Ohms/m)log
-gTheta0 = 0.02  # loss tangent
-gZ0 = 100.0  # characteristic impedance in LC region (Ohms)
-gv0 = 0.67  # relative propagation velocity (c)
-gl_ch = 1.0  # cable length (m)
-gRn = (
-    0.001
-)  # standard deviation of Gaussian random noise (V) (Applied at end of channel, so as to appear white to Rx.)
-# - Tx
-gVod = 1.0  # output drive strength (Vp)
-gRs = 100  # differential source impedance (Ohms)
-gCout = 0.50  # parasitic output capacitance (pF) (Assumed to exist at both 'P' and 'N' nodes.)
-gPnMag = 0.001  # magnitude of periodic noise (V)
-gPnFreq = 0.437  # frequency of periodic noise (MHz)
-# - Rx
-gRin = 100  # differential input resistance
-gCin = 0.50  # parasitic input capacitance (pF) (Assumed to exist at both 'P' and 'N' nodes.)
-gCac = 1.0  # a.c. coupling capacitance (uF) (Assumed to exist at both 'P' and 'N' nodes.)
-gBW = 12.0  # Rx signal path bandwidth, assuming no CTLE action. (GHz)
-gUseDfe = False  # Include DFE when running simulation.
-gDfeIdeal = True  # DFE ideal summing node selector
-gPeakFreq = 5.0  # CTLE peaking frequency (GHz)
-gPeakMag = 10.0  # CTLE peaking magnitude (dB)
-gCTLEOffset = 0.0  # CTLE d.c. offset (dB)
-# - DFE
-gDecisionScaler = 0.5
-gNtaps = 5
-gGain = 0.5
-gNave = 100
-gDfeBW = 12.0  # DFE summing node bandwidth (GHz)
-# - CDR
-gDeltaT = 0.1  # (ps)
-gAlpha = 0.01
-gNLockAve = 500  # number of UI used to average CDR locked status.
-gRelLockTol = 0.1  # relative lock tolerance of CDR.
-gLockSustain = 500
-# - Analysis
-gThresh = 6  # threshold for identifying periodic jitter spectral elements (sigma)
-
 class InvalidFileExtension(Exception):
     """Exception for when a user tries to save or load a file type that isn't supported."""
     pass
@@ -173,15 +121,15 @@ class PyBERT(HasTraits):
     # Independent variables
 
     # - Simulation Control
-    bit_rate = Range(low=0.1, high=120.0, value=gBitRate)     #: (Gbps)
-    nbits = Range(low=1000, high=10000000, value=gNbits)      #: Number of bits to simulate.
-    pattern_len = Range(low=7, high=10000000, value=gPatLen)  #: PRBS pattern length.
-    nspb = Range(low=2, high=256, value=gNspb)                #: Signal vector samples per bit.
-    eye_bits = Int(gNbits // 5)  #: # of bits used to form eye. (Default = last 20%)
+    bit_rate = Range(low=0.1, high=120.0, value=PyBertCfg.bit_rate)     #: (Gbps)
+    nbits = Range(low=1000, high=10000000, value=PyBertCfg.nbits)      #: Number of bits to simulate.
+    pattern_len = Range(low=7, high=10000000, value=PyBertCfg.pattern_len)  #: PRBS pattern length.
+    nspb = Range(low=2, high=256, value=PyBertCfg.nspb)                #: Signal vector samples per bit.
+    eye_bits = Int(PyBertCfg.nbits // 5)  #: # of bits used to form eye. (Default = last 20%)
     mod_type = List([0])         #: 0 = NRZ; 1 = Duo-binary; 2 = PAM-4
-    num_sweeps = Int(1)          #: Number of sweeps to run.
+    num_sweeps = Int(PyBertCfg.num_sweeps)          #: Number of sweeps to run.
     sweep_num = Int(1)
-    sweep_aves = Int(gNumAve)
+    sweep_aves = Int(PyBertCfg.sweep_aves)
     do_sweep = Bool(False)  #: Run sweeps? (Default = False)
     debug = Bool(False)     #: Send log messages to terminal, as well as console, when True. (Default = False)
 
@@ -194,13 +142,13 @@ class PyBERT(HasTraits):
     # windowed = Bool(False)     #: Apply windowing to the Touchstone data? (Default = False)
     f_step = Float(10)         #: Frequency step to use when constructing H(f). (Default = 10 MHz)
     impulse_length = Float(0.0)  #: Impulse response length. (Determined automatically, when 0.)
-    Rdc = Float(gRdc)            #: Channel d.c. resistance (Ohms/m).
-    w0 = Float(gw0)              #: Channel transition frequency (rads./s).
-    R0 = Float(gR0)              #: Channel skin effect resistance (Ohms/m).
-    Theta0 = Float(gTheta0)      #: Channel loss tangent (unitless).
-    Z0 = Float(gZ0)              #: Channel characteristic impedance, in LC region (Ohms).
-    v0 = Float(gv0)              #: Channel relative propagation velocity (c).
-    l_ch = Float(gl_ch)          #: Channel length (m).
+    Rdc = Float(PyBertCfg.Rdc)            #: Channel d.c. resistance (Ohms/m).
+    w0 = Float(PyBertCfg.w0)              #: Channel transition frequency (rads./s).
+    R0 = Float(PyBertCfg.R0)              #: Channel skin effect resistance (Ohms/m).
+    Theta0 = Float(PyBertCfg.Theta0)      #: Channel loss tangent (unitless).
+    Z0 = Float(PyBertCfg.Z0)              #: Channel characteristic impedance, in LC region (Ohms).
+    v0 = Float(PyBertCfg.v0)              #: Channel relative propagation velocity (c).
+    l_ch = Float(PyBertCfg.l_ch)          #: Channel length (m).
 
     # - EQ Tune
     tx_tap_tuners = List(
@@ -211,27 +159,27 @@ class PyBERT(HasTraits):
             TxTapTuner(name="Post-tap3", enabled=False, min_val=-0.2, max_val=0.2, value=0.0),
         ]
     )  #: EQ optimizer list of TxTapTuner objects.
-    rx_bw_tune = Float(gBW)  #: EQ optimizer CTLE bandwidth (GHz).
-    peak_freq_tune = Float(gPeakFreq)  #: EQ optimizer CTLE peaking freq. (GHz).
-    peak_mag_tune = Float(gPeakMag)  #: EQ optimizer CTLE peaking mag. (dB).
-    ctle_offset_tune = Float(gCTLEOffset)  #: EQ optimizer CTLE d.c. offset (dB).
+    rx_bw_tune = Float(PyBertCfg.rx_bw)  #: EQ optimizer CTLE bandwidth (GHz).
+    peak_freq_tune = Float(PyBertCfg.peak_freq)  #: EQ optimizer CTLE peaking freq. (GHz).
+    peak_mag_tune = Float(PyBertCfg.peak_mag)  #: EQ optimizer CTLE peaking mag. (dB).
+    ctle_offset_tune = Float(PyBertCfg.ctle_offset)  #: EQ optimizer CTLE d.c. offset (dB).
     ctle_mode_tune = Enum(
         "Off", "Passive", "AGC", "Manual"
     )  #: EQ optimizer CTLE mode ('Off', 'Passive', 'AGC', 'Manual').
-    use_dfe_tune = Bool(gUseDfe)  #: EQ optimizer DFE select (Bool).
-    n_taps_tune = Int(gNtaps)  #: EQ optimizer # DFE taps.
+    use_dfe_tune = Bool(PyBertCfg.use_dfe)  #: EQ optimizer DFE select (Bool).
+    n_taps_tune = Int(PyBertCfg.n_taps)  #: EQ optimizer # DFE taps.
     max_iter = Int(50)  #: EQ optimizer max. # of optimization iterations.
     tx_opt_thread = Instance(TxOptThread)  #: Tx EQ optimization thread.
     rx_opt_thread = Instance(RxOptThread)  #: Rx EQ optimization thread.
     coopt_thread = Instance(CoOptThread)  #: EQ co-optimization thread.
 
     # - Tx
-    vod = Float(gVod)  #: Tx differential output voltage (V)
-    rs = Float(gRs)  #: Tx source impedance (Ohms)
-    cout = Range(low=0.001, high=1000, value=gCout)  #: Tx parasitic output capacitance (pF)
-    pn_mag = Float(gPnMag)  #: Periodic noise magnitude (V).
-    pn_freq = Float(gPnFreq)  #: Periodic noise frequency (MHz).
-    rn = Float(gRn)  #: Standard deviation of Gaussian random noise (V).
+    vod = Float(PyBertCfg.vod)  #: Tx differential output voltage (V)
+    rs = Float(PyBertCfg.rs)  #: Tx source impedance (Ohms)
+    cout = Range(low=0.001, high=1000, value=PyBertCfg.cout)  #: Tx parasitic output capacitance (pF)
+    pn_freq = Float(PyBertCfg.pn_freq)  #: Periodic noise frequency (MHz).
+    pn_mag = Float(PyBertCfg.pn_mag)  #: Periodic noise magnitude (V).
+    rn = Float(PyBertCfg.rn)  #: Standard deviation of Gaussian random noise (V).
     tx_taps = List(
         [
             TxTapTuner(name="Pre-tap",   enabled=True,  min_val=-0.2, max_val=0.2, value=0.0),
@@ -255,15 +203,15 @@ class PyBERT(HasTraits):
     tx_use_ibis = Bool(False)  #: (Bool)
 
     # - Rx
-    rin = Float(gRin)  #: Rx input impedance (Ohm)
-    cin = Range(low=0.001, high=1000, value=gCin)  #: Rx parasitic input capacitance (pF)
-    cac = Float(gCac)  #: Rx a.c. coupling capacitance (uF)
+    rin = Float(PyBertCfg.rin)  #: Rx input impedance (Ohm)
+    cin = Range(low=0.001, high=1000, value=PyBertCfg.cin)  #: Rx parasitic input capacitance (pF)
+    cac = Float(PyBertCfg.cac)  #: Rx a.c. coupling capacitance (uF)
     use_ctle_file = Bool(False)  #: For importing CTLE impulse/step response directly.
     ctle_file = File("", entries=5, filter=["*.csv"])  #: CTLE response file (when use_ctle_file = True).
-    rx_bw = Float(gBW)  #: CTLE bandwidth (GHz).
-    peak_freq = Float(gPeakFreq)  #: CTLE peaking frequency (GHz)
-    peak_mag = Float(gPeakMag)  #: CTLE peaking magnitude (dB)
-    ctle_offset = Float(gCTLEOffset)  #: CTLE d.c. offset (dB)
+    rx_bw = Float(PyBertCfg.rx_bw)  #: CTLE bandwidth (GHz).
+    peak_freq = Float(PyBertCfg.peak_freq)  #: CTLE peaking frequency (GHz)
+    peak_mag = Float(PyBertCfg.peak_mag)  #: CTLE peaking magnitude (dB)
+    ctle_offset = Float(PyBertCfg.ctle_offset)  #: CTLE d.c. offset (dB)
     ctle_mode = Enum("Off", "Passive", "AGC", "Manual")  #: CTLE mode ('Off', 'Passive', 'AGC', 'Manual').
     rx_use_ami = Bool(False)  #: (Bool)
     rx_has_ts4 = Bool(False)  #: (Bool)
@@ -279,24 +227,24 @@ class PyBERT(HasTraits):
     rx_use_ibis = Bool(False)  #: (Bool)
 
     # - DFE
-    use_dfe = Bool(gUseDfe)  #: True = use a DFE (Bool).
-    sum_ideal = Bool(gDfeIdeal)  #: True = use an ideal (i.e. - infinite bandwidth) summing node (Bool).
-    decision_scaler = Float(gDecisionScaler)  #: DFE slicer output voltage (V).
-    gain = Float(gGain)  #: DFE error gain (unitless).
-    n_ave = Float(gNave)  #: DFE # of averages to take, before making tap corrections.
-    n_taps = Int(gNtaps)  #: DFE # of taps.
+    use_dfe = Bool(PyBertCfg.use_dfe)  #: True = use a DFE (Bool).
+    sum_ideal = Bool(PyBertCfg.sum_ideal)  #: True = use an ideal (i.e. - infinite bandwidth) summing node (Bool).
+    decision_scaler = Float(PyBertCfg.decision_scaler)  #: DFE slicer output voltage (V).
+    gain = Float(PyBertCfg.gain)  #: DFE error gain (unitless).
+    n_ave = Float(PyBertCfg.n_ave)  #: DFE # of averages to take, before making tap corrections.
+    n_taps = Int(PyBertCfg.n_taps)  #: DFE # of taps.
     _old_n_taps = n_taps
-    sum_bw = Float(gDfeBW)  #: DFE summing node bandwidth (Used when sum_ideal=False.) (GHz).
+    sum_bw = Float(PyBertCfg.sum_bw)  #: DFE summing node bandwidth (Used when sum_ideal=False.) (GHz).
 
     # - CDR
-    delta_t = Float(gDeltaT)  #: CDR proportional branch magnitude (ps).
-    alpha = Float(gAlpha)  #: CDR integral branch magnitude (unitless).
-    n_lock_ave = Int(gNLockAve)  #: CDR # of averages to take in determining lock.
-    rel_lock_tol = Float(gRelLockTol)  #: CDR relative tolerance to use in determining lock.
-    lock_sustain = Int(gLockSustain)  #: CDR hysteresis to use in determining lock.
+    delta_t = Float(PyBertCfg.delta_t)  #: CDR proportional branch magnitude (ps).
+    alpha = Float(PyBertCfg.alpha)  #: CDR integral branch magnitude (unitless).
+    n_lock_ave = Int(PyBertCfg.n_lock_ave)  #: CDR # of averages to take in determining lock.
+    rel_lock_tol = Float(PyBertCfg.rel_lock_tol)  #: CDR relative tolerance to use in determining lock.
+    lock_sustain = Int(PyBertCfg.lock_sustain)  #: CDR hysteresis to use in determining lock.
 
     # - Analysis
-    thresh = Int(gThresh)  #: Threshold for identifying periodic jitter components (sigma).
+    thresh = Int(PyBertCfg.thresh)  #: Threshold for identifying periodic jitter components (sigma).
 
     # Misc.
     cfg_file = File("", entries=5, filter=["*.pybert_cfg"])  #: PyBERT configuration data storage file (File).
@@ -430,7 +378,7 @@ class PyBERT(HasTraits):
             # Running the simulation will fill in the required data structure.
             my_run_simulation(self, initial_run=True)
             # Once the required data structure is filled in, we can create the plots.
-            make_plots(self, n_dfe_taps=gNtaps)
+            make_plots(self, n_dfe_taps=PyBertCfg.n_taps)
         else:
             self.calc_chnl_h()  # Prevents missing attribute error in _get_ctle_out_h_tune().
 
@@ -1491,19 +1439,8 @@ class PyBERT(HasTraits):
             if not isinstance(user_config, PyBertCfg):
                 raise ValueError("The data structure read in is NOT of type: PyBertCfg!")
 
-            for prop, value in vars(user_config).items():
-                if prop == "tx_taps":
-                    for count, (enabled, val) in enumerate(value):
-                        setattr(self.tx_taps[count], "enabled", enabled)
-                        setattr(self.tx_taps[count], "value", val)
-                elif prop == "tx_tap_tuners":
-                    for count, (enabled, val) in enumerate(value):
-                        setattr(self.tx_tap_tuners[count], "enabled", enabled)
-                        setattr(self.tx_tap_tuners[count], "value", val)
-                elif prop == "version" or prop == "timestamp":
-                    pass # Just including it for some good housekeeping.  Not currently used.
-                else:
-                    setattr(self, prop, value)
+            user_config.apply(self)
+
             self.cfg_file = filepath
             self.status = "Loaded configuration."
         except Exception:
