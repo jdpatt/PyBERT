@@ -1138,21 +1138,15 @@ class PyBERT(HasTraits):
             logging.getLogger().setLevel(logging.INFO)
             self._console_log_handler.setLevel(logging.INFO)
 
-    def _use_dfe_changed(self, new_value):
-        if not new_value:
-            for i in range(1, 4):
-                self.tx_taps[i].enabled = True
-        else:
-            for i in range(1, 4):
-                self.tx_taps[i].enabled = False
+    def _use_dfe_changed(self, enabled: bool):
+        """When the checkbox, `use_dfe`, is checked, enable the tx_taps."""
+        for tap in self.tx_taps:
+            tap.enabled = enabled
 
-    def _use_dfe_tune_changed(self, new_value):
-        if not new_value:
-            for i in range(1, 4):
-                self.tx_tap_tuners[i].enabled = True
-        else:
-            for i in range(1, 4):
-                self.tx_tap_tuners[i].enabled = False
+    def _use_dfe_tune_changed(self, enabled: bool):
+        """When the checkbox, `use_dfe_tune`, is checked, enable the tx_tap_tuners."""
+        for tap in self.tx_tap_tuners:
+            tap.enabled = enabled
 
     def _tx_ibis_file_changed(self, new_value):
         self.status = f"Parsing IBIS file: {new_value}"
@@ -1259,8 +1253,9 @@ class PyBERT(HasTraits):
         except Exception as err:
             self._log.info("Failed to open DLL/SO file!\n %s", err, extra={"alert": True})
 
-    def _rx_use_ami_changed(self, new_value):
-        if new_value == True:
+    def _rx_use_ami_changed(self, rx_ami_is_enabled: bool):
+        """If you enable ami for the rx, disable pybert's ideal dfe."""
+        if rx_ami_is_enabled:
             self.use_dfe = False
 
     # This function has been pulled outside of the standard Traits/UI "depends_on / @cached_property" mechanism,
