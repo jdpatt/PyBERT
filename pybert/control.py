@@ -36,6 +36,7 @@ from numpy.random import normal
 from scipy.signal import iirfilter, lfilter
 from scipy.signal.windows import hann
 
+from pybert import plot
 from pybert.dfe import DFE
 from pybert.utility import (
     calc_eye,
@@ -730,28 +731,14 @@ def update_results(self):
 
     # DFE.
     tap_weights = transpose(array(self.adaptation))
-    i = 1
-    for tap_weight in tap_weights:
-        self.plotdata.set_data(f"tap{i}_weights", tap_weight)
-        i += 1
+    for tap_num, tap_weight in enumerate(tap_weights, start=1):
+        self.plotdata.set_data(f"tap{tap_num}_weights", tap_weight)
     self.plotdata.set_data("tap_weight_index", list(range(len(tap_weight))))
     if self._old_n_taps != n_taps:
-        new_plot = Plot(
-            self.plotdata, auto_colors=["red", "orange", "yellow", "green", "blue", "purple"], padding_left=75,
-        )
-        for i in range(self.n_taps):
-            new_plot.plot(
-                ("tap_weight_index", f"tap{i + 1}_weights"), type="line", color="auto", name=f"tap{i + 1}",
-            )
-        new_plot.title = "DFE Adaptation"
-        new_plot.tools.append(PanTool(new_plot, constrain=True, constrain_key=None, constrain_direction="x"))
-        zoom9 = ZoomTool(new_plot, tool_mode="range", axis="index", always_on=False)
-        new_plot.overlays.append(zoom9)
-        new_plot.legend.visible = True
-        new_plot.legend.align = "ul"
-        self.plots_dfe.remove(self._dfe_plot)
+        new_plot = plot.create_dfe_adaption_plot(self.plotdata, n_taps)
+        self.plots_dfe.remove(self.plot_dfe_adapt)
         self.plots_dfe.insert(1, new_plot)
-        self._dfe_plot = new_plot
+        self.plot_dfe_adapt = new_plot
         self._old_n_taps = n_taps
 
     clock_pers = diff(clock_times)

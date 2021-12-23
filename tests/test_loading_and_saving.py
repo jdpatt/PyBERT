@@ -6,7 +6,8 @@ import pickle
 import numpy as np
 import yaml
 
-from pybert.pybert import VERSION, PyBERT
+from pybert import __version__
+from pybert.pybert import PyBERT
 
 
 def test_save_config_as_yaml(tmp_path):
@@ -19,7 +20,7 @@ def test_save_config_as_yaml(tmp_path):
 
     with open(save_file, "r", encoding="UTF-8") as saved_config_file:
         user_config = yaml.load(saved_config_file, Loader=yaml.Loader)
-        assert user_config.version == VERSION
+        assert user_config.version == __version__
 
 
 def test_save_config_as_pickle(tmp_path):
@@ -32,7 +33,7 @@ def test_save_config_as_pickle(tmp_path):
 
     with open(save_file, "rb") as saved_config_file:
         user_config = pickle.load(saved_config_file)
-        assert user_config.version == VERSION
+        assert user_config.version == __version__
 
 
 def test_save_config_as_invalid(tmp_path, caplog):

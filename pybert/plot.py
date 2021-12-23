@@ -7,49 +7,51 @@ Original date:   February 21, 2015 (Copied from pybert.py, as part of a major co
 
 Copyright (c) 2015 David Banas; all rights reserved World wide.
 """
-from chaco.api import ColorMapper, GridPlotContainer, Plot
-from chaco.tools.api import PanTool, ZoomTool
+from typing import Tuple
 
-from pybert.control import update_eyes
+from chaco.api import ArrayPlotData, ColorMapper, GridPlotContainer, Plot
+from chaco.tools.api import PanTool, ZoomTool
 
 PLOT_SPACING = 20
 
+TITLE_CHANNEL = "Channel"
+TITLE_TX_CHANNEL = "Channel + Tx Preemphasis"
+TITLE_CTLE_CHANNEL = "Channel + Tx Preemphasis + CTLE (+ AMI DFE)"
+TITLE_DFE_CHANNEL = "Channel + Tx Preemphasis + CTLE (+ AMI DFE) + PyBERT DFE"
 
-def make_plots(self, n_dfe_taps):
-    """Create the plots used by the PyBERT GUI."""
 
-    post_chnl_str = "Channel"
-    post_tx_str = "Channel + Tx Preemphasis"
-    post_ctle_str = "Channel + Tx Preemphasis + CTLE (+ AMI DFE)"
-    post_dfe_str = "Channel + Tx Preemphasis + CTLE (+ AMI DFE) + PyBERT DFE"
-
-    plotdata = self.plotdata
-
-    # - DFE tab
-    plot2 = Plot(plotdata, padding_left=75)
-    plot2.plot(("t_ns", "ui_ests"), type="line", color="blue")
-    plot2.title = "CDR Adaptation"
-    plot2.index_axis.title = "Time (ns)"
-    plot2.value_axis.title = "UI (ps)"
-
-    plot9 = Plot(
+def create_dfe_adaption_plot(plotdata: ArrayPlotData, n_taps: int):
+    """DFE Adaption gets updated and replaced per simulation run so it is returned seperately."""
+    plot_dfe_adapt = Plot(
         plotdata,
         auto_colors=["red", "orange", "yellow", "green", "blue", "purple"],
         padding_left=75,
     )
-    for i in range(n_dfe_taps):
-        plot9.plot(
-            ("tap_weight_index", f"tap{i + 1}_weights"),
+    for tap in range(n_taps):
+        plot_dfe_adapt.plot(
+            ("tap_weight_index", f"tap{tap + 1}_weights"),
             type="line",
             color="auto",
-            name=f"tap{i + 1}",
+            name=f"tap{tap + 1}",
         )
-    plot9.title = "DFE Adaptation"
-    plot9.tools.append(PanTool(plot9, constrain=True, constrain_key=None, constrain_direction="x"))
-    zoom9 = ZoomTool(plot9, tool_mode="range", axis="index", always_on=False)
-    plot9.overlays.append(zoom9)
-    plot9.legend.visible = True
-    plot9.legend.align = "ul"
+    plot_dfe_adapt.title = "DFE Adaptation"
+    plot_dfe_adapt.tools.append(PanTool(plot_dfe_adapt, constrain=True, constrain_key=None, constrain_direction="x"))
+    zoom9 = ZoomTool(plot_dfe_adapt, tool_mode="range", axis="index", always_on=False)
+    plot_dfe_adapt.overlays.append(zoom9)
+    plot_dfe_adapt.legend.visible = True
+    plot_dfe_adapt.legend.align = "ul"
+    return plot_dfe_adapt
+
+
+def init_dfe_tab_plots(plotdata: ArrayPlotData, n_dfe_taps: int) -> Tuple[GridPlotContainer, Plot]:
+    """Create the plots found under Results/DFE."""
+    plot_cdr_adapt = Plot(plotdata, padding_left=75)
+    plot_cdr_adapt.plot(("t_ns", "ui_ests"), type="line", color="blue")
+    plot_cdr_adapt.title = "CDR Adaptation"
+    plot_cdr_adapt.index_axis.title = "Time (ns)"
+    plot_cdr_adapt.value_axis.title = "UI (ps)"
+
+    plot_dfe_adapt = create_dfe_adaption_plot(plotdata, n_dfe_taps)
 
     plot_clk_per_hist = Plot(plotdata, padding_left=75)
     plot_clk_per_hist.plot(("clk_per_hist_bins", "clk_per_hist_vals"), type="line", color="blue")
@@ -67,15 +69,16 @@ def make_plots(self, n_dfe_taps):
     plot_clk_per_spec.overlays.append(zoom_clk_per_spec)
 
     container_dfe = GridPlotContainer(shape=(2, 2), spacing=(PLOT_SPACING, PLOT_SPACING))
-    container_dfe.add(plot2)
-    container_dfe.add(plot9)
+    container_dfe.add(plot_cdr_adapt)
+    container_dfe.add(plot_dfe_adapt)
     container_dfe.add(plot_clk_per_hist)
     container_dfe.add(plot_clk_per_spec)
-    self.plots_dfe = container_dfe
-    self._dfe_plot = plot9
 
-    # - EQ Tune tab
-    # plot_h_tune = Plot(plotdata, padding_left=75)
+    return container_dfe, plot_dfe_adapt
+
+
+def init_eq_tune_tab_plots(plotdata: ArrayPlotData) -> GridPlotContainer:
+    """Create the plot on the Optimizer tab."""
     plot_h_tune = Plot(plotdata, padding_bottom=75)
     plot_h_tune.plot(("t_ns_chnl", "ctle_out_h_tune"), type="line", color="blue")
     plot_h_tune.plot(("t_ns_chnl", "clocks_tune"), type="line", color="gray")
@@ -84,151 +87,111 @@ def make_plots(self, n_dfe_taps):
     plot_h_tune.y_axis.title = "Pulse Response (V)"
     zoom_tune = ZoomTool(plot_h_tune, tool_mode="range", axis="index", always_on=False)
     plot_h_tune.overlays.append(zoom_tune)
-    self.plot_h_tune = plot_h_tune
+    return plot_h_tune
 
-    # - Impulse Responses tab
-    plot_h_chnl = Plot(plotdata, padding_left=75)
-    plot_h_chnl.plot(("t_ns_chnl", "chnl_h"), type="line", color="blue", name="Incremental")
-    plot_h_chnl.title = post_chnl_str
-    plot_h_chnl.index_axis.title = "Time (ns)"
-    plot_h_chnl.y_axis.title = "Impulse Response (V/ns)"
-    plot_h_chnl.legend.visible = True
-    plot_h_chnl.legend.align = "ur"
-    zoom_h = ZoomTool(plot_h_chnl, tool_mode="range", axis="index", always_on=False)
-    plot_h_chnl.overlays.append(zoom_h)
 
-    plot_h_tx = Plot(plotdata, padding_left=75)
-    plot_h_tx.plot(("t_ns_chnl", "tx_out_h"), type="line", color="red", name="Cumulative")
-    plot_h_tx.title = post_tx_str
-    plot_h_tx.index_axis.title = "Time (ns)"
-    plot_h_tx.y_axis.title = "Impulse Response (V/ns)"
-    plot_h_tx.legend.visible = True
-    plot_h_tx.legend.align = "ur"
-    plot_h_tx.index_range = plot_h_chnl.index_range  # Zoom x-axes in tandem.
+def init_impulse_tab_plots(plotdata: ArrayPlotData) -> GridPlotContainer:
+    """Create a 4x4 grid of impulse reponse plots after each stage under Responses/Impulse.
 
-    plot_h_ctle = Plot(plotdata, padding_left=75)
-    plot_h_ctle.plot(("t_ns_chnl", "ctle_out_h"), type="line", color="red", name="Cumulative")
-    plot_h_ctle.title = post_ctle_str
-    plot_h_ctle.index_axis.title = "Time (ns)"
-    plot_h_ctle.y_axis.title = "Impulse Response (V/ns)"
-    plot_h_ctle.legend.visible = True
-    plot_h_ctle.legend.align = "ur"
-    plot_h_ctle.index_range = plot_h_chnl.index_range  # Zoom x-axes in tandem.
-
-    plot_h_dfe = Plot(plotdata, padding_left=75)
-    plot_h_dfe.plot(("t_ns_chnl", "dfe_out_h"), type="line", color="red", name="Cumulative")
-    plot_h_dfe.title = post_dfe_str
-    plot_h_dfe.index_axis.title = "Time (ns)"
-    plot_h_dfe.y_axis.title = "Impulse Response (V/ns)"
-    plot_h_dfe.legend.visible = True
-    plot_h_dfe.legend.align = "ur"
-    plot_h_dfe.index_range = plot_h_chnl.index_range  # Zoom x-axes in tandem.
-
+    Setup a zoom that will zoom all four in tandem.
+    """
     container_h = GridPlotContainer(shape=(2, 2), spacing=(PLOT_SPACING, PLOT_SPACING))
-    container_h.add(plot_h_chnl)
-    container_h.add(plot_h_tx)
-    container_h.add(plot_h_ctle)
-    container_h.add(plot_h_dfe)
-    self.plots_h = container_h
+    first_plot = None
 
-    # - Step Responses tab
-    plot_s_chnl = Plot(plotdata, padding_left=75)
-    plot_s_chnl.plot(("t_ns_chnl", "chnl_s"), type="line", color="blue", name="Incremental")
-    plot_s_chnl.title = post_chnl_str
-    plot_s_chnl.index_axis.title = "Time (ns)"
-    plot_s_chnl.y_axis.title = "Step Response (V)"
-    plot_s_chnl.legend.visible = True
-    plot_s_chnl.legend.align = "lr"
-    zoom_s = ZoomTool(plot_s_chnl, tool_mode="range", axis="index", always_on=False)
-    plot_s_chnl.overlays.append(zoom_s)
+    for title, data, color in (
+        (TITLE_CHANNEL, "chnl_h", "blue"),
+        (TITLE_TX_CHANNEL, "tx_out_h", "red"),
+        (TITLE_CTLE_CHANNEL, "ctle_out_h", "red"),
+        (TITLE_DFE_CHANNEL, "dfe_out_h", "red"),
+    ):
+        plot_impulse = Plot(plotdata, padding_left=75)
+        plot_impulse.plot(("t_ns_chnl", data), type="line", color=color, name="Cumulative")
+        plot_impulse.title = title
+        plot_impulse.index_axis.title = "Time (ns)"
+        plot_impulse.y_axis.title = "Impulse Response (V/ns)"
+        plot_impulse.legend.visible = True
+        plot_impulse.legend.align = "ur"
+        if data == "chnl_h":  # Setup the zoom for all four.
+            zoom_h = ZoomTool(plot_impulse, tool_mode="range", axis="index", always_on=False)
+            plot_impulse.overlays.append(zoom_h)
+            first_plot = plot_impulse
+        else:  # Zoom x-axes in tandem.
+            plot_impulse.index_range = first_plot.index_range
+        container_h.add(plot_impulse)
+    return container_h
 
-    plot_s_tx = Plot(plotdata, padding_left=75)
-    plot_s_tx.plot(("t_ns_chnl", "tx_s"), type="line", color="blue", name="Incremental")
-    plot_s_tx.plot(("t_ns_chnl", "tx_out_s"), type="line", color="red", name="Cumulative")
-    plot_s_tx.title = post_tx_str
-    plot_s_tx.index_axis.title = "Time (ns)"
-    plot_s_tx.y_axis.title = "Step Response (V)"
-    plot_s_tx.legend.visible = True
-    plot_s_tx.legend.align = "lr"
-    plot_s_tx.index_range = plot_s_chnl.index_range  # Zoom x-axes in tandem.
 
-    plot_s_ctle = Plot(plotdata, padding_left=75)
-    plot_s_ctle.plot(("t_ns_chnl", "ctle_s"), type="line", color="blue", name="Incremental")
-    plot_s_ctle.plot(("t_ns_chnl", "ctle_out_s"), type="line", color="red", name="Cumulative")
-    plot_s_ctle.title = post_ctle_str
-    plot_s_ctle.index_axis.title = "Time (ns)"
-    plot_s_ctle.y_axis.title = "Step Response (V)"
-    plot_s_ctle.legend.visible = True
-    plot_s_ctle.legend.align = "lr"
-    plot_s_ctle.index_range = plot_s_chnl.index_range  # Zoom x-axes in tandem.
+def init_step_tab_plots(plotdata: ArrayPlotData) -> GridPlotContainer:
+    """Create a 4x4 grid of step response plots after each stage under Responses/Steps.
 
-    plot_s_dfe = Plot(plotdata, padding_left=75)
-    plot_s_dfe.plot(("t_ns_chnl", "dfe_s"), type="line", color="blue", name="Incremental")
-    plot_s_dfe.plot(("t_ns_chnl", "dfe_out_s"), type="line", color="red", name="Cumulative")
-    plot_s_dfe.title = post_dfe_str
-    plot_s_dfe.index_axis.title = "Time (ns)"
-    plot_s_dfe.y_axis.title = "Step Response (V)"
-    plot_s_dfe.legend.visible = True
-    plot_s_dfe.legend.align = "lr"
-    plot_s_dfe.index_range = plot_s_chnl.index_range  # Zoom x-axes in tandem.
-
+    Setup a zoom that will zoom all four in tandem.
+    """
     container_s = GridPlotContainer(shape=(2, 2), spacing=(PLOT_SPACING, PLOT_SPACING))
-    container_s.add(plot_s_chnl)
-    container_s.add(plot_s_tx)
-    container_s.add(plot_s_ctle)
-    container_s.add(plot_s_dfe)
-    self.plots_s = container_s
+    first_plot = None
 
-    # - Pulse Responses tab
-    plot_p_chnl = Plot(plotdata, padding_left=75)
-    plot_p_chnl.plot(("t_ns_chnl", "chnl_p"), type="line", color="blue", name="Incremental")
-    plot_p_chnl.title = post_chnl_str
-    plot_p_chnl.index_axis.title = "Time (ns)"
-    plot_p_chnl.y_axis.title = "Pulse Response (V)"
-    plot_p_chnl.legend.visible = True
-    plot_p_chnl.legend.align = "ur"
-    zoom_p = ZoomTool(plot_p_chnl, tool_mode="range", axis="index", always_on=False)
-    plot_p_chnl.overlays.append(zoom_p)
+    for title, incremental, cumulative in (
+        (TITLE_CHANNEL, "chnl_s", None),
+        (TITLE_TX_CHANNEL, "tx_s", "tx_out_s"),
+        (TITLE_CTLE_CHANNEL, "ctle_s", "ctle_out_s"),
+        (TITLE_DFE_CHANNEL, "dfe_s", "dfe_out_s"),
+    ):
+        plot_step = Plot(plotdata, padding_left=75)
+        plot_step.plot(("t_ns_chnl", incremental), type="line", color="blue", name="Incremental")
+        if cumulative:
+            plot_step.plot(("t_ns_chnl", cumulative), type="line", color="red", name="Cumulative")
+        plot_step.title = title
+        plot_step.index_axis.title = "Time (ns)"
+        plot_step.y_axis.title = "Step Response (V)"
+        plot_step.legend.visible = True
+        plot_step.legend.align = "lr"
+        if incremental == "chnl_s":  # Setup the zoom for all four.
+            zoom_h = ZoomTool(plot_step, tool_mode="range", axis="index", always_on=False)
+            plot_step.overlays.append(zoom_h)
+            first_plot = plot_step
+        else:  # Zoom x-axes in tandem.
+            plot_step.index_range = first_plot.index_range
+        container_s.add(plot_step)
+    return container_s
 
-    plot_p_tx = Plot(plotdata, padding_left=75)
-    plot_p_tx.plot(("t_ns_chnl", "tx_out_p"), type="line", color="red", name="Cumulative")
-    plot_p_tx.title = post_tx_str
-    plot_p_tx.index_axis.title = "Time (ns)"
-    plot_p_tx.y_axis.title = "Pulse Response (V)"
-    plot_p_tx.legend.visible = True
-    plot_p_tx.legend.align = "ur"
-    plot_p_tx.index_range = plot_p_chnl.index_range  # Zoom x-axes in tandem.
 
-    plot_p_ctle = Plot(plotdata, padding_left=75)
-    plot_p_ctle.plot(("t_ns_chnl", "ctle_out_p"), type="line", color="red", name="Cumulative")
-    plot_p_ctle.title = post_ctle_str
-    plot_p_ctle.index_axis.title = "Time (ns)"
-    plot_p_ctle.y_axis.title = "Pulse Response (V)"
-    plot_p_ctle.legend.visible = True
-    plot_p_ctle.legend.align = "ur"
-    plot_p_ctle.index_range = plot_p_chnl.index_range  # Zoom x-axes in tandem.
+def init_pulse_tab_plots(plotdata: ArrayPlotData) -> GridPlotContainer:
+    """Create a 4x4 grid of pulse response plots after each stage under Responses/Pulses.
 
-    plot_p_dfe = Plot(plotdata, padding_left=75)
-    plot_p_dfe.plot(("t_ns_chnl", "dfe_out_p"), type="line", color="red", name="Cumulative")
-    plot_p_dfe.title = post_dfe_str
-    plot_p_dfe.index_axis.title = "Time (ns)"
-    plot_p_dfe.y_axis.title = "Pulse Response (V)"
-    plot_p_dfe.legend.visible = True
-    plot_p_dfe.legend.align = "ur"
-    plot_p_dfe.index_range = plot_p_chnl.index_range  # Zoom x-axes in tandem.
-
+    Setup a zoom that will zoom all four in tandem.
+    """
     container_p = GridPlotContainer(shape=(2, 2), spacing=(PLOT_SPACING, PLOT_SPACING))
-    container_p.add(plot_p_chnl)
-    container_p.add(plot_p_tx)
-    container_p.add(plot_p_ctle)
-    container_p.add(plot_p_dfe)
-    self.plots_p = container_p
 
-    # - Frequency Responses tab
+    first_plot = None
+
+    for title, data, color in (
+        (TITLE_CHANNEL, "chnl_p", "blue"),
+        (TITLE_TX_CHANNEL, "tx_out_p", "red"),
+        (TITLE_CTLE_CHANNEL, "ctle_out_p", "red"),
+        (TITLE_DFE_CHANNEL, "dfe_out_p", "red"),
+    ):
+        plot_pulse = Plot(plotdata, padding_left=75)
+        plot_pulse.plot(("t_ns_chnl", data), type="line", color=color, name="Cumulative")
+        plot_pulse.title = title
+        plot_pulse.index_axis.title = "Time (ns)"
+        plot_pulse.y_axis.title = "Pulse Response (V)"
+        plot_pulse.legend.visible = True
+        plot_pulse.legend.align = "ur"
+        if data == "chnl_p":  # Setup the zoom for all four.
+            zoom_h = ZoomTool(plot_pulse, tool_mode="range", axis="index", always_on=False)
+            plot_pulse.overlays.append(zoom_h)
+            first_plot = plot_pulse
+        else:  # Zoom x-axes in tandem.
+            plot_pulse.index_range = first_plot.index_range
+        container_p.add(plot_pulse)
+    return container_p
+
+
+def init_frequency_tab_plots(plotdata: ArrayPlotData) -> GridPlotContainer:
+    """Create a 4x4 grid of freq. response plots after each stage under Responses/Freq. Resp."""
     plot_H_chnl = Plot(plotdata, padding_left=75)
     plot_H_chnl.plot(("f_GHz", "chnl_H"), type="line", color="blue", name="Original Impulse", index_scale="log")
     plot_H_chnl.plot(("f_GHz", "chnl_trimmed_H"), type="line", color="red", name="Trimmed Impulse", index_scale="log")
-    plot_H_chnl.title = post_chnl_str
+    plot_H_chnl.title = TITLE_CHANNEL
     plot_H_chnl.index_axis.title = "Frequency (GHz)"
     plot_H_chnl.y_axis.title = "Frequency Response (dB)"
     plot_H_chnl.index_range.low_setting = 0.01
@@ -239,7 +202,7 @@ def make_plots(self, n_dfe_taps):
     plot_H_tx = Plot(plotdata, padding_left=75)
     plot_H_tx.plot(("f_GHz", "tx_H"), type="line", color="blue", name="Incremental", index_scale="log")
     plot_H_tx.plot(("f_GHz", "tx_out_H"), type="line", color="red", name="Cumulative", index_scale="log")
-    plot_H_tx.title = post_tx_str
+    plot_H_tx.title = TITLE_TX_CHANNEL
     plot_H_tx.index_axis.title = "Frequency (GHz)"
     plot_H_tx.y_axis.title = "Frequency Response (dB)"
     plot_H_tx.index_range.low_setting = 0.01
@@ -250,7 +213,7 @@ def make_plots(self, n_dfe_taps):
     plot_H_ctle = Plot(plotdata, padding_left=75)
     plot_H_ctle.plot(("f_GHz", "ctle_H"), type="line", color="blue", name="Incremental", index_scale="log")
     plot_H_ctle.plot(("f_GHz", "ctle_out_H"), type="line", color="red", name="Cumulative", index_scale="log")
-    plot_H_ctle.title = post_ctle_str
+    plot_H_ctle.title = TITLE_CTLE_CHANNEL
     plot_H_ctle.index_axis.title = "Frequency (GHz)"
     plot_H_ctle.y_axis.title = "Frequency Response (dB)"
     plot_H_ctle.index_range.low_setting = 0.01
@@ -265,7 +228,7 @@ def make_plots(self, n_dfe_taps):
     plot_H_dfe = Plot(plotdata, padding_left=75)
     plot_H_dfe.plot(("f_GHz", "dfe_H"), type="line", color="blue", name="Incremental", index_scale="log")
     plot_H_dfe.plot(("f_GHz", "dfe_out_H"), type="line", color="red", name="Cumulative", index_scale="log")
-    plot_H_dfe.title = post_dfe_str
+    plot_H_dfe.title = TITLE_DFE_CHANNEL
     plot_H_dfe.index_axis.title = "Frequency (GHz)"
     plot_H_dfe.y_axis.title = "Frequency Response (dB)"
     plot_H_dfe.index_range.low_setting = 0.01
@@ -279,48 +242,37 @@ def make_plots(self, n_dfe_taps):
     container_H.add(plot_H_tx)
     container_H.add(plot_H_ctle)
     container_H.add(plot_H_dfe)
-    self.plots_H = container_H
+    return container_H
 
-    # - Outputs tab
-    plot_out_chnl = Plot(plotdata, padding_left=75)
-    # plot_out_chnl.plot(("t_ns", "ideal_signal"), type="line", color="lightgrey")
-    plot_out_chnl.plot(("t_ns", "chnl_out"), type="line", color="blue")
-    plot_out_chnl.title = post_chnl_str
-    plot_out_chnl.index_axis.title = "Time (ns)"
-    plot_out_chnl.y_axis.title = "Output (V)"
-    plot_out_chnl.tools.append(PanTool(plot_out_chnl, constrain=True, constrain_key=None, constrain_direction="x"))
-    zoom_out_chnl = ZoomTool(plot_out_chnl, tool_mode="range", axis="index", always_on=False)
-    plot_out_chnl.overlays.append(zoom_out_chnl)
 
-    plot_out_tx = Plot(plotdata, padding_left=75)
-    plot_out_tx.plot(("t_ns", "tx_out"), type="line", color="blue")
-    plot_out_tx.title = post_tx_str
-    plot_out_tx.index_axis.title = "Time (ns)"
-    plot_out_tx.y_axis.title = "Output (V)"
-    plot_out_tx.index_range = plot_out_chnl.index_range  # Zoom x-axes in tandem.
-
-    plot_out_ctle = Plot(plotdata, padding_left=75)
-    plot_out_ctle.plot(("t_ns", "ctle_out"), type="line", color="blue")
-    plot_out_ctle.title = post_ctle_str
-    plot_out_ctle.index_axis.title = "Time (ns)"
-    plot_out_ctle.y_axis.title = "Output (V)"
-    plot_out_ctle.index_range = plot_out_chnl.index_range  # Zoom x-axes in tandem.
-
-    plot_out_dfe = Plot(plotdata, padding_left=75)
-    plot_out_dfe.plot(("t_ns", "dfe_out"), type="line", color="blue")
-    plot_out_dfe.title = post_dfe_str
-    plot_out_dfe.index_axis.title = "Time (ns)"
-    plot_out_dfe.y_axis.title = "Output (V)"
-    plot_out_dfe.index_range = plot_out_chnl.index_range  # Zoom x-axes in tandem.
-
+def init_output_tab_plots(plotdata: ArrayPlotData) -> GridPlotContainer:
+    """Create a 4x4 grid of time domain plots after each stage under Responses/Outputs."""
     container_out = GridPlotContainer(shape=(2, 2), spacing=(PLOT_SPACING, PLOT_SPACING))
-    container_out.add(plot_out_chnl)
-    container_out.add(plot_out_tx)
-    container_out.add(plot_out_ctle)
-    container_out.add(plot_out_dfe)
-    self.plots_out = container_out
+    first_plot = None
 
-    # - Eye Diagrams tab
+    for (title, data) in (
+        (TITLE_CHANNEL, "chnl_out"),
+        (TITLE_TX_CHANNEL, "tx_out"),
+        (TITLE_CTLE_CHANNEL, "ctle_out"),
+        (TITLE_DFE_CHANNEL, "dfe_out"),
+    ):
+        plot_output = Plot(plotdata, padding_left=75)
+        plot_output.plot(("t_ns", data), type="line", color="blue")
+        plot_output.title = title
+        plot_output.index_axis.title = "Time (ns)"
+        plot_output.y_axis.title = "Output (V)"
+        if data == "chnl_out":  # Setup the zoom for all four.
+            zoom_h = ZoomTool(plot_output, tool_mode="range", axis="index", always_on=False)
+            plot_output.overlays.append(zoom_h)
+            first_plot = plot_output
+        else:  # Zoom x-axes in tandem.
+            plot_output.index_range = first_plot.index_range
+        container_out.add(plot_output)
+    return container_out
+
+
+def init_eye_diagram_plots(plotdata: ArrayPlotData) -> GridPlotContainer:
+    """Create a 4x4 grid of eye diagram heatmaps after each stage under Responses/Eyes."""
     seg_map = dict(
         red=[
             (0.00, 0.00, 0.00),  # black
@@ -357,119 +309,63 @@ def make_plots(self, n_dfe_taps):
         ],
     )
     clr_map = ColorMapper.from_segment_map(seg_map)
-    self.clr_map = clr_map
-
-    plot_eye_chnl = Plot(plotdata, padding_left=75)
-    plot_eye_chnl.img_plot("eye_chnl", colormap=clr_map)
-    plot_eye_chnl.y_direction = "normal"
-    plot_eye_chnl.components[0].y_direction = "normal"
-    plot_eye_chnl.title = post_chnl_str
-    plot_eye_chnl.x_axis.title = "Time (ps)"
-    plot_eye_chnl.x_axis.orientation = "bottom"
-    plot_eye_chnl.y_axis.title = "Signal Level (V)"
-    plot_eye_chnl.x_grid.visible = True
-    plot_eye_chnl.y_grid.visible = True
-    plot_eye_chnl.x_grid.line_color = "gray"
-    plot_eye_chnl.y_grid.line_color = "gray"
-
-    plot_eye_tx = Plot(plotdata, padding_left=75)
-    plot_eye_tx.img_plot("eye_tx", colormap=clr_map)
-    plot_eye_tx.y_direction = "normal"
-    plot_eye_tx.components[0].y_direction = "normal"
-    plot_eye_tx.title = post_tx_str
-    plot_eye_tx.x_axis.title = "Time (ps)"
-    plot_eye_tx.x_axis.orientation = "bottom"
-    plot_eye_tx.y_axis.title = "Signal Level (V)"
-    plot_eye_tx.x_grid.visible = True
-    plot_eye_tx.y_grid.visible = True
-    plot_eye_tx.x_grid.line_color = "gray"
-    plot_eye_tx.y_grid.line_color = "gray"
-
-    plot_eye_ctle = Plot(plotdata, padding_left=75)
-    plot_eye_ctle.img_plot("eye_ctle", colormap=clr_map)
-    plot_eye_ctle.y_direction = "normal"
-    plot_eye_ctle.components[0].y_direction = "normal"
-    plot_eye_ctle.title = post_ctle_str
-    plot_eye_ctle.x_axis.title = "Time (ps)"
-    plot_eye_ctle.x_axis.orientation = "bottom"
-    plot_eye_ctle.y_axis.title = "Signal Level (V)"
-    plot_eye_ctle.x_grid.visible = True
-    plot_eye_ctle.y_grid.visible = True
-    plot_eye_ctle.x_grid.line_color = "gray"
-    plot_eye_ctle.y_grid.line_color = "gray"
-
-    plot_eye_dfe = Plot(plotdata, padding_left=75)
-    plot_eye_dfe.img_plot("eye_dfe", colormap=clr_map)
-    plot_eye_dfe.y_direction = "normal"
-    plot_eye_dfe.components[0].y_direction = "normal"
-    plot_eye_dfe.title = post_dfe_str
-    plot_eye_dfe.x_axis.title = "Time (ps)"
-    plot_eye_dfe.x_axis.orientation = "bottom"
-    plot_eye_dfe.y_axis.title = "Signal Level (V)"
-    plot_eye_dfe.x_grid.visible = True
-    plot_eye_dfe.y_grid.visible = True
-    plot_eye_dfe.x_grid.line_color = "gray"
-    plot_eye_dfe.y_grid.line_color = "gray"
 
     container_eye = GridPlotContainer(shape=(2, 2), spacing=(PLOT_SPACING, PLOT_SPACING))
-    container_eye.add(plot_eye_chnl)
-    container_eye.add(plot_eye_tx)
-    container_eye.add(plot_eye_ctle)
-    container_eye.add(plot_eye_dfe)
-    self.plots_eye = container_eye
 
-    # - Jitter Distributions tab
-    plot_jitter_dist_chnl = Plot(plotdata, padding_left=75)
-    plot_jitter_dist_chnl.plot(("jitter_bins", "jitter_chnl"), type="line", color="blue", name="Measured")
-    plot_jitter_dist_chnl.plot(("jitter_bins", "jitter_ext_chnl"), type="line", color="red", name="Extrapolated")
-    plot_jitter_dist_chnl.title = post_chnl_str
-    plot_jitter_dist_chnl.index_axis.title = "Time (ps)"
-    plot_jitter_dist_chnl.value_axis.title = "Count"
-    plot_jitter_dist_chnl.legend.visible = True
-    plot_jitter_dist_chnl.legend.align = "ur"
+    for (title, data,) in (
+        (TITLE_CHANNEL, "eye_chnl"),
+        (TITLE_TX_CHANNEL, "eye_tx"),
+        (TITLE_CTLE_CHANNEL, "eye_ctle"),
+        (TITLE_DFE_CHANNEL, "eye_dfe"),
+    ):
+        plot_eye_diagram = Plot(plotdata, padding_left=75)
+        plot_eye_diagram.img_plot(data, colormap=clr_map)
+        plot_eye_diagram.y_direction = "normal"
+        plot_eye_diagram.components[0].y_direction = "normal"
+        plot_eye_diagram.title = title
+        plot_eye_diagram.x_axis.title = "Time (ps)"
+        plot_eye_diagram.x_axis.orientation = "bottom"
+        plot_eye_diagram.y_axis.title = "Signal Level (V)"
+        plot_eye_diagram.x_grid.visible = True
+        plot_eye_diagram.y_grid.visible = True
+        plot_eye_diagram.x_grid.line_color = "gray"
+        plot_eye_diagram.y_grid.line_color = "gray"
+        container_eye.add(plot_eye_diagram)
+    return container_eye
 
-    plot_jitter_dist_tx = Plot(plotdata, padding_left=75)
-    plot_jitter_dist_tx.plot(("jitter_bins", "jitter_tx"), type="line", color="blue", name="Measured")
-    plot_jitter_dist_tx.plot(("jitter_bins", "jitter_ext_tx"), type="line", color="red", name="Extrapolated")
-    plot_jitter_dist_tx.title = post_tx_str
-    plot_jitter_dist_tx.index_axis.title = "Time (ps)"
-    plot_jitter_dist_tx.value_axis.title = "Count"
-    plot_jitter_dist_tx.legend.visible = True
-    plot_jitter_dist_tx.legend.align = "ur"
 
-    plot_jitter_dist_ctle = Plot(plotdata, padding_left=75)
-    plot_jitter_dist_ctle.plot(("jitter_bins", "jitter_ctle"), type="line", color="blue", name="Measured")
-    plot_jitter_dist_ctle.plot(("jitter_bins", "jitter_ext_ctle"), type="line", color="red", name="Extrapolated")
-    plot_jitter_dist_ctle.title = post_ctle_str
-    plot_jitter_dist_ctle.index_axis.title = "Time (ps)"
-    plot_jitter_dist_ctle.value_axis.title = "Count"
-    plot_jitter_dist_ctle.legend.visible = True
-    plot_jitter_dist_ctle.legend.align = "ur"
-
-    plot_jitter_dist_dfe = Plot(plotdata, padding_left=75)
-    plot_jitter_dist_dfe.plot(("jitter_bins", "jitter_dfe"), type="line", color="blue", name="Measured")
-    plot_jitter_dist_dfe.plot(("jitter_bins", "jitter_ext_dfe"), type="line", color="red", name="Extrapolated")
-    plot_jitter_dist_dfe.title = post_dfe_str
-    plot_jitter_dist_dfe.index_axis.title = "Time (ps)"
-    plot_jitter_dist_dfe.value_axis.title = "Count"
-    plot_jitter_dist_dfe.legend.visible = True
-    plot_jitter_dist_dfe.legend.align = "ur"
-
+def init_jitter_dist_plots(plotdata: ArrayPlotData) -> GridPlotContainer:
+    """Create a 4x4 grid of jitter distribution after each stage under Jitter/Jitter Dist."""
     container_jitter_dist = GridPlotContainer(shape=(2, 2), spacing=(PLOT_SPACING, PLOT_SPACING))
-    container_jitter_dist.add(plot_jitter_dist_chnl)
-    container_jitter_dist.add(plot_jitter_dist_tx)
-    container_jitter_dist.add(plot_jitter_dist_ctle)
-    container_jitter_dist.add(plot_jitter_dist_dfe)
-    self.plots_jitter_dist = container_jitter_dist
 
-    # - Jitter Spectrums tab
+    for title, measured, extrapolated, in (
+        (TITLE_CHANNEL, "jitter_chnl", "jitter_ext_chnl"),
+        (TITLE_TX_CHANNEL, "jitter_tx", "jitter_ext_tx"),
+        (TITLE_CTLE_CHANNEL, "jitter_ctle", "jitter_ext_ctle"),
+        (TITLE_DFE_CHANNEL, "jitter_dfe", "jitter_ext_dfe"),
+    ):
+        plot_jitter_dist = Plot(plotdata, padding_left=75)
+        plot_jitter_dist.plot(("jitter_bins", measured), type="line", color="blue", name="Measured")
+        plot_jitter_dist.plot(("jitter_bins", extrapolated), type="line", color="red", name="Extrapolated")
+        plot_jitter_dist.title = title
+        plot_jitter_dist.index_axis.title = "Time (ps)"
+        plot_jitter_dist.value_axis.title = "Count"
+        plot_jitter_dist.legend.visible = True
+        plot_jitter_dist.legend.align = "ur"
+        container_jitter_dist.add(plot_jitter_dist)
+    return container_jitter_dist
+
+
+def init_jitter_spec_plots(plotdata: ArrayPlotData) -> GridPlotContainer:
+    """Create a 4x4 grid of jitter distribution after each stage under Jitter/Jitter Spec."""
+
     plot_jitter_spec_chnl = Plot(plotdata)
     plot_jitter_spec_chnl.plot(("f_MHz", "jitter_spectrum_chnl"), type="line", color="blue", name="Total")
     plot_jitter_spec_chnl.plot(
         ("f_MHz", "jitter_ind_spectrum_chnl"), type="line", color="red", name="Data Independent"
     )
     plot_jitter_spec_chnl.plot(("f_MHz", "thresh_chnl"), type="line", color="magenta", name="Pj Threshold")
-    plot_jitter_spec_chnl.title = post_chnl_str
+    plot_jitter_spec_chnl.title = TITLE_CHANNEL
     plot_jitter_spec_chnl.index_axis.title = "Frequency (MHz)"
     plot_jitter_spec_chnl.value_axis.title = "|FFT(TIE)| (dBui)"
     plot_jitter_spec_chnl.tools.append(
@@ -484,7 +380,7 @@ def make_plots(self, n_dfe_taps):
     plot_jitter_spec_tx.plot(("f_MHz", "jitter_spectrum_tx"), type="line", color="blue", name="Total")
     plot_jitter_spec_tx.plot(("f_MHz", "jitter_ind_spectrum_tx"), type="line", color="red", name="Data Independent")
     plot_jitter_spec_tx.plot(("f_MHz", "thresh_tx"), type="line", color="magenta", name="Pj Threshold")
-    plot_jitter_spec_tx.title = post_tx_str
+    plot_jitter_spec_tx.title = TITLE_TX_CHANNEL
     plot_jitter_spec_tx.index_axis.title = "Frequency (MHz)"
     plot_jitter_spec_tx.value_axis.title = "|FFT(TIE)| (dBui)"
     plot_jitter_spec_tx.value_range.low_setting = -40.0
@@ -500,7 +396,7 @@ def make_plots(self, n_dfe_taps):
         ("f_MHz", "jitter_ind_spectrum_ctle"), type="line", color="red", name="Data Independent"
     )
     plot_jitter_spec_ctle.plot(("f_MHz", "thresh_ctle"), type="line", color="magenta", name="Pj Threshold")
-    plot_jitter_spec_ctle.title = post_ctle_str
+    plot_jitter_spec_ctle.title = TITLE_CTLE_CHANNEL
     plot_jitter_spec_ctle.index_axis.title = "Frequency (MHz)"
     plot_jitter_spec_ctle.value_axis.title = "|FFT(TIE)| (dBui)"
     plot_jitter_spec_ctle.index_range = plot_jitter_spec_chnl.index_range  # Zoom x-axes in tandem.
@@ -514,7 +410,7 @@ def make_plots(self, n_dfe_taps):
         ("f_MHz_dfe", "jitter_ind_spectrum_dfe"), type="line", color="red", name="Data Independent"
     )
     plot_jitter_spec_dfe.plot(("f_MHz_dfe", "thresh_dfe"), type="line", color="magenta", name="Pj Threshold")
-    plot_jitter_spec_dfe.title = post_dfe_str
+    plot_jitter_spec_dfe.title = TITLE_DFE_CHANNEL
     plot_jitter_spec_dfe.index_axis.title = "Frequency (MHz)"
     plot_jitter_spec_dfe.value_axis.title = "|FFT(TIE)| (dBui)"
     plot_jitter_spec_dfe.index_range = plot_jitter_spec_chnl.index_range  # Zoom x-axes in tandem.
@@ -527,50 +423,27 @@ def make_plots(self, n_dfe_taps):
     container_jitter_spec.add(plot_jitter_spec_tx)
     container_jitter_spec.add(plot_jitter_spec_ctle)
     container_jitter_spec.add(plot_jitter_spec_dfe)
-    self.plots_jitter_spec = container_jitter_spec
+    return container_jitter_spec
 
-    # - Bathtub Curves tab
-    plot_bathtub_chnl = Plot(plotdata)
-    plot_bathtub_chnl.plot(("jitter_bins", "bathtub_chnl"), type="line", color="blue")
-    plot_bathtub_chnl.value_range.high_setting = 0
-    plot_bathtub_chnl.value_range.low_setting = -18
-    plot_bathtub_chnl.value_axis.tick_interval = 3
-    plot_bathtub_chnl.title = post_chnl_str
-    plot_bathtub_chnl.index_axis.title = "Time (ps)"
-    plot_bathtub_chnl.value_axis.title = "Log10(P(Transition occurs inside.))"
 
-    plot_bathtub_tx = Plot(plotdata)
-    plot_bathtub_tx.plot(("jitter_bins", "bathtub_tx"), type="line", color="blue")
-    plot_bathtub_tx.value_range.high_setting = 0
-    plot_bathtub_tx.value_range.low_setting = -18
-    plot_bathtub_tx.value_axis.tick_interval = 3
-    plot_bathtub_tx.title = post_tx_str
-    plot_bathtub_tx.index_axis.title = "Time (ps)"
-    plot_bathtub_tx.value_axis.title = "Log10(P(Transition occurs inside.))"
-
-    plot_bathtub_ctle = Plot(plotdata)
-    plot_bathtub_ctle.plot(("jitter_bins", "bathtub_ctle"), type="line", color="blue")
-    plot_bathtub_ctle.value_range.high_setting = 0
-    plot_bathtub_ctle.value_range.low_setting = -18
-    plot_bathtub_ctle.value_axis.tick_interval = 3
-    plot_bathtub_ctle.title = post_ctle_str
-    plot_bathtub_ctle.index_axis.title = "Time (ps)"
-    plot_bathtub_ctle.value_axis.title = "Log10(P(Transition occurs inside.))"
-
-    plot_bathtub_dfe = Plot(plotdata)
-    plot_bathtub_dfe.plot(("jitter_bins", "bathtub_dfe"), type="line", color="blue")
-    plot_bathtub_dfe.value_range.high_setting = 0
-    plot_bathtub_dfe.value_range.low_setting = -18
-    plot_bathtub_dfe.value_axis.tick_interval = 3
-    plot_bathtub_dfe.title = post_dfe_str
-    plot_bathtub_dfe.index_axis.title = "Time (ps)"
-    plot_bathtub_dfe.value_axis.title = "Log10(P(Transition occurs inside.))"
+def init_bathtub_plots(plotdata: ArrayPlotData) -> GridPlotContainer:
+    """Create a 4x4 grid of bathtub curves after each stage under Responses/Bathtubs"""
 
     container_bathtub = GridPlotContainer(shape=(2, 2), spacing=(PLOT_SPACING, PLOT_SPACING))
-    container_bathtub.add(plot_bathtub_chnl)
-    container_bathtub.add(plot_bathtub_tx)
-    container_bathtub.add(plot_bathtub_ctle)
-    container_bathtub.add(plot_bathtub_dfe)
-    self.plots_bathtub = container_bathtub
 
-    update_eyes(self)
+    for title, data, in (
+        (TITLE_CHANNEL, "bathtub_chnl"),
+        (TITLE_TX_CHANNEL, "bathtub_tx"),
+        (TITLE_CTLE_CHANNEL, "bathtub_ctle"),
+        (TITLE_DFE_CHANNEL, "bathtub_dfe"),
+    ):
+        plot_bathtub = Plot(plotdata)
+        plot_bathtub.plot(("jitter_bins", data), type="line", color="blue")
+        plot_bathtub.value_range.high_setting = 0
+        plot_bathtub.value_range.low_setting = -18
+        plot_bathtub.value_axis.tick_interval = 3
+        plot_bathtub.title = title
+        plot_bathtub.index_axis.title = "Time (ps)"
+        plot_bathtub.value_axis.title = "Log10(P(Transition occurs inside.))"
+        container_bathtub.add(plot_bathtub)
+    return container_bathtub

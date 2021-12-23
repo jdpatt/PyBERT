@@ -15,7 +15,6 @@ can be used to explore the concepts of serial communication link design.
 Copyright (c) 2014 by David Banas; All rights reserved World wide.
 """
 import logging
-import pickle
 import platform
 import time
 from os.path import dirname, join
@@ -23,8 +22,7 @@ from pathlib import Path
 
 import numpy as np
 import skrf as rf
-import yaml
-from chaco.api import ArrayPlotData, GridPlotContainer
+from chaco.api import ArrayPlotData, GridPlotContainer, Plot
 from numpy import array, convolve, cos, exp, ones, pad, pi, resize, sinc, where, zeros
 from numpy.fft import fft, irfft
 from numpy.random import randint
@@ -45,19 +43,18 @@ from traits.api import (
     cached_property,
 )
 from traits.etsconfig.api import ETSConfig
+# fmt: off
 # ETSConfig.toolkit = 'qt.celiagg'  # Yields unacceptably small font sizes in plot axis labels.
 # ETSConfig.toolkit = 'qt.qpainter'  # Was causing crash on Mac.
+# fmt: on
 
 
-from pybert import __authors__ as AUTHORS
-from pybert import __copy__ as COPY
-from pybert import __date__ as DATE
-from pybert import __version__ as VERSION
+from pybert import __authors__, __copy__, __date__, __version__
+from pybert import plot
 from pybert.configuration import PyBertCfg
-from pybert.control import my_run_simulation
+from pybert.control import my_run_simulation, update_eyes
 from pybert.help import help_str
 from pybert.logger import ConsoleTextLogHandler
-from pybert.plot import make_plots
 from pybert.results import PyBertData
 from pybert.threads import CoOptThread, RxOptThread, TxOptThread
 from pybert.utility import (
@@ -81,10 +78,6 @@ gDebugStatus = False
 gDebugOptimize = False
 gMaxCTLEPeak = 20.0  # max. allowed CTLE peaking (dB) (when optimizing, only)
 gMaxCTLEFreq = 20.0  # max. allowed CTLE peak frequency (GHz) (when optimizing, only)
-
-class InvalidFileExtension(Exception):
-    """Exception for when a user tries to save or load a file type that isn't supported."""
-    pass
 
 class TxTapTuner(HasTraits):
     """Object used to populate the rows of the Tx FFE tap tuning table."""
@@ -257,6 +250,7 @@ class PyBERT(HasTraits):
     plots_p = Instance(GridPlotContainer)
     plots_H = Instance(GridPlotContainer)
     plots_dfe = Instance(GridPlotContainer)
+    plot_dfe_adapt = Instance(Plot)
     plots_eye = Instance(GridPlotContainer)
     plots_jitter_dist = Instance(GridPlotContainer)
     plots_jitter_spec = Instance(GridPlotContainer)
@@ -275,10 +269,10 @@ class PyBERT(HasTraits):
     # About
     perf_info = Property(String, depends_on=["total_perf"])
     ident = String(
-        f"<H1>PyBERT v{VERSION} - a serial communication link design tool, written in Python.</H1>\n\n \
-    {AUTHORS}<BR>\n \
-    {DATE}<BR><BR>\n\n \
-    {COPY};<BR>\n \
+        f"<H1>PyBERT v{__version__} - a serial communication link design tool, written in Python.</H1>\n\n \
+    {__authors__}<BR>\n \
+    {__date__}<BR><BR>\n\n \
+    {__copy__};<BR>\n \
     All rights reserved World wide."
     )
 
@@ -378,7 +372,7 @@ class PyBERT(HasTraits):
             # Running the simulation will fill in the required data structure.
             my_run_simulation(self, initial_run=True)
             # Once the required data structure is filled in, we can create the plots.
-            make_plots(self, n_dfe_taps=PyBertCfg.n_taps)
+            self.initialize_plots()
         else:
             self.calc_chnl_h()  # Prevents missing attribute error in _get_ctle_out_h_tune().
 
@@ -944,12 +938,12 @@ class PyBERT(HasTraits):
         info_str += f'      <TD align="center">Jitter Analysis</TD><TD>{self.jitter_perf * 6e-05:6.3f}</TD>\n'
         info_str += "    </TR>\n"
         info_str += '    <TR align="right">\n'
+        info_str += f'      <TD align="center">Plotting</TD><TD>{self.plotting_perf * 6e-05:6.3f}</TD>\n'
+        info_str += "    </TR>\n"
+        info_str += '    <TR align="right">\n'
         info_str += '      <TD align="center"><strong>TOTAL</strong></TD><TD><strong>%6.3f</strong></TD>\n' % (
             self.total_perf * 60.0e-6
         )
-        info_str += "    </TR>\n"
-        info_str += '    <TR align="right">\n'
-        info_str += f'      <TD align="center">Plotting</TD><TD>{self.plotting_perf * 6e-05:6.3f}</TD>\n'
         info_str += "    </TR>\n"
         info_str += "  </TABLE>\n"
 
@@ -1414,7 +1408,7 @@ class PyBERT(HasTraits):
         """Log the system information."""
         self._log.info("System: %s %s", platform.system(), platform.release())
         self._log.info("Python Version:  %s", platform.python_version())
-        self._log.info("PyBERT Version:  %s", VERSION)
+        self._log.info("PyBERT Version:  %s", __version__)
         self._log.info("PyAMI Version:  %s", PyAMI_VERSION)
         self._log.debug("GUI Toolkit:  %s", ETSConfig.toolkit)
         self._log.debug("Kiva Backend:  %s", ETSConfig.kiva_backend)
@@ -1426,21 +1420,7 @@ class PyBERT(HasTraits):
         Support both file formats either yaml or pickle.
         """
         try:
-            filepath = Path(filepath)
-            if filepath.suffix == ".yaml":
-                with open(filepath, "r", encoding="UTF-8") as yaml_file:
-                    user_config = yaml.load(yaml_file, Loader=yaml.Loader)
-            elif filepath.suffix == ".pybert_cfg":
-                with open(filepath, "rb") as pickle_file:
-                    user_config = pickle.load(pickle_file)
-            else:
-                raise InvalidFileExtension("Pybert does not support this file type.")
-
-            if not isinstance(user_config, PyBertCfg):
-                raise ValueError("The data structure read in is NOT of type: PyBertCfg!")
-
-            user_config.apply(self)
-
+            PyBertCfg.load_from_file(filepath, self)
             self.cfg_file = filepath
             self.status = "Loaded configuration."
         except Exception:
@@ -1451,19 +1431,9 @@ class PyBERT(HasTraits):
 
         Support both file formats either yaml or pickle.
         """
-        current_config = PyBertCfg(self, time.asctime(), VERSION)
         try:
-            filepath = Path(filepath)
-            if filepath.suffix == ".yaml":
-                with open(filepath, "w", encoding="UTF-8") as yaml_file:
-                    yaml.dump(current_config, yaml_file)
-            elif filepath.suffix == ".pybert_cfg":
-                with open(filepath, "wb") as pickle_file:
-                    pickle.dump(current_config, pickle_file)
-            else:
-                raise InvalidFileExtension("Pybert does not support this file type.")
-
-            self.cfg_file = filepath  # Preserve the user-selected directory/file, for next time.
+            PyBertCfg(self, time.asctime(), __version__).save(filepath)
+            self.cfg_file = filepath
             self.status = "Configuration saved."
         except Exception:
             self._log.error("Failed to save current user configuration.", exc_info=True, extra={"alert":True})
@@ -1471,65 +1441,8 @@ class PyBERT(HasTraits):
     def load_results(self, filepath:Path):
         """Load results from a file into pybert."""
         try:
-            filepath = Path(filepath)
-            with open(filepath, "rb") as the_file:
-                user_results = pickle.load(the_file)
-            if not isinstance(user_results, PyBertData):
-                raise Exception("The data structure read in is NOT of type: ArrayPlotData!")
-            for prop, value in user_results.the_data.arrays.items():
-                self.plotdata.set_data(prop + "_ref", value)
+            PyBertData.load_from_file(filepath, self)
             self.data_file = filepath
-
-            # Add reference plots, if necessary.
-            # - time domain
-            for (container, suffix, has_both) in [
-                (self.plots_h.component_grid.flat, "h", False),
-                (self.plots_s.component_grid.flat, "s", True),
-                (self.plots_p.component_grid.flat, "p", False),
-            ]:
-                if "Reference" not in container[0].plots:
-                    (ix, prefix) = (0, "chnl")
-                    item_name = prefix + "_" + suffix + "_ref"
-                    container[ix].plot(("t_ns_chnl", item_name), type="line", color="darkcyan", name="Inc_ref")
-                    for (ix, prefix) in [(1, "tx"), (2, "ctle"), (3, "dfe")]:
-                        item_name = prefix + "_out_" + suffix + "_ref"
-                        container[ix].plot(
-                            ("t_ns_chnl", item_name), type="line", color="darkmagenta", name="Cum_ref"
-                        )
-                    if has_both:
-                        for (ix, prefix) in [(1, "tx"), (2, "ctle"), (3, "dfe")]:
-                            item_name = prefix + "_" + suffix + "_ref"
-                            container[ix].plot(
-                                ("t_ns_chnl", item_name), type="line", color="darkcyan", name="Inc_ref"
-                            )
-
-            # - frequency domain
-            for (container, suffix, has_both) in [(self.plots_H.component_grid.flat, "H", True)]:
-                if "Reference" not in container[0].plots:
-                    (ix, prefix) = (0, "chnl")
-                    item_name = prefix + "_" + suffix + "_ref"
-                    container[ix].plot(
-                        ("f_GHz", item_name), type="line", color="darkcyan", name="Inc_ref", index_scale="log"
-                    )
-                    for (ix, prefix) in [(1, "tx"), (2, "ctle"), (3, "dfe")]:
-                        item_name = prefix + "_out_" + suffix + "_ref"
-                        container[ix].plot(
-                            ("f_GHz", item_name),
-                            type="line",
-                            color="darkmagenta",
-                            name="Cum_ref",
-                            index_scale="log",
-                        )
-                    if has_both:
-                        for (ix, prefix) in [(1, "tx"), (2, "ctle"), (3, "dfe")]:
-                            item_name = prefix + "_" + suffix + "_ref"
-                            container[ix].plot(
-                                ("f_GHz", item_name),
-                                type="line",
-                                color="darkcyan",
-                                name="Inc_ref",
-                                index_scale="log",
-                            )
             self.status = "Loaded results."
         except Exception:
             self._log.error("Failed to load results from file.", exc_info=True, extra={"alert":True})
@@ -1537,10 +1450,25 @@ class PyBERT(HasTraits):
     def save_results(self, filepath:Path):
         """Save the existing results to a pickle file."""
         try:
-            plotdata = PyBertData(self)
-            with open(filepath, "wb") as the_file:
-                pickle.dump(plotdata, the_file)
+            PyBertData(self).save(filepath)
             self.data_file = filepath
             self.status = "Saved results."
         except Exception:
             self._log.error("Failed to save results to file.", exc_info=True, extra={"alert":True})
+
+    def initialize_plots(self):
+        """Create and initialize all of the plot containers with the default simulation results."""
+        self.plots_dfe, self.plot_dfe_adapt = plot.init_dfe_tab_plots(self.plotdata, n_dfe_taps=PyBertCfg.n_taps)
+        self.plot_h_tune = plot.init_eq_tune_tab_plots(self.plotdata)
+        self.plots_h = plot.init_impulse_tab_plots(self.plotdata)
+        self.plots_s = plot.init_step_tab_plots(self.plotdata)
+        self.plots_p = plot.init_pulse_tab_plots(self.plotdata)
+        self.plots_H = plot.init_frequency_tab_plots(self.plotdata)
+        self.plots_out = plot.init_output_tab_plots(self.plotdata)
+        self.plots_eye = plot.init_eye_diagram_plots(self.plotdata)
+        self.plots_jitter_dist = plot.init_jitter_dist_plots(self.plotdata)
+        self.plots_jitter_spec = plot.init_jitter_spec_plots(self.plotdata)
+        self.plots_bathtub = plot.init_bathtub_plots(self.plotdata)
+
+        # Regenerate the eye diagrams after they have been populated.
+        update_eyes(self)
