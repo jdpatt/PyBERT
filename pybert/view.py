@@ -140,12 +140,12 @@ traits_view = View(
                             ),
                         ),
                         VGroup(
-                            Item(name="do_sweep", label="Do Sweep", tooltip="Run parameter sweeps."),
+                            Item(name="sweep_sim", label="Sweep", tooltip="Run parameter sweeps on tx taps."),
                             Item(
                                 name="sweep_aves",
                                 label="SweepAves",
-                                tooltip="# of trials, per sweep, for averaging.",
-                                enabled_when="do_sweep == True",
+                                tooltip="Run each sweep this many times and average the results.",
+                                enabled_when="sweep_sim == True",
                             ),
                             Item(
                                 name="pattern_len",

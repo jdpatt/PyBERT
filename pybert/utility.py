@@ -894,7 +894,7 @@ def import_time(filename, sample_per):
     ts = []
     xs = []
     tmp = []
-    with open(filename, mode="rU") as file:
+    with open(filename, mode="r", encoding="UTF-8") as file:
         for line in file:
             try:
                 vals = [_f for _f in re.split("[, ;:]+", line) if _f]

@@ -10,8 +10,6 @@ Copyright (c) 2014 David Banas; all rights reserved World wide.
 from time import perf_counter
 
 import numpy as np
-from chaco.api import Plot
-from chaco.tools.api import PanTool, ZoomTool
 from numpy import (
     arange,
     array,
@@ -26,7 +24,6 @@ from numpy import (
     pad,
     repeat,
     resize,
-    std,
     transpose,
     where,
     zeros,
@@ -52,53 +49,6 @@ from pyibisami.ami import AMIModel, AMIModelInitializer
 MIN_BATHTUB_VAL = 1.0e-18
 
 gFc = 1.0e6  # Corner frequency of high-pass filter used to model capacitive coupling of periodic noise.
-
-
-def my_run_sweeps(self):
-    """
-    Runs the simulation sweeps.
-
-    Args:
-        self(PyBERT): Reference to an instance of the *PyBERT* class.
-
-    """
-
-    sweep_aves = self.sweep_aves
-    do_sweep = self.do_sweep
-    tx_taps = self.tx_taps
-
-    if do_sweep:
-        # Assemble the list of desired values for each sweepable parameter.
-        sweep_vals = []
-        for tap in tx_taps:
-            if tap.enabled:
-                if tap.steps:
-                    sweep_vals.append(list(arange(tap.min_val, tap.max_val, (tap.max_val - tap.min_val) / tap.steps)))
-                else:
-                    sweep_vals.append([tap.value])
-            else:
-                sweep_vals.append([0.0])
-        # Run the sweep, using the lists assembled, above.
-        sweeps = [
-            [w, x, y, z] for w in sweep_vals[0] for x in sweep_vals[1] for y in sweep_vals[2] for z in sweep_vals[3]
-        ]
-        num_sweeps = sweep_aves * len(sweeps)
-        self.num_sweeps = num_sweeps
-        sweep_results = []
-        sweep_num = 1
-        for sweep in sweeps:
-            for i in range(4):
-                self.tx_taps[i].value = sweep[i]
-            bit_errs = []
-            for i in range(sweep_aves):
-                self.sweep_num = sweep_num
-                my_run_simulation(self, update_plots=False)
-                bit_errs.append(self.bit_errs)
-                sweep_num += 1
-            sweep_results.append((sweep, mean(bit_errs), std(bit_errs)))
-        self.sweep_results = sweep_results
-    else:
-        my_run_simulation(self)
 
 
 def my_run_simulation(self, initial_run=False, update_plots=True):
@@ -217,24 +167,26 @@ def my_run_simulation(self, initial_run=False, update_plots=True):
             tx_model.initialize(tx_model_init)
             self._log.info(
                 "Tx IBIS-AMI model initialization results:\nInput parameters: %s\nOutput parameters: %s\nMessage: %s",
-                tx_model.ami_params_in.decode('utf-8'),
-                tx_model.ami_params_out.decode('utf-8'),
-                tx_model.msg.decode('utf-8')
+                tx_model.ami_params_in.decode("utf-8"),
+                tx_model.ami_params_out.decode("utf-8"),
+                tx_model.msg.decode("utf-8"),
             )
             if tx_cfg.fetch_param_val(["Reserved_Parameters", "Init_Returns_Impulse"]):
                 tx_h = array(tx_model.initOut) * ts
             elif not tx_cfg.fetch_param_val(["Reserved_Parameters", "GetWave_Exists"]):
                 self.status = "Simulation Error."
-                self._log.error( "Both 'Init_Returns_Impulse' and 'GetWave_Exists' are False!\n \
+                self._log.error(
+                    "Both 'Init_Returns_Impulse' and 'GetWave_Exists' are False!\n \
 I cannot continue.\nYou will have to select a different model.",
-                    extra={"alert":True}
+                    extra={"alert": True},
                 )
                 return
             elif not self.tx_use_getwave:
                 self.status = "Simulation Error."
-                self._log.error( "You have elected not to use GetWave for a model, which does not return an impulse response!\n \
+                self._log.error(
+                    "You have elected not to use GetWave for a model, which does not return an impulse response!\n \
 I cannot continue.\nPlease, select 'Use GetWave' and try again.",
-                    extra={"alert":True}
+                    extra={"alert": True},
                 )
                 return
             if self.tx_use_getwave:
@@ -242,23 +194,23 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
                 # Delay the input edge slightly, in order to minimize high
                 # frequency artifactual energy sometimes introduced near
                 # the signal edges by frequency domain processing in some models.
-                tmp       = array([-1.0] * 128 + [1.0] * 896)  # Stick w/ 2^n, for freq. domain models' sake.
-                tx_s, _   = tx_model.getWave(tmp)
+                tmp = array([-1.0] * 128 + [1.0] * 896)  # Stick w/ 2^n, for freq. domain models' sake.
+                tx_s, _ = tx_model.getWave(tmp)
                 # Some models delay signal flow through GetWave() arbitrarily.
-                tmp       = array([1.0] * 1024)
+                tmp = array([1.0] * 1024)
                 max_tries = 10
-                n_tries   =  0
+                n_tries = 0
                 while max(tx_s) < 0.1 and n_tries < max_tries:  # Wait for step to rise, but not indefinitely.
-                    tx_s, _  = tx_model.getWave(tmp)
+                    tx_s, _ = tx_model.getWave(tmp)
                     n_tries += 1
                 if n_tries == max_tries:
                     self.status = "Tx GetWave() Error."
-                    self._log.error("Never saw a rising step come out of Tx GetWave()!", extra={"alert":True})
+                    self._log.error("Never saw a rising step come out of Tx GetWave()!", extra={"alert": True})
                     return
                 # Make one more call, just to ensure a sufficient "tail".
-                tmp, _    = tx_model.getWave(tmp)
-                tx_s      = np.append(tx_s, tmp)
-                tx_h,   _ = trim_impulse(diff(tx_s))
+                tmp, _ = tx_model.getWave(tmp)
+                tx_s = np.append(tx_s, tmp)
+                tx_h, _ = trim_impulse(diff(tx_s))
                 tx_out, _ = tx_model.getWave(self.x)
             else:  # Init()-only.
                 tx_out = convolve(tx_h, self.x)
@@ -341,9 +293,9 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
             rx_model.initialize(rx_model_init)
             self._log.info(
                 "Rx IBIS-AMI model initialization results:\nInput parameters: %s\nMessage: %s\nOutput parameters: %s",
-                rx_model.ami_params_in.decode('utf-8'),
-                rx_model.msg.decode('utf-8'),
-                rx_model.ami_params_out.decode('utf-8')
+                rx_model.ami_params_in.decode("utf-8"),
+                rx_model.msg.decode("utf-8"),
+                rx_model.ami_params_out.decode("utf-8"),
             )
             if rx_cfg.fetch_param_val(["Reserved_Parameters", "Init_Returns_Impulse"]):
                 ctle_out_h = array(rx_model.initOut) * ts
@@ -352,7 +304,7 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
                 self._log.error(
                     "Both 'Init_Returns_Impulse' and 'GetWave_Exists' are False!\n \
 I cannot continue.\nYou will have to select a different model.",
-                    extra={"alert":True}
+                    extra={"alert": True},
                 )
                 return
             elif not self.rx_use_getwave:
@@ -360,13 +312,13 @@ I cannot continue.\nYou will have to select a different model.",
                 self._log.error(
                     "You have elected not to use GetWave for a model, which does not return an impulse response!\n \
 I cannot continue.\nPlease, select 'Use GetWave' and try again.",
-                    extra={"alert":True}
+                    extra={"alert": True},
                 )
                 return
             if self.rx_use_getwave:
                 # ctle_out, clock_times = rx_model.getWave(rx_in, 32)
                 ctle_out, clock_times = rx_model.getWave(rx_in, len(rx_in))
-                self._log.info(rx_model.ami_params_out.decode('utf-8'))
+                self._log.info(rx_model.ami_params_out.decode("utf-8"))
 
                 ctle_H = fft(ctle_out * hann(len(ctle_out))) / fft(rx_in * hann(len(rx_in)))
                 ctle_h = irfft(ctle_H)
@@ -374,10 +326,16 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
                 ctle_out_h = convolve(ctle_h, tx_out_h)[: len(chnl_h)]
             else:  # Init() only.
                 ctle_out_h_padded = pad(
-                    ctle_out_h, (nspb, len(rx_in) - nspb - len(ctle_out_h)), "linear_ramp", end_values=(0.0, 0.0),
+                    ctle_out_h,
+                    (nspb, len(rx_in) - nspb - len(ctle_out_h)),
+                    "linear_ramp",
+                    end_values=(0.0, 0.0),
                 )
                 tx_out_h_padded = pad(
-                    tx_out_h, (nspb, len(rx_in) - nspb - len(tx_out_h)), "linear_ramp", end_values=(0.0, 0.0),
+                    tx_out_h,
+                    (nspb, len(rx_in) - nspb - len(tx_out_h)),
+                    "linear_ramp",
+                    end_values=(0.0, 0.0),
                 )
                 ctle_H = fft(ctle_out_h_padded) / fft(tx_out_h_padded)
                 ctle_h = irfft(ctle_H)
@@ -686,7 +644,7 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
         if update_plots:
             update_results(self)
             if not initial_run:
-                update_eyes(self)
+                self.update_eye_diagrams()
 
         self.plotting_perf = nbits * nspb / (perf_counter() - split_time)
         self._log.info("Simulation Complete.")
@@ -694,6 +652,7 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
     except Exception:
         self.status = "Exception: plotting"
         raise
+
 
 # Plot updating
 def update_results(self):
@@ -824,13 +783,17 @@ def update_results(self):
     self.plotdata.set_data("f_MHz", self.f_MHz[1:])
     self.plotdata.set_data("f_MHz_dfe", self.f_MHz_dfe[1:])
     self.plotdata.set_data("jitter_spectrum_chnl", 10.0 * (safe_log10(self.jitter_spectrum_chnl[1:]) - log10_ui))
-    self.plotdata.set_data("jitter_ind_spectrum_chnl", 10.0 * (safe_log10(self.jitter_ind_spectrum_chnl[1:]) - log10_ui))
+    self.plotdata.set_data(
+        "jitter_ind_spectrum_chnl", 10.0 * (safe_log10(self.jitter_ind_spectrum_chnl[1:]) - log10_ui)
+    )
     self.plotdata.set_data("thresh_chnl", 10.0 * (safe_log10(self.thresh_chnl[1:]) - log10_ui))
     self.plotdata.set_data("jitter_spectrum_tx", 10.0 * (safe_log10(self.jitter_spectrum_tx[1:]) - log10_ui))
     self.plotdata.set_data("jitter_ind_spectrum_tx", 10.0 * (safe_log10(self.jitter_ind_spectrum_tx[1:]) - log10_ui))
     self.plotdata.set_data("thresh_tx", 10.0 * (safe_log10(self.thresh_tx[1:]) - log10_ui))
     self.plotdata.set_data("jitter_spectrum_ctle", 10.0 * (safe_log10(self.jitter_spectrum_ctle[1:]) - log10_ui))
-    self.plotdata.set_data("jitter_ind_spectrum_ctle", 10.0 * (safe_log10(self.jitter_ind_spectrum_ctle[1:]) - log10_ui))
+    self.plotdata.set_data(
+        "jitter_ind_spectrum_ctle", 10.0 * (safe_log10(self.jitter_ind_spectrum_ctle[1:]) - log10_ui)
+    )
     self.plotdata.set_data("thresh_ctle", 10.0 * (safe_log10(self.thresh_ctle[1:]) - log10_ui))
     self.plotdata.set_data("jitter_spectrum_dfe", 10.0 * (safe_log10(self.jitter_spectrum_dfe[1:]) - log10_ui))
     self.plotdata.set_data("jitter_ind_spectrum_dfe", 10.0 * (safe_log10(self.jitter_ind_spectrum_dfe[1:]) - log10_ui))
@@ -844,7 +807,9 @@ def update_results(self):
     bathtub_chnl.reverse()
     bathtub_chnl = array(bathtub_chnl + list(cumsum(jitter_ext_chnl[: half_len + 1])))
     bathtub_chnl = where(
-        bathtub_chnl < MIN_BATHTUB_VAL, 0.1 * MIN_BATHTUB_VAL * ones(len(bathtub_chnl)), bathtub_chnl,
+        bathtub_chnl < MIN_BATHTUB_VAL,
+        0.1 * MIN_BATHTUB_VAL * ones(len(bathtub_chnl)),
+        bathtub_chnl,
     )  # To avoid Chaco log scale plot wierdness.
     self.plotdata.set_data("bathtub_chnl", safe_log10(bathtub_chnl))
     #  - Tx
@@ -860,7 +825,9 @@ def update_results(self):
     bathtub_ctle.reverse()
     bathtub_ctle = array(bathtub_ctle + list(cumsum(jitter_ext_ctle[: half_len + 1])))
     bathtub_ctle = where(
-        bathtub_ctle < MIN_BATHTUB_VAL, 0.1 * MIN_BATHTUB_VAL * ones(len(bathtub_ctle)), bathtub_ctle,
+        bathtub_ctle < MIN_BATHTUB_VAL,
+        0.1 * MIN_BATHTUB_VAL * ones(len(bathtub_ctle)),
+        bathtub_ctle,
     )  # To avoid Chaco log scale plot wierdness.
     self.plotdata.set_data("bathtub_ctle", safe_log10(bathtub_ctle))
     #  - DFE
@@ -893,56 +860,3 @@ def update_results(self):
     self.plotdata.set_data("eye_tx", eye_tx)
     self.plotdata.set_data("eye_ctle", eye_ctle)
     self.plotdata.set_data("eye_dfe", eye_dfe)
-
-
-def update_eyes(self):
-    """
-    Update the heat plots representing the eye diagrams.
-
-    Args:
-        self(PyBERT): Reference to an instance of the *PyBERT* class.
-
-    """
-
-    ui = self.ui
-    samps_per_ui = self.nspui
-
-    width = 2 * samps_per_ui
-    height = 100
-    xs = linspace(-ui * 1.0e12, ui * 1.0e12, width)
-
-    y_max = 1.1 * max(abs(array(self.chnl_out)))
-    ys = linspace(-y_max, y_max, height)
-    self.plots_eye.components[0].components[0].index.set_data(xs, ys)
-    self.plots_eye.components[0].x_axis.mapper.range.low = xs[0]
-    self.plots_eye.components[0].x_axis.mapper.range.high = xs[-1]
-    self.plots_eye.components[0].y_axis.mapper.range.low = ys[0]
-    self.plots_eye.components[0].y_axis.mapper.range.high = ys[-1]
-    self.plots_eye.components[0].invalidate_draw()
-
-    y_max = 1.1 * max(abs(array(self.rx_in)))
-    ys = linspace(-y_max, y_max, height)
-    self.plots_eye.components[1].components[0].index.set_data(xs, ys)
-    self.plots_eye.components[1].x_axis.mapper.range.low = xs[0]
-    self.plots_eye.components[1].x_axis.mapper.range.high = xs[-1]
-    self.plots_eye.components[1].y_axis.mapper.range.low = ys[0]
-    self.plots_eye.components[1].y_axis.mapper.range.high = ys[-1]
-    self.plots_eye.components[1].invalidate_draw()
-
-    y_max = 1.1 * max(abs(array(self.dfe_out)))
-    ys = linspace(-y_max, y_max, height)
-    self.plots_eye.components[3].components[0].index.set_data(xs, ys)
-    self.plots_eye.components[3].x_axis.mapper.range.low = xs[0]
-    self.plots_eye.components[3].x_axis.mapper.range.high = xs[-1]
-    self.plots_eye.components[3].y_axis.mapper.range.low = ys[0]
-    self.plots_eye.components[3].y_axis.mapper.range.high = ys[-1]
-    self.plots_eye.components[3].invalidate_draw()
-
-    self.plots_eye.components[2].components[0].index.set_data(xs, ys)
-    self.plots_eye.components[2].x_axis.mapper.range.low = xs[0]
-    self.plots_eye.components[2].x_axis.mapper.range.high = xs[-1]
-    self.plots_eye.components[2].y_axis.mapper.range.low = ys[0]
-    self.plots_eye.components[2].y_axis.mapper.range.high = ys[-1]
-    self.plots_eye.components[2].invalidate_draw()
-
-    self.plots_eye.request_redraw()

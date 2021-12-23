@@ -3,8 +3,6 @@ from time import sleep
 
 from scipy.optimize import minimize, minimize_scalar
 
-from pybert.control import my_run_sweeps
-
 gDebugOptimize = False
 gMaxCTLEPeak = 20.0  # max. allowed CTLE peaking (dB) (when optimizing, only)
 
@@ -36,9 +34,11 @@ class StoppableThread(Thread):
 class RunSimThread(StoppableThread):
     """Used to run the simulation in its own thread, in order to preserve GUI responsiveness."""
 
+    the_pybert = None
+
     def run(self):
         """Run the simulation(s)."""
-        my_run_sweeps(self.the_pybert)
+        self.the_pybert.run_simulations()
 
 
 class TxOptThread(StoppableThread):

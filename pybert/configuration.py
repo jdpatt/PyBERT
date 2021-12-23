@@ -110,7 +110,7 @@ class PyBertCfg:
         self.num_sweeps = the_PyBERT.num_sweeps
         self.sweep_num = the_PyBERT.sweep_num
         self.sweep_aves = the_PyBERT.sweep_aves
-        self.do_sweep = the_PyBERT.do_sweep
+        self.sweep_sim: bool = the_PyBERT.sweep_sim
         self.debug = the_PyBERT.debug
 
         # Channel Control

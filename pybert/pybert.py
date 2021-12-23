@@ -15,6 +15,7 @@ can be used to explore the concepts of serial communication link design.
 Copyright (c) 2014 by David Banas; All rights reserved World wide.
 """
 import logging
+import itertools
 import platform
 import time
 from os.path import dirname, join
@@ -43,16 +44,10 @@ from traits.api import (
     cached_property,
 )
 from traits.etsconfig.api import ETSConfig
-# fmt: off
-# ETSConfig.toolkit = 'qt.celiagg'  # Yields unacceptably small font sizes in plot axis labels.
-# ETSConfig.toolkit = 'qt.qpainter'  # Was causing crash on Mac.
-# fmt: on
 
-
-from pybert import __authors__, __copy__, __date__, __version__
-from pybert import plot
+from pybert import __authors__, __copy__, __date__, __version__, plot
 from pybert.configuration import PyBertCfg
-from pybert.control import my_run_simulation, update_eyes
+from pybert.control import my_run_simulation
 from pybert.help import help_str
 from pybert.logger import ConsoleTextLogHandler
 from pybert.results import PyBertData
@@ -73,11 +68,17 @@ from pyibisami import __version__ as PyAMI_VERSION
 from pyibisami.ami import AMIModel, AMIParamConfigurator
 from pyibisami.ibis import IBISModel
 
+# fmt: off
+# ETSConfig.toolkit = 'qt.celiagg'  # Yields unacceptably small font sizes in plot axis labels.
+# ETSConfig.toolkit = 'qt.qpainter'  # Was causing crash on Mac.
+# fmt: on
+
 
 gDebugStatus = False
 gDebugOptimize = False
 gMaxCTLEPeak = 20.0  # max. allowed CTLE peaking (dB) (when optimizing, only)
 gMaxCTLEFreq = 20.0  # max. allowed CTLE peak frequency (GHz) (when optimizing, only)
+
 
 class TxTapTuner(HasTraits):
     """Object used to populate the rows of the Tx FFE tap tuning table."""
@@ -96,14 +97,27 @@ class TxTapTuner(HasTraits):
         # to get all the Traits/UI machinery setup correctly.
         super().__init__()
 
-        self.name = name
-        self.enabled = enabled
-        self.min_val = min_val
-        self.max_val = max_val
-        self.value = value
-        self.steps = steps
+        self.name:str = name
+        self.enabled:bool = enabled
+        self.min_val:float = min_val
+        self.max_val:float = max_val
+        self.value:float = value
+        self.steps:int = steps
 
+    def sweep_values(self):
+        """Return what values should be interated through if sweeping in the main simulation.
 
+        If its enabled either create a list of equally spaced steps or just append the value if
+        steps is zero.  If the tap isn't enabled period, append zero.
+        """
+        values = [0.0]
+        if self.enabled:
+            if self.steps:
+                values = list(np.arange(self.min_val, self.max_val, self.steps))
+                values.append(self.max_val) # We want to the max value to be inclusive.
+            else:
+                values = [self.value]
+        return values
 class PyBERT(HasTraits):
     """
     A serial communication link bit error rate tester (BERT) simulator with a GUI interface.
@@ -114,19 +128,20 @@ class PyBERT(HasTraits):
     # Independent variables
 
     # - Simulation Control
-    bit_rate = Range(low=0.1, high=120.0, value=PyBertCfg.bit_rate)     #: (Gbps)
-    nbits = Range(low=1000, high=10000000, value=PyBertCfg.nbits)      #: Number of bits to simulate.
+    bit_rate = Range(low=0.1, high=120.0, value=PyBertCfg.bit_rate)  #: (Gbps)
+    nbits = Range(low=1000, high=10000000, value=PyBertCfg.nbits)  #: Number of bits to simulate.
     pattern_len = Range(low=7, high=10000000, value=PyBertCfg.pattern_len)  #: PRBS pattern length.
-    nspb = Range(low=2, high=256, value=PyBertCfg.nspb)                #: Signal vector samples per bit.
+    nspb = Range(low=2, high=256, value=PyBertCfg.nspb)  #: Signal vector samples per bit.
     eye_bits = Int(PyBertCfg.nbits // 5)  #: # of bits used to form eye. (Default = last 20%)
-    mod_type = List([0])         #: 0 = NRZ; 1 = Duo-binary; 2 = PAM-4
-    num_sweeps = Int(PyBertCfg.num_sweeps)          #: Number of sweeps to run.
+    mod_type = List([0])  #: 0 = NRZ; 1 = Duo-binary; 2 = PAM-4
+    num_sweeps = Int(PyBertCfg.num_sweeps)  #: Number of sweeps to run.
     sweep_num = Int(1)
     sweep_aves = Int(PyBertCfg.sweep_aves)
-    do_sweep = Bool(False)  #: Run sweeps? (Default = False)
-    debug = Bool(False)     #: Send log messages to terminal, as well as console, when True. (Default = False)
+    sweep_sim = Bool(False)  #: Run sweeps? (Default = False)
+    debug = Bool(False)  #: Send log messages to terminal, as well as console, when True. (Default = False)
 
     # - Channel Control
+    # fmt: off
     ch_file = File(
         "", entries=5, filter=["*.s4p", "*.S4P", "*.csv", "*.CSV", "*.txt", "*.TXT", "*.*"]
     )                          #: Channel file name.
@@ -142,11 +157,12 @@ class PyBERT(HasTraits):
     Z0 = Float(PyBertCfg.Z0)              #: Channel characteristic impedance, in LC region (Ohms).
     v0 = Float(PyBertCfg.v0)              #: Channel relative propagation velocity (c).
     l_ch = Float(PyBertCfg.l_ch)          #: Channel length (m).
+    # fmt: on
 
     # - EQ Tune
     tx_tap_tuners = List(
         [
-            TxTapTuner(name="Pre-tap",   enabled=True,  min_val=-0.2, max_val=0.2, value=0.0),
+            TxTapTuner(name="Pre-tap", enabled=True, min_val=-0.2, max_val=0.2, value=0.0),
             TxTapTuner(name="Post-tap1", enabled=False, min_val=-0.4, max_val=0.4, value=0.0),
             TxTapTuner(name="Post-tap2", enabled=False, min_val=-0.3, max_val=0.3, value=0.0),
             TxTapTuner(name="Post-tap3", enabled=False, min_val=-0.2, max_val=0.2, value=0.0),
@@ -175,7 +191,7 @@ class PyBERT(HasTraits):
     rn = Float(PyBertCfg.rn)  #: Standard deviation of Gaussian random noise (V).
     tx_taps = List(
         [
-            TxTapTuner(name="Pre-tap",   enabled=True,  min_val=-0.2, max_val=0.2, value=0.0),
+            TxTapTuner(name="Pre-tap", enabled=True, min_val=-0.2, max_val=0.2, value=0.0),
             TxTapTuner(name="Post-tap1", enabled=False, min_val=-0.4, max_val=0.4, value=0.0),
             TxTapTuner(name="Post-tap2", enabled=False, min_val=-0.3, max_val=0.3, value=0.0),
             TxTapTuner(name="Post-tap3", enabled=False, min_val=-0.2, max_val=0.2, value=0.0),
@@ -191,7 +207,13 @@ class PyBERT(HasTraits):
     tx_ami_valid = Bool(False)  #: (Bool)
     tx_dll_file = File("", entries=5, filter=["*.dll", "*.so"])  #: (File)
     tx_dll_valid = Bool(False)  #: (Bool)
-    tx_ibis_file = File("", entries=5, filter=["IBIS Models (*.ibs)|*.ibs",])  #: (File)
+    tx_ibis_file = File(
+        "",
+        entries=5,
+        filter=[
+            "IBIS Models (*.ibs)|*.ibs",
+        ],
+    )  #: (File)
     tx_ibis_valid = Bool(False)  #: (Bool)
     tx_use_ibis = Bool(False)  #: (Bool)
 
@@ -332,13 +354,13 @@ class PyBERT(HasTraits):
     btn_abort = Button(label="Abort")
     btn_cfg_tx = Button(label="Configure")  # Configure AMI parameters.
     btn_cfg_rx = Button(label="Configure")
-    btn_sel_tx = Button(label="Select")     # Select IBIS model.
+    btn_sel_tx = Button(label="Select")  # Select IBIS model.
     btn_sel_rx = Button(label="Select")
-    btn_view_tx = Button(label="View")      # View IBIS model.
+    btn_view_tx = Button(label="View")  # View IBIS model.
     btn_view_rx = Button(label="View")
 
     # Default initialization
-    def __init__(self, run_simulation:bool=True, gui:bool=True):
+    def __init__(self, run_simulation: bool = True, gui: bool = True):
         """
         Initial plot setup occurs here.
 
@@ -766,16 +788,16 @@ class PyBERT(HasTraits):
                 rj_rej_total = rj_tx / rj_dfe
 
             # Temporary, until I figure out DPI independence.
-            info_str  = '<style>\n'
+            info_str = "<style>\n"
             # info_str += ' table td {font-size: 36px;}\n'
             # info_str += ' table th {font-size: 38px;}\n'
-            info_str += ' table td {font-size: 12em;}\n'
-            info_str += ' table th {font-size: 14em;}\n'
-            info_str += '</style>\n'
+            info_str += " table td {font-size: 12em;}\n"
+            info_str += " table th {font-size: 14em;}\n"
+            info_str += "</style>\n"
             # info_str += '<font size="+3">\n'
             # End Temp.
 
-            info_str  = "<H1>Jitter Rejection by Equalization Component</H1>\n"
+            info_str = "<H1>Jitter Rejection by Equalization Component</H1>\n"
 
             info_str += "<H2>Tx Preemphasis</H2>\n"
             info_str += '<TABLE border="1">\n'
@@ -917,7 +939,7 @@ class PyBERT(HasTraits):
 
     @cached_property
     def _get_perf_info(self):
-        info_str  = "<H2>Performance by Component</H2>\n"
+        info_str = "<H2>Performance by Component</H2>\n"
         info_str += '  <TABLE border="1">\n'
         info_str += '    <TR align="center">\n'
         info_str += "      <TH>Component</TH><TH>Performance (Msmpls./min.)</TH>\n"
@@ -951,32 +973,28 @@ class PyBERT(HasTraits):
 
     @cached_property
     def _get_sweep_info(self):
-        sweep_results = self.sweep_results
+        info_str = r"""<H2>Sweep Results</H2>
+<TABLE border="1">
+    <TR align="center">
+        <TH>Pretap</TH><TH>Posttap</TH><TH>Mean(bit errors)</TH><TH>StdDev(bit errors)</TH>
+    </TR>
+"""
 
-        info_str = "<H2>Sweep Results</H2>\n"
-        info_str += '  <TABLE border="1">\n'
-        info_str += '    <TR align="center">\n'
-        info_str += "      <TH>Pretap</TH><TH>Posttap</TH><TH>Mean(bit errors)</TH><TH>StdDev(bit errors)</TH>\n"
-        info_str += "    </TR>\n"
+        if self.sweep_results:
+            for settings, bit_error_mean, bit_error_std in self.sweep_results:
+                info_str += '    <TR align="center">\n'
+                info_str += f"        <TD>{settings[0]}</TD><TD>{settings[1:]}</TD><TD>{bit_error_mean}</TD><TD>{bit_error_std}</TD>\n"
+                info_str += "    </TR>\n"
 
-        for item in sweep_results:
-            info_str += '    <TR align="center">\n'
-            info_str += str(item)
-            # info_str += "      <TD>%+06.3f</TD><TD>%+06.3f</TD><TD>%d</TD><TD>%d</TD>\n" % (
-            #     item[0],
-            #     item[1],
-            #     item[2],
-            #     item[3],
-            # )
-            info_str += "    </TR>\n"
-
-        info_str += "  </TABLE>\n"
-
+        info_str += "</TABLE>\n"
         return info_str
 
     @cached_property
     def _get_status_str(self):
-        status_str = "%-20s | Perf. (Msmpls./min.):  %4.1f" % (self.status, self.total_perf * 60.0e-6,)
+        status_str = "%-20s | Perf. (Msmpls./min.):  %4.1f" % (
+            self.status,
+            self.total_perf * 60.0e-6,
+        )
         dly_str = f"         | ChnlDly (ns):    {self.chnl_dly * 1000000000.0:5.3f}"
         err_str = f"         | BitErrs: {self.bit_errs}"
         pwr_str = f"         | TxPwr (W): {self.rel_power:4.2f}"
@@ -1100,9 +1118,9 @@ class PyBERT(HasTraits):
         for i in range(n_taps):
             ix = clock_pos + (i + 1) * nspui
             if ix < len_p:
-                err += p[ix]**2
+                err += p[ix] ** 2
 
-        return err / p[clock_pos]**2
+        return err / p[clock_pos] ** 2
 
     # Changed property handlers.
     def _status_str_changed(self):
@@ -1139,7 +1157,7 @@ class PyBERT(HasTraits):
         dName = ""
         try:
             self.tx_ibis_valid = False
-            self.tx_use_ami    = False
+            self.tx_use_ami = False
             self._log.info("Parsing Tx IBIS file: %s", new_value)
             ibis = IBISModel(new_value, True, debug=self.debug, gui=self.has_gui)
             self._log.info("  Result:\n %s", ibis.ibis_parsing_errors)
@@ -1155,7 +1173,7 @@ class PyBERT(HasTraits):
         except Exception as err:
             self.status = "IBIS file parsing error!"
             error_message = f"Failed to open and/or parse IBIS file!\n{err}"
-            self._log.error(error_message, exc_info=True, extra={"alert":True})
+            self._log.error(error_message, exc_info=True, extra={"alert": True})
         self._tx_ibis_dir = dName
         self.status = "Done."
 
@@ -1177,7 +1195,7 @@ class PyBERT(HasTraits):
                 self._tx_cfg = pcfg
                 self.tx_ami_valid = True
         except Exception as error:
-            self._log.error("Failed to open and/or parse AMI file!", extra={"alert":True})
+            self._log.error("Failed to open and/or parse AMI file!", extra={"alert": True})
             self._log.debug(error)
             raise
 
@@ -1189,7 +1207,7 @@ class PyBERT(HasTraits):
                 self._tx_model = model
                 self.tx_dll_valid = True
         except Exception as err:
-            self._log.error("Failed to open DLL/SO file!\n %s", err, extra={"alert":True})
+            self._log.error("Failed to open DLL/SO file!\n %s", err, extra={"alert": True})
 
     def _rx_ibis_file_changed(self, new_value):
         self.status = f"Parsing IBIS file: {new_value}"
@@ -1211,7 +1229,7 @@ class PyBERT(HasTraits):
                 self.rx_ami_file = ""
         except Exception as err:
             self.status = "IBIS file parsing error!"
-            self._log.info("Failed to open and/or parse IBIS file!\n %s", err, extra={"alert":True})
+            self._log.info("Failed to open and/or parse IBIS file!\n %s", err, extra={"alert": True})
             raise
         self._rx_ibis_dir = dName
         self.status = "Done."
@@ -1230,7 +1248,7 @@ class PyBERT(HasTraits):
                 self._rx_cfg = pcfg
                 self.rx_ami_valid = True
         except Exception as err:
-            self._log.info("Failed to open and/or parse AMI file!\n%s", err, extra={"alert":True})
+            self._log.info("Failed to open and/or parse AMI file!\n%s", err, extra={"alert": True})
 
     def _rx_dll_file_changed(self, new_value):
         try:
@@ -1240,7 +1258,7 @@ class PyBERT(HasTraits):
                 self._rx_model = model
                 self.rx_dll_valid = True
         except Exception as err:
-            self._log.info("Failed to open DLL/SO file!\n %s", err, extra={"alert":True})
+            self._log.info("Failed to open DLL/SO file!\n %s", err, extra={"alert": True})
 
     def _rx_use_ami_changed(self, new_value):
         if new_value == True:
@@ -1290,12 +1308,12 @@ class PyBERT(HasTraits):
         else:
             # Construct PyBERT default channel model (i.e. - Howard Johnson's UTP model).
             # - Grab model parameters from PyBERT instance.
-            l_ch   = self.l_ch
-            v0     = self.v0 * 3.0e8
-            R0     = self.R0
-            w0     = self.w0
-            Rdc    = self.Rdc
-            Z0     = self.Z0
+            l_ch = self.l_ch
+            v0 = self.v0 * 3.0e8
+            R0 = self.R0
+            w0 = self.w0
+            Rdc = self.Rdc
+            Z0 = self.Z0
             Theta0 = self.Theta0
             # - Calculate propagation constant, characteristic impedance, and transfer function.
             gamma, Zc = calc_gamma(R0, w0, Rdc, Z0, v0, Theta0, w)
@@ -1303,8 +1321,8 @@ class PyBERT(HasTraits):
             H = exp(-l_ch * gamma)
             self.H = H
             # - Use the transfer function and characteristic impedance to form "perfectly matched" network.
-            tmp = np.array(list(zip(zip(zeros(len_f),H),zip(H,zeros(len_f)))))
-            ch_s2p_pre = rf.Network(s=tmp, f=f/1e9, z0=Zc)
+            tmp = np.array(list(zip(zip(zeros(len_f), H), zip(H, zeros(len_f)))))
+            ch_s2p_pre = rf.Network(s=tmp, f=f / 1e9, z0=Zc)
             # - And, finally, renormalize to driver impedance.
             ch_s2p_pre.renormalize(Rs)
         ch_s2p_pre.name = "ch_s2p_pre"
@@ -1326,7 +1344,7 @@ class PyBERT(HasTraits):
                 skrf.Network: Resultant 2-port network.
             """
             ts4N = rf.Network(ts4f)  # Grab the 4-port single-ended on-die network.
-            ntwk = sdd_21(ts4N)      # Convert it to a differential, 2-port network.
+            ntwk = sdd_21(ts4N)  # Convert it to a differential, 2-port network.
             ntwk2 = interp_s2p(ntwk, s2p.f)  # Interpolate to system freqs.
             if isRx:
                 res = s2p ** ntwk2
@@ -1341,11 +1359,11 @@ class PyBERT(HasTraits):
             self.Rs = Rs  # Primarily for debugging.
             self.Cs = Cs
             if self.tx_use_ts4:
-                fname  = join(self._tx_ibis_dir, self._tx_cfg.fetch_param_val(["Reserved_Parameters","Ts4file"])[0])
+                fname = join(self._tx_ibis_dir, self._tx_cfg.fetch_param_val(["Reserved_Parameters", "Ts4file"])[0])
                 ch_s2p, ts4N, ntwk = add_ondie_s(ch_s2p, fname)
                 ch_s2p.name = "ch_s2p_post"
-                self.ts4N   = ts4N
-                self.ntwk   = ntwk
+                self.ts4N = ts4N
+                self.ntwk = ntwk
         if self.rx_use_ibis:
             model = self._rx_ibis.model
             RL = model.zin * 2
@@ -1354,25 +1372,25 @@ class PyBERT(HasTraits):
             self.Cp = Cp
             self._log.debug("RL: %d, Cp: %d", RL, Cp)
             if self.rx_use_ts4:
-                fname  = join(self._rx_ibis_dir, self._rx_cfg.fetch_param_val(["Reserved_Parameters","Ts4file"])[0])
+                fname = join(self._rx_ibis_dir, self._rx_cfg.fetch_param_val(["Reserved_Parameters", "Ts4file"])[0])
                 ch_s2p, ts4N, ntwk = add_ondie_s(ch_s2p, fname, isRx=True)
                 ch_s2p.name = "ch_s2p_post"
-                self.ts4N   = ts4N
-                self.ntwk   = ntwk
+                self.ts4N = ts4N
+                self.ntwk = ntwk
         ch_s2p.name = "ch_s2p"
         self.ch_s2p = ch_s2p
 
         # Calculate channel impulse response.
-        Zt = RL / (1 + 1j*w*RL*Cp)                                # Rx termination impedance
+        Zt = RL / (1 + 1j * w * RL * Cp)  # Rx termination impedance
         Rt = (Zt - ch_s2p.z[:, 1, 1]) / (Zt + ch_s2p.z[:, 1, 1])  # reflection coefficient at term.
-        ch_s2p_term = rf.Network(s=ch_s2p.s21.s.flatten() * (1 + Rt * ch_s2p.s22.s.flatten()),
-                                 f=ch_s2p.f/1e9,
-                                 z0=ch_s2p.z0[0,0])
+        ch_s2p_term = rf.Network(
+            s=ch_s2p.s21.s.flatten() * (1 + Rt * ch_s2p.s22.s.flatten()), f=ch_s2p.f / 1e9, z0=ch_s2p.z0[0, 0]
+        )
         chnl_H = ch_s2p_term.s.flatten()
         ch_s2p_term.name = "ch_s2p_term"
         self.ch_s2p_term = ch_s2p_term
         t_h, chnl_h = ch_s2p_term.impulse_response()
-        self.t_h         = t_h
+        self.t_h = t_h
         self.chnl_h_orig = chnl_h
         # - Interpolate to system time vector.
         chnl_h = interp_time(t_h, chnl_h, ts)  # `ts` is system sample interval.
@@ -1392,15 +1410,15 @@ class PyBERT(HasTraits):
         chnl_s = chnl_h.cumsum()
         chnl_p = chnl_s - pad(chnl_s[:-nspui], (nspui, 0), "constant", constant_values=(0, 0))
 
-        self.chnl_h         = chnl_h
-        self.len_h          = len(chnl_h)
-        self.chnl_dly       = chnl_dly
-        self.chnl_H         = chnl_H
+        self.chnl_h = chnl_h
+        self.len_h = len(chnl_h)
+        self.chnl_dly = chnl_dly
+        self.chnl_H = chnl_H
         self.chnl_trimmed_H = chnl_trimmed_H
-        self.start_ix       = start_ix
-        self.t_ns_chnl      = array(t[start_ix : start_ix + len(chnl_h)]) * 1.0e9
-        self.chnl_s         = chnl_s
-        self.chnl_p         = chnl_p
+        self.start_ix = start_ix
+        self.t_ns_chnl = array(t[start_ix : start_ix + len(chnl_h)]) * 1.0e9
+        self.chnl_s = chnl_s
+        self.chnl_p = chnl_p
 
         return chnl_h
 
@@ -1414,7 +1432,7 @@ class PyBERT(HasTraits):
         self._log.debug("Kiva Backend:  %s", ETSConfig.kiva_backend)
         # self._log.debug("Pixel Scale:  %s", self.trait_view().window.base_pixel_scale)
 
-    def load_configuration(self, filepath:Path):
+    def load_configuration(self, filepath: Path):
         """Load in a configuration into pybert.
 
         Support both file formats either yaml or pickle.
@@ -1424,9 +1442,9 @@ class PyBERT(HasTraits):
             self.cfg_file = filepath
             self.status = "Loaded configuration."
         except Exception:
-            self._log.error("Failed to load configuration.", exc_info=True, extra={"alert":True})
+            self._log.error("Failed to load configuration.", exc_info=True, extra={"alert": True})
 
-    def save_configuration(self, filepath:Path):
+    def save_configuration(self, filepath: Path):
         """Save out a configuration from pybert.
 
         Support both file formats either yaml or pickle.
@@ -1436,25 +1454,25 @@ class PyBERT(HasTraits):
             self.cfg_file = filepath
             self.status = "Configuration saved."
         except Exception:
-            self._log.error("Failed to save current user configuration.", exc_info=True, extra={"alert":True})
+            self._log.error("Failed to save current user configuration.", exc_info=True, extra={"alert": True})
 
-    def load_results(self, filepath:Path):
+    def load_results(self, filepath: Path):
         """Load results from a file into pybert."""
         try:
             PyBertData.load_from_file(filepath, self)
             self.data_file = filepath
             self.status = "Loaded results."
         except Exception:
-            self._log.error("Failed to load results from file.", exc_info=True, extra={"alert":True})
+            self._log.error("Failed to load results from file.", exc_info=True, extra={"alert": True})
 
-    def save_results(self, filepath:Path):
+    def save_results(self, filepath: Path):
         """Save the existing results to a pickle file."""
         try:
             PyBertData(self).save(filepath)
             self.data_file = filepath
             self.status = "Saved results."
         except Exception:
-            self._log.error("Failed to save results to file.", exc_info=True, extra={"alert":True})
+            self._log.error("Failed to save results to file.", exc_info=True, extra={"alert": True})
 
     def initialize_plots(self):
         """Create and initialize all of the plot containers with the default simulation results."""
@@ -1471,4 +1489,66 @@ class PyBERT(HasTraits):
         self.plots_bathtub = plot.init_bathtub_plots(self.plotdata)
 
         # Regenerate the eye diagrams after they have been populated.
-        update_eyes(self)
+        self.update_eye_diagrams()
+
+    def update_eye_diagrams(self):
+        """Update the heat plots representing the eye diagrams."""
+
+        ui = self.ui
+        samps_per_ui = self.nspui
+
+        width = 2 * samps_per_ui
+        height = 100
+        xs = np.linspace(-ui * 1.0e12, ui * 1.0e12, width)
+
+        for diagram, channel in enumerate((self.chnl_out, self.rx_in, self.ctle_out, self.dfe_out)):
+            y_max = 1.1 * max(abs(array(channel)))
+            ys = np.linspace(-y_max, y_max, height)
+            self.plots_eye.components[diagram].components[0].index.set_data(xs, ys)
+            self.plots_eye.components[diagram].x_axis.mapper.range.low = xs[0]
+            self.plots_eye.components[diagram].x_axis.mapper.range.high = xs[-1]
+            self.plots_eye.components[diagram].y_axis.mapper.range.low = ys[0]
+            self.plots_eye.components[diagram].y_axis.mapper.range.high = ys[-1]
+            self.plots_eye.components[diagram].invalidate_draw()
+
+        self.plots_eye.request_redraw()
+
+    def run_simulations(self):
+        """Run all queued simulations.
+
+        Normally, this is just one simulation unless `sweep_sim` is set.  Then it will run
+        `num_sweeps` which is the product of all tx pre/post tap settings multipled by `sweep_aves`.
+        If `sweep_aves` is one then its just one run of all pre/post tap combinations.
+
+        When sweeping plots will not be updated, so the plot results is from the prior run.  The
+        averaged bit error and standard deviation can be found under Results/Sweep Info.  Otherwise
+        just one simulation is run and all the plots are updated.
+        """
+
+        if self.sweep_sim:
+            # Assemble the list of desired values for each Tx Pre-Emphasis sweepable parameter.
+            tap_sweep_values = [tap.sweep_values() for tap in self.tx_taps]
+            sweeps = list(itertools.product(*tap_sweep_values))
+
+            # Run the sweep, using the lists assembled, above.
+            self.num_sweeps = self.sweep_aves * len(sweeps)
+            sweep_results = []
+            for sweep_run_number, settings in enumerate(sweeps, start=1):
+
+                # Update the tap settings for this sweep
+                for index, tap in enumerate(self.tx_taps):
+                    tap.value = settings[index]
+
+                bit_errs = []
+                # Run the current settings for the number of sweeps to average
+                for sweep_average_number in range(self.sweep_aves):
+                    self.sweep_num = sweep_run_number + sweep_average_number
+                    my_run_simulation(self, update_plots=False)
+                    bit_errs.append(self.bit_errs)
+
+                # Append the averaged results
+                sweep_results.append((settings, np.mean(bit_errs), np.std(bit_errs)))
+
+            self.sweep_results = sweep_results
+        else:
+            my_run_simulation(self)
