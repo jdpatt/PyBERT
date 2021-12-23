@@ -14,11 +14,11 @@ can be used to explore the concepts of serial communication link design.
 
 Copyright (c) 2014 by David Banas; All rights reserved World wide.
 """
-import logging
 import itertools
+import logging
 import platform
 import time
-from os.path import dirname, join
+from os.path import join
 from pathlib import Path
 
 import numpy as np
@@ -97,12 +97,12 @@ class TxTapTuner(HasTraits):
         # to get all the Traits/UI machinery setup correctly.
         super().__init__()
 
-        self.name:str = name
-        self.enabled:bool = enabled
-        self.min_val:float = min_val
-        self.max_val:float = max_val
-        self.value:float = value
-        self.steps:int = steps
+        self.name: str = name
+        self.enabled: bool = enabled
+        self.min_val: float = min_val
+        self.max_val: float = max_val
+        self.value: float = value
+        self.steps: int = steps
 
     def sweep_values(self):
         """Return what values should be interated through if sweeping in the main simulation.
@@ -114,10 +114,12 @@ class TxTapTuner(HasTraits):
         if self.enabled:
             if self.steps:
                 values = list(np.arange(self.min_val, self.max_val, self.steps))
-                values.append(self.max_val) # We want to the max value to be inclusive.
+                values.append(self.max_val)  # We want to the max value to be inclusive.
             else:
                 values = [self.value]
         return values
+
+
 class PyBERT(HasTraits):
     """
     A serial communication link bit error rate tester (BERT) simulator with a GUI interface.
@@ -477,8 +479,8 @@ class PyBERT(HasTraits):
     def _btn_sel_tx_fired(self):
         self._tx_ibis()
         if self._tx_ibis.dll_file and self._tx_ibis.ami_file:
-            self.tx_dll_file = join(self._tx_ibis_dir, self._tx_ibis.dll_file)
-            self.tx_ami_file = join(self._tx_ibis_dir, self._tx_ibis.ami_file)
+            self.tx_dll_file = self._tx_ibis_dir.joinpath(self._tx_ibis.dll_file)
+            self.tx_ami_file = self._tx_ibis_dir.joinpath(self._tx_ibis.ami_file)
         else:
             self.tx_dll_file = ""
             self.tx_ami_file = ""
@@ -486,8 +488,8 @@ class PyBERT(HasTraits):
     def _btn_sel_rx_fired(self):
         self._rx_ibis()
         if self._rx_ibis.dll_file and self._rx_ibis.ami_file:
-            self.rx_dll_file = join(self._rx_ibis_dir, self._rx_ibis.dll_file)
-            self.rx_ami_file = join(self._rx_ibis_dir, self._rx_ibis.ami_file)
+            self.rx_dll_file = self._rx_ibis_dir.joinpath(self._rx_ibis.dll_file)
+            self.rx_ami_file = self._rx_ibis_dir.joinpath(self._rx_ibis.ami_file)
         else:
             self.rx_dll_file = ""
             self.rx_ami_file = ""
@@ -1154,7 +1156,7 @@ class PyBERT(HasTraits):
 
     def _tx_ibis_file_changed(self, new_value):
         self.status = f"Parsing IBIS file: {new_value}"
-        dName = ""
+        new_value = Path(new_value)
         try:
             self.tx_ibis_valid = False
             self.tx_use_ami = False
@@ -1163,26 +1165,25 @@ class PyBERT(HasTraits):
             self._log.info("  Result:\n %s", ibis.ibis_parsing_errors)
             self._tx_ibis = ibis
             self.tx_ibis_valid = True
-            dName = dirname(new_value)
             if self._tx_ibis.dll_file and self._tx_ibis.ami_file:
-                self.tx_dll_file = join(dName, self._tx_ibis.dll_file)
-                self.tx_ami_file = join(dName, self._tx_ibis.ami_file)
+                self.tx_dll_file = new_value.parent.joinpath(self._tx_ibis.dll_file)
+                self.tx_ami_file = new_value.parent.joinpath(self._tx_ibis.ami_file)
             else:
                 self.tx_dll_file = ""
                 self.tx_ami_file = ""
         except Exception as err:
-            self.status = "IBIS file parsing error!"
-            error_message = f"Failed to open and/or parse IBIS file!\n{err}"
-            self._log.error(error_message, exc_info=True, extra={"alert": True})
-        self._tx_ibis_dir = dName
+            self.status = "Failed to open and/or parse IBIS file"
+            self._log.error("Failed to open and/or parse IBIS file!\n%s", err, exc_info=True, extra={"alert": True})
+        self._tx_ibis_dir = new_value.parent
         self.status = "Done."
 
     def _tx_ami_file_changed(self, new_value):
         try:
             self.tx_ami_valid = False
             if new_value:
+                new_value = Path(new_value)
                 self._log.info("Parsing Tx AMI file, %s", new_value)
-                pcfg = AMIParamConfigurator(new_value)
+                pcfg = AMIParamConfigurator()
                 if pcfg.ami_parsing_errors:
                     self._log.warning("Non-fatal parsing errors:\n %s", pcfg.ami_parsing_errors)
                 else:
@@ -1195,15 +1196,14 @@ class PyBERT(HasTraits):
                 self._tx_cfg = pcfg
                 self.tx_ami_valid = True
         except Exception as error:
-            self._log.error("Failed to open and/or parse AMI file!", extra={"alert": True})
-            self._log.debug(error)
+            self._log.error("Failed to open and/or parse AMI file!\n%s", error, extra={"alert": True})
             raise
 
     def _tx_dll_file_changed(self, new_value):
         try:
             self.tx_dll_valid = False
             if new_value:
-                model = AMIModel(str(new_value))
+                model = AMIModel(Path(new_value))
                 self._tx_model = model
                 self.tx_dll_valid = True
         except Exception as err:
@@ -1211,7 +1211,7 @@ class PyBERT(HasTraits):
 
     def _rx_ibis_file_changed(self, new_value):
         self.status = f"Parsing IBIS file: {new_value}"
-        dName = ""
+        new_value = Path(new_value)
         try:
             self.rx_ibis_valid = False
             self.rx_use_ami = False
@@ -1220,25 +1220,24 @@ class PyBERT(HasTraits):
             self._log.warning("  Result:\n %s", ibis.ibis_parsing_errors)
             self._rx_ibis = ibis
             self.rx_ibis_valid = True
-            dName = dirname(new_value)
             if self._rx_ibis.dll_file and self._rx_ibis.ami_file:
-                self.rx_dll_file = join(dName, self._rx_ibis.dll_file)
-                self.rx_ami_file = join(dName, self._rx_ibis.ami_file)
+                self.rx_dll_file = new_value.parent.joinpath(self._rx_ibis.dll_file)
+                self.rx_ami_file = new_value.parent.joinpath(self._rx_ibis.ami_file)
             else:
                 self.rx_dll_file = ""
                 self.rx_ami_file = ""
         except Exception as err:
-            self.status = "IBIS file parsing error!"
+            self.status = "Failed to open and/or parse IBIS file!"
             self._log.info("Failed to open and/or parse IBIS file!\n %s", err, extra={"alert": True})
             raise
-        self._rx_ibis_dir = dName
+        self._rx_ibis_dir = new_value.parent
         self.status = "Done."
 
     def _rx_ami_file_changed(self, new_value):
         try:
             self.rx_ami_valid = False
             if new_value:
-                pcfg = AMIParamConfigurator(new_value)
+                pcfg = AMIParamConfigurator(Path(new_value))
                 self._log.info("Parsing Rx AMI file, %s...\n%s", new_value, pcfg.ami_parsing_errors)
                 self.rx_has_getwave = pcfg.fetch_param_val(["Reserved_Parameters", "GetWave_Exists"])
                 if pcfg.fetch_param_val(["Reserved_Parameters", "Ts4file"]):
@@ -1254,7 +1253,7 @@ class PyBERT(HasTraits):
         try:
             self.rx_dll_valid = False
             if new_value:
-                model = AMIModel(str(new_value))
+                model = AMIModel(Path(new_value))
                 self._rx_model = model
                 self.rx_dll_valid = True
         except Exception as err:
