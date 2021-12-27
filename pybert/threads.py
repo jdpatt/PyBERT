@@ -205,10 +205,10 @@ class CoOptThread(StoppableThread):
 
         pybert = self.pybert
         pybert.peak_mag_tune = peak_mag
-        if any([pybert.tx_tap_tuners[i].enabled for i in range(len(pybert.tx_tap_tuners))]):
-            while pybert.tx_opt_thread and pybert.tx_opt_thread.isAlive():
+        if any((tuner.enabled for tuner in pybert.tx_tap_tuners)):
+            while pybert.tx_opt_thread and pybert.tx_opt_thread.is_alive():
                 sleep(0.001)
             pybert._do_opt_tx(update_status=False)
-            while pybert.tx_opt_thread and pybert.tx_opt_thread.isAlive():
+            while pybert.tx_opt_thread and pybert.tx_opt_thread.is_alive():
                 sleep(0.001)
         return pybert.cost

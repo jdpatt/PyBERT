@@ -116,7 +116,7 @@ def init_impulse_tab_plots(plotdata: ArrayPlotData) -> GridPlotContainer:
             plot_impulse.overlays.append(zoom_h)
             first_plot = plot_impulse
         else:  # Zoom x-axes in tandem.
-            plot_impulse.index_range = first_plot.index_range
+            plot_impulse.index_range = first_plot.index_range # type: ignore
         container_h.add(plot_impulse)
     return container_h
 
@@ -149,7 +149,7 @@ def init_step_tab_plots(plotdata: ArrayPlotData) -> GridPlotContainer:
             plot_step.overlays.append(zoom_h)
             first_plot = plot_step
         else:  # Zoom x-axes in tandem.
-            plot_step.index_range = first_plot.index_range
+            plot_step.index_range = first_plot.index_range # type: ignore
         container_s.add(plot_step)
     return container_s
 
@@ -181,7 +181,7 @@ def init_pulse_tab_plots(plotdata: ArrayPlotData) -> GridPlotContainer:
             plot_pulse.overlays.append(zoom_h)
             first_plot = plot_pulse
         else:  # Zoom x-axes in tandem.
-            plot_pulse.index_range = first_plot.index_range
+            plot_pulse.index_range = first_plot.index_range # type: ignore
         container_p.add(plot_pulse)
     return container_p
 
@@ -266,7 +266,7 @@ def init_output_tab_plots(plotdata: ArrayPlotData) -> GridPlotContainer:
             plot_output.overlays.append(zoom_h)
             first_plot = plot_output
         else:  # Zoom x-axes in tandem.
-            plot_output.index_range = first_plot.index_range
+            plot_output.index_range = first_plot.index_range # type: ignore
         container_out.add(plot_output)
     return container_out
 
