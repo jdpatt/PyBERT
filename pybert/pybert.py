@@ -49,7 +49,13 @@ from traits.etsconfig.api import ETSConfig
 from pybert import __authors__, __copy__, __date__, __version__, plot
 from pybert.configuration import PyBertCfg
 from pybert.control import my_run_simulation
-from pybert.help import help_str
+from pybert.content import (
+    help_str,
+    jitter_info_table,
+    performance_info_table,
+    status_string,
+    sweep_info_table,
+)
 from pybert.logger import ConsoleTextLogHandler
 from pybert.results import PyBertData
 from pybert.threads import CoOptThread, RxOptThread, TxOptThread
@@ -736,293 +742,110 @@ class PyBERT(HasTraits):
     @cached_property
     def _get_jitter_info(self):
         try:
-            isi_chnl = self.isi_chnl * 1.0e12
-            dcd_chnl = self.dcd_chnl * 1.0e12
-            pj_chnl = self.pj_chnl * 1.0e12
-            rj_chnl = self.rj_chnl * 1.0e12
-            isi_tx = self.isi_tx * 1.0e12
-            dcd_tx = self.dcd_tx * 1.0e12
-            pj_tx = self.pj_tx * 1.0e12
-            rj_tx = self.rj_tx * 1.0e12
-            isi_ctle = self.isi_ctle * 1.0e12
-            dcd_ctle = self.dcd_ctle * 1.0e12
-            pj_ctle = self.pj_ctle * 1.0e12
-            rj_ctle = self.rj_ctle * 1.0e12
-            isi_dfe = self.isi_dfe * 1.0e12
-            dcd_dfe = self.dcd_dfe * 1.0e12
-            pj_dfe = self.pj_dfe * 1.0e12
-            rj_dfe = self.rj_dfe * 1.0e12
+            jitter = {
+                "isi_chnl": self.isi_chnl * 1.0e12,
+                "dcd_chnl": self.dcd_chnl * 1.0e12,
+                "pj_chnl": self.pj_chnl * 1.0e12,
+                "rj_chnl": self.rj_chnl * 1.0e12,
+                "isi_tx": self.isi_tx * 1.0e12,
+                "dcd_tx": self.dcd_tx * 1.0e12,
+                "pj_tx": self.pj_tx * 1.0e12,
+                "rj_tx": self.rj_tx * 1.0e12,
+                "isi_ctle": self.isi_ctle * 1.0e12,
+                "dcd_ctle": self.dcd_ctle * 1.0e12,
+                "pj_ctle": self.pj_ctle * 1.0e12,
+                "rj_ctle": self.rj_ctle * 1.0e12,
+                "isi_dfe": self.isi_dfe * 1.0e12,
+                "dcd_dfe": self.dcd_dfe * 1.0e12,
+                "pj_dfe": self.pj_dfe * 1.0e12,
+                "rj_dfe": self.rj_dfe * 1.0e12,
+            }
 
-            isi_rej_tx = 1.0e20
-            dcd_rej_tx = 1.0e20
-            isi_rej_ctle = 1.0e20
-            dcd_rej_ctle = 1.0e20
-            pj_rej_ctle = 1.0e20
-            rj_rej_ctle = 1.0e20
-            isi_rej_dfe = 1.0e20
-            dcd_rej_dfe = 1.0e20
-            pj_rej_dfe = 1.0e20
-            rj_rej_dfe = 1.0e20
-            isi_rej_total = 1.0e20
-            dcd_rej_total = 1.0e20
-            pj_rej_total = 1.0e20
-            rj_rej_total = 1.0e20
-
-            if isi_tx:
-                isi_rej_tx = isi_chnl / isi_tx
-            if dcd_tx:
-                dcd_rej_tx = dcd_chnl / dcd_tx
-            if isi_ctle:
-                isi_rej_ctle = isi_tx / isi_ctle
-            if dcd_ctle:
-                dcd_rej_ctle = dcd_tx / dcd_ctle
-            if pj_ctle:
-                pj_rej_ctle = pj_tx / pj_ctle
-            if rj_ctle:
-                rj_rej_ctle = rj_tx / rj_ctle
-            if isi_dfe:
-                isi_rej_dfe = isi_ctle / isi_dfe
-            if dcd_dfe:
-                dcd_rej_dfe = dcd_ctle / dcd_dfe
-            if pj_dfe:
-                pj_rej_dfe = pj_ctle / pj_dfe
-            if rj_dfe:
-                rj_rej_dfe = rj_ctle / rj_dfe
-            if isi_dfe:
-                isi_rej_total = isi_chnl / isi_dfe
-            if dcd_dfe:
-                dcd_rej_total = dcd_chnl / dcd_dfe
-            if pj_dfe:
-                pj_rej_total = pj_tx / pj_dfe
-            if rj_dfe:
-                rj_rej_total = rj_tx / rj_dfe
-
-            # Temporary, until I figure out DPI independence.
-            info_str = "<style>\n"
-            # info_str += ' table td {font-size: 36px;}\n'
-            # info_str += ' table th {font-size: 38px;}\n'
-            info_str += " table td {font-size: 12em;}\n"
-            info_str += " table th {font-size: 14em;}\n"
-            info_str += "</style>\n"
-            # info_str += '<font size="+3">\n'
-            # End Temp.
-
-            info_str = "<H1>Jitter Rejection by Equalization Component</H1>\n"
-
-            info_str += "<H2>Tx Preemphasis</H2>\n"
-            info_str += '<TABLE border="1">\n'
-            info_str += '<TR align="center">\n'
-            info_str += "<TH>Jitter Component</TH><TH>Input (ps)</TH><TH>Output (ps)</TH><TH>Rejection (dB)</TH>\n"
-            info_str += "</TR>\n"
-            info_str += '<TR align="right">\n'
-            info_str += '<TD align="center">ISI</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n' % (
-                isi_chnl,
-                isi_tx,
-                10.0 * safe_log10(isi_rej_tx),
-            )
-            info_str += "</TR>\n"
-            info_str += '<TR align="right">\n'
-            info_str += '<TD align="center">DCD</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n' % (
-                dcd_chnl,
-                dcd_tx,
-                10.0 * safe_log10(dcd_rej_tx),
-            )
-            info_str += "</TR>\n"
-            info_str += '<TR align="right">\n'
-            info_str += f'<TD align="center">Pj</TD><TD>{pj_chnl:6.3f}</TD><TD>{pj_tx:6.3f}</TD><TD>n/a</TD>\n'
-            info_str += "</TR>\n"
-            info_str += '<TR align="right">\n'
-            info_str += f'<TD align="center">Rj</TD><TD>{rj_chnl:6.3f}</TD><TD>{rj_tx:6.3f}</TD><TD>n/a</TD>\n'
-            info_str += "</TR>\n"
-            info_str += "</TABLE>\n"
-
-            info_str += "<H2>CTLE (+ AMI DFE)</H2>\n"
-            info_str += '<TABLE border="1">\n'
-            info_str += '<TR align="center">\n'
-            info_str += "<TH>Jitter Component</TH><TH>Input (ps)</TH><TH>Output (ps)</TH><TH>Rejection (dB)</TH>\n"
-            info_str += "</TR>\n"
-            info_str += '<TR align="right">\n'
-            info_str += '<TD align="center">ISI</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n' % (
-                isi_tx,
-                isi_ctle,
-                10.0 * safe_log10(isi_rej_ctle),
-            )
-            info_str += "</TR>\n"
-            info_str += '<TR align="right">\n'
-            info_str += '<TD align="center">DCD</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n' % (
-                dcd_tx,
-                dcd_ctle,
-                10.0 * safe_log10(dcd_rej_ctle),
-            )
-            info_str += "</TR>\n"
-            info_str += '<TR align="right">\n'
-            info_str += '<TD align="center">Pj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n' % (
-                pj_tx,
-                pj_ctle,
-                10.0 * safe_log10(pj_rej_ctle),
-            )
-            info_str += "</TR>\n"
-            info_str += '<TR align="right">\n'
-            info_str += '<TD align="center">Rj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n' % (
-                rj_tx,
-                rj_ctle,
-                10.0 * safe_log10(rj_rej_ctle),
-            )
-            info_str += "</TR>\n"
-            info_str += "</TABLE>\n"
-
-            info_str += "<H2>DFE</H2>\n"
-            info_str += '<TABLE border="1">\n'
-            info_str += '<TR align="center">\n'
-            info_str += "<TH>Jitter Component</TH><TH>Input (ps)</TH><TH>Output (ps)</TH><TH>Rejection (dB)</TH>\n"
-            info_str += "</TR>\n"
-            info_str += '<TR align="right">\n'
-            info_str += '<TD align="center">ISI</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n' % (
-                isi_ctle,
-                isi_dfe,
-                10.0 * safe_log10(isi_rej_dfe),
-            )
-            info_str += "</TR>\n"
-            info_str += '<TR align="right">\n'
-            info_str += '<TD align="center">DCD</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n' % (
-                dcd_ctle,
-                dcd_dfe,
-                10.0 * safe_log10(dcd_rej_dfe),
-            )
-            info_str += "</TR>\n"
-            info_str += '<TR align="right">\n'
-            info_str += '<TD align="center">Pj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n' % (
-                pj_ctle,
-                pj_dfe,
-                10.0 * safe_log10(pj_rej_dfe),
-            )
-            info_str += "</TR>\n"
-            info_str += '<TR align="right">\n'
-            info_str += '<TD align="center">Rj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n' % (
-                rj_ctle,
-                rj_dfe,
-                10.0 * safe_log10(rj_rej_dfe),
-            )
-            info_str += "</TR>\n"
-            info_str += "</TABLE>\n"
-
-            info_str += "<H2>TOTAL</H2>\n"
-            info_str += '<TABLE border="1">\n'
-            info_str += '<TR align="center">\n'
-            info_str += "<TH>Jitter Component</TH><TH>Input (ps)</TH><TH>Output (ps)</TH><TH>Rejection (dB)</TH>\n"
-            info_str += "</TR>\n"
-            info_str += '<TR align="right">\n'
-            info_str += '<TD align="center">ISI</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n' % (
-                isi_chnl,
-                isi_dfe,
-                10.0 * safe_log10(isi_rej_total),
-            )
-            info_str += "</TR>\n"
-            info_str += '<TR align="right">\n'
-            info_str += '<TD align="center">DCD</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n' % (
-                dcd_chnl,
-                dcd_dfe,
-                10.0 * safe_log10(dcd_rej_total),
-            )
-            info_str += "</TR>\n"
-            info_str += '<TR align="right">\n'
-            info_str += '<TD align="center">Pj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n' % (
-                pj_tx,
-                pj_dfe,
-                10.0 * safe_log10(pj_rej_total),
-            )
-            info_str += "</TR>\n"
-            info_str += '<TR align="right">\n'
-            info_str += '<TD align="center">Rj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n' % (
-                rj_tx,
-                rj_dfe,
-                10.0 * safe_log10(rj_rej_total),
-            )
-            info_str += "</TR>\n"
-            info_str += "</TABLE>\n"
+            if jitter["isi_tx"]:
+                jitter["isi_rej_tx"] = 10.0 * safe_log10(jitter["isi_chnl"] / jitter["isi_tx"])
+            else:
+                jitter["isi_rej_tx"] = 10.0 * safe_log10(1.0e20)
+            if jitter["dcd_tx"]:
+                jitter["dcd_rej_tx"] = 10.0 * safe_log10(jitter["dcd_chnl"] / jitter["dcd_tx"])
+            else:
+                jitter["dcd_rej_tx"] = 10.0 * safe_log10(1.0e20)
+            if jitter["isi_ctle"]:
+                jitter["isi_rej_ctle"] = 10.0 * safe_log10(jitter["isi_tx"] / jitter["isi_ctle"])
+            else:
+                jitter["isi_rej_ctle"] = 10.0 * safe_log10(1.0e20)
+            if jitter["dcd_ctle"]:
+                jitter["dcd_rej_ctle"] = 10.0 * safe_log10(jitter["dcd_tx"] / jitter["dcd_ctle"])
+            else:
+                jitter["dcd_rej_ctle"] = 10.0 * safe_log10(1.0e20)
+            if jitter["pj_ctle"]:
+                jitter["pj_rej_ctle"] = 10.0 * safe_log10(jitter["pj_tx"] / jitter["pj_ctle"])
+            else:
+                jitter["pj_rej_ctle"] = 10.0 * safe_log10(1.0e20)
+            if jitter["rj_ctle"]:
+                jitter["rj_rej_ctle"] = 10.0 * safe_log10(jitter["rj_tx"] / jitter["rj_ctle"])
+            else:
+                jitter["rj_rej_ctle"] = 10.0 * safe_log10(1.0e20)
+            if jitter["isi_dfe"]:
+                jitter["isi_rej_dfe"] = 10.0 * safe_log10(jitter["isi_ctle"] / jitter["isi_dfe"])
+            else:
+                jitter["isi_rej_dfe"] = 10.0 * safe_log10(1.0e20)
+            if jitter["dcd_dfe"]:
+                jitter["dcd_rej_dfe"] = 10.0 * safe_log10(jitter["dcd_ctle"] / jitter["dcd_dfe"])
+            else:
+                jitter["dcd_rej_dfe"] = 10.0 * safe_log10(1.0e20)
+            if jitter["pj_dfe"]:
+                jitter["pj_rej_dfe"] = 10.0 * safe_log10(jitter["pj_ctle"] / jitter["pj_dfe"])
+            else:
+                jitter["pj_rej_dfe"] = 10.0 * safe_log10(1.0e20)
+            if jitter["rj_dfe"]:
+                jitter["rj_rej_dfe"] = 10.0 * safe_log10(jitter["rj_ctle"] / jitter["rj_dfe"])
+            else:
+                jitter["rj_rej_dfe"] = 10.0 * safe_log10(1.0e20)
+            if jitter["isi_dfe"]:
+                jitter["isi_rej_total"] = 10.0 * safe_log10(jitter["isi_chnl"] / jitter["isi_dfe"])
+            else:
+                jitter["isi_rej_total"] = 10.0 * safe_log10(1.0e20)
+            if jitter["dcd_dfe"]:
+                jitter["dcd_rej_total"] = 10.0 * safe_log10(jitter["dcd_chnl"] / jitter["dcd_dfe"])
+            else:
+                jitter["dcd_rej_total"] = 10.0 * safe_log10(1.0e20)
+            if jitter["pj_dfe"]:
+                jitter["pj_rej_total"] = 10.0 * safe_log10(jitter["pj_tx"] / jitter["pj_dfe"])
+            else:
+                jitter["pj_rej_total"] = 10.0 * safe_log10(1.0e20)
+            if jitter["rj_dfe"]:
+                jitter["rj_rej_total"] = 10.0 * safe_log10(jitter["rj_tx"] / jitter["rj_dfe"])
+            else:
+                jitter["rj_rej_total"] = 10.0 * safe_log10(1.0e20)
+            jitter_table = jitter_info_table(jitter)
         except Exception as err:
-            info_str = "<H1>Jitter Rejection by Equalization Component</H1>\n"
-            info_str += "Sorry, the following error occurred:\n"
-            info_str += str(err)
+            jitter_table = (
+                "<H1>Jitter Rejection by Equalization Component</H1>\n",
+                "Sorry, the following error occurred:\n",
+                str(err),
+            )
 
-        return info_str
+        return jitter_table
 
     @cached_property
     def _get_perf_info(self):
-        info_str = "<H2>Performance by Component</H2>\n"
-        info_str += '  <TABLE border="1">\n'
-        info_str += '    <TR align="center">\n'
-        info_str += "      <TH>Component</TH><TH>Performance (Msmpls./min.)</TH>\n"
-        info_str += "    </TR>\n"
-        info_str += '    <TR align="right">\n'
-        info_str += f'      <TD align="center">Channel</TD><TD>{self.channel_perf * 6e-05:6.3f}</TD>\n'
-        info_str += "    </TR>\n"
-        info_str += '    <TR align="right">\n'
-        info_str += f'      <TD align="center">Tx Preemphasis</TD><TD>{self.tx_perf * 6e-05:6.3f}</TD>\n'
-        info_str += "    </TR>\n"
-        info_str += '    <TR align="right">\n'
-        info_str += f'      <TD align="center">CTLE</TD><TD>{self.ctle_perf * 6e-05:6.3f}</TD>\n'
-        info_str += "    </TR>\n"
-        info_str += '    <TR align="right">\n'
-        info_str += f'      <TD align="center">DFE</TD><TD>{self.dfe_perf * 6e-05:6.3f}</TD>\n'
-        info_str += "    </TR>\n"
-        info_str += '    <TR align="right">\n'
-        info_str += f'      <TD align="center">Jitter Analysis</TD><TD>{self.jitter_perf * 6e-05:6.3f}</TD>\n'
-        info_str += "    </TR>\n"
-        info_str += '    <TR align="right">\n'
-        info_str += f'      <TD align="center">Plotting</TD><TD>{self.plotting_perf * 6e-05:6.3f}</TD>\n'
-        info_str += "    </TR>\n"
-        info_str += '    <TR align="right">\n'
-        info_str += '      <TD align="center"><strong>TOTAL</strong></TD><TD><strong>%6.3f</strong></TD>\n' % (
-            self.total_perf * 60.0e-6
+        return performance_info_table(
+            self.channel_perf * 6e-05,
+            self.tx_perf * 6e-05,
+            self.ctle_perf * 6e-05,
+            self.dfe_perf * 6e-05,
+            self.jitter_perf * 6e-05,
+            self.plotting_perf * 6e-05,
+            self.total_perf * 60.0e-6,
         )
-        info_str += "    </TR>\n"
-        info_str += "  </TABLE>\n"
-
-        return info_str
 
     @cached_property
     def _get_sweep_info(self):
-        info_str = r"""<H2>Sweep Results</H2>
-<TABLE border="1">
-    <TR align="center">
-        <TH>Pretap</TH><TH>Posttap</TH><TH>Mean(bit errors)</TH><TH>StdDev(bit errors)</TH>
-    </TR>
-"""
-
-        if self.sweep_results:
-            for settings, bit_error_mean, bit_error_std in self.sweep_results:
-                info_str += '    <TR align="center">\n'
-                info_str += f"        <TD>{settings[0]}</TD><TD>{settings[1:]}</TD><TD>{bit_error_mean}</TD><TD>{bit_error_std}</TD>\n"
-                info_str += "    </TR>\n"
-
-        info_str += "</TABLE>\n"
-        return info_str
+        return sweep_info_table(self.sweep_results)
 
     @cached_property
     def _get_status_str(self):
-        status_str = "%-20s | Perf. (Msmpls./min.):  %4.1f" % (
-            self.status,
-            self.total_perf * 60.0e-6,
-        )
-        dly_str = f"         | ChnlDly (ns):    {self.chnl_dly * 1000000000.0:5.3f}"
-        err_str = f"         | BitErrs: {self.bit_errs}"
-        pwr_str = f"         | TxPwr (W): {self.rel_power:4.2f}"
-        status_str += dly_str + err_str + pwr_str
-
-        try:
-            jit_str = "         | Jitter (ps):    ISI=%6.3f    DCD=%6.3f    Pj=%6.3f    Rj=%6.3f" % (
-                self.isi_dfe * 1.0e12,
-                self.dcd_dfe * 1.0e12,
-                self.pj_dfe * 1.0e12,
-                self.rj_dfe * 1.0e12,
-            )
-        except:
-            jit_str = "         | (Jitter not available.)"
-
-        status_str += jit_str
-
-        return status_str
+        return status_string(self)
 
     @cached_property
     def _get_tx_h_tune(self):
