@@ -20,6 +20,7 @@ import platform
 import time
 from os.path import join
 from pathlib import Path
+from typing import Optional
 
 import numpy as np
 import skrf as rf
@@ -391,6 +392,13 @@ class PyBERT(HasTraits):
         self._log = logging.getLogger("pybert")
         self.log_system_information()
         self._log.debug("Debug Mode: %s", str(self.debug))
+
+        self._tx_ibis: Optional[IBISModel] = None
+        self._tx_cfg: Optional[AMIParamConfigurator] = None
+        self._tx_model: Optional[AMIModel] = None
+        self._rx_ibis: Optional[IBISModel] = None
+        self._rx_cfg: Optional[AMIParamConfigurator] = None
+        self._rx_model: Optional[AMIModel] = None
 
         if run_simulation:
             # Running the simulation will fill in the required data structure.
@@ -1148,106 +1156,89 @@ class PyBERT(HasTraits):
         for tap in self.tx_tap_tuners:
             tap.enabled = enabled
 
-    def _tx_ibis_file_changed(self, new_value):
-        self.status = f"Parsing IBIS file: {new_value}"
-        new_value = Path(new_value)
+    def read_in_ibis_model(self, ibis_file: Path, is_tx: bool = True):
+        """Read in a new ibis file and return an IBISModel or log an error."""
+        self.status = f"Parsing IBIS file: {ibis_file}"
         try:
-            self.tx_ibis_valid = False
-            self.tx_use_ami = False
-            self._log.info("Parsing Tx IBIS file: %s", new_value)
-            ibis = IBISModel(new_value, True, debug=self.debug, gui=self.has_gui)
-            self._log.info("  Result:\n %s", ibis.ibis_parsing_errors)
-            self._tx_ibis = ibis
-            self.tx_ibis_valid = True
-            if self._tx_ibis.dll_file and self._tx_ibis.ami_file:
-                self.tx_dll_file = new_value.parent.joinpath(self._tx_ibis.dll_file)
-                self.tx_ami_file = new_value.parent.joinpath(self._tx_ibis.ami_file)
-            else:
-                self.tx_dll_file = ""
-                self.tx_ami_file = ""
+            self._log.info("Parsing IBIS file: %s", ibis_file)
+            model = IBISModel(ibis_file, is_tx, debug=self.debug, gui=self.has_gui)
+            self._log.info("Result:\n %s", model.ibis_parsing_errors)
+            return model
         except Exception as err:
-            self.status = "Failed to open and/or parse IBIS file"
             self._log.error("Failed to open and/or parse IBIS file!\n%s", err, exc_info=True, extra={"alert": True})
-        self._tx_ibis_dir = new_value.parent
+
+    def _tx_ibis_file_changed(self, new_tx_ibis_file):
+        """The user changed `tx_ibis_file`, mark the file as invalid and parse the new one."""
+        self.tx_ibis_valid = False
+        self.tx_use_ami = False
+        ibis_model = self.read_in_ibis_model(Path(new_tx_ibis_file), is_tx=True)
+        if ibis_model:
+            self._tx_ibis = ibis_model
+            self.tx_dll_file = ibis_model.dll_file
+            self.tx_ami_file = ibis_model.ami_file
+            self.tx_ibis_valid = True
         self.status = "Done."
 
-    def _tx_ami_file_changed(self, new_value):
+    def _rx_ibis_file_changed(self, new_rx_ibis_file):
+        """The user changed `rx_ibis_file`, mark the file as invalid and parse the new one."""
+        self.rx_ibis_valid = False
+        self.rx_use_ami = False
+        ibis_model = self.read_in_ibis_model(Path(new_rx_ibis_file), is_tx=False)
+        if ibis_model:
+            self._rx_ibis = ibis_model
+            self.rx_dll_file = ibis_model.dll_file
+            self.rx_ami_file = ibis_model.ami_file
+            self.rx_ibis_valid = True
+        self.status = "Done."
+
+    def read_in_ami_file(self, new_ami_file: Path):
+        """Read in a new ibis ami file and return infomation about the AMI or log an error."""
         try:
-            self.tx_ami_valid = False
-            if new_value:
-                new_value = Path(new_value)
-                self._log.info("Parsing Tx AMI file, %s", new_value)
-                pcfg = AMIParamConfigurator()
-                if pcfg.ami_parsing_errors:
-                    self._log.warning("Non-fatal parsing errors:\n %s", pcfg.ami_parsing_errors)
-                else:
-                    self._log.info("Success.")
-                self.tx_has_getwave = pcfg.fetch_param_val(["Reserved_Parameters", "GetWave_Exists"])
-                if pcfg.fetch_param_val(["Reserved_Parameters", "Ts4file"]):
-                    self.tx_has_ts4 = True
-                else:
-                    self.tx_has_ts4 = False
-                self._tx_cfg = pcfg
-                self.tx_ami_valid = True
+            self._log.info("Parsing AMI file, %s", new_ami_file)
+            pcfg = AMIParamConfigurator(new_ami_file)
+            if pcfg.ami_parsing_errors:
+                self._log.warning("Non-fatal parsing errors:\n %s", pcfg.ami_parsing_errors)
+            else:
+                self._log.info("Success.")
+            has_getwave = bool(pcfg.fetch_param_val(["Reserved_Parameters", "GetWave_Exists"]))
+            has_ts4 = bool(pcfg.fetch_param_val(["Reserved_Parameters", "Ts4file"]))
+            return pcfg, has_getwave, has_ts4
         except Exception as error:
             self._log.error("Failed to open and/or parse AMI file!\n%s", error, extra={"alert": True})
-            raise
 
-    def _tx_dll_file_changed(self, new_value):
+    def _tx_ami_file_changed(self, new_tx_ami_file):
+        """The user changed `tx_ami_file`, mark the file as invalid and parse the new one."""
+        if new_tx_ami_file:
+            self.tx_ami_valid = False
+            self._tx_cfg, self.tx_has_getwave, self.rx_has_ts4 = self.read_in_ami_file(new_tx_ami_file)
+            if self._tx_cfg:
+                self.tx_ami_valid = True
+
+    def _rx_ami_file_changed(self, new_rx_ami_file):
+        """The user changed `rx_ami_file`, mark the file as invalid and parse the new one."""
+        if new_rx_ami_file:
+            self.rx_ami_valid = False
+            self._rx_cfg, self.rx_has_getwave, self.rx_has_ts4 = self.read_in_ami_file(new_rx_ami_file)
+            if self._rx_cfg:
+                self.rx_ami_valid = True
+
+    def _tx_dll_file_changed(self, new_tx_dll_file):
+        """The user changed `tx_dll_file`, mark the executable as invalid and open the new one."""
         try:
             self.tx_dll_valid = False
-            if new_value:
-                model = AMIModel(Path(new_value))
+            if new_tx_dll_file:
+                model = AMIModel(Path(new_tx_dll_file))
                 self._tx_model = model
                 self.tx_dll_valid = True
         except Exception as err:
             self._log.error("Failed to open DLL/SO file!\n %s", err, extra={"alert": True})
 
-    def _rx_ibis_file_changed(self, new_value):
-        self.status = f"Parsing IBIS file: {new_value}"
-        new_value = Path(new_value)
-        try:
-            self.rx_ibis_valid = False
-            self.rx_use_ami = False
-            self._log.info("Parsing Rx IBIS file, %s", new_value)
-            ibis = IBISModel(new_value, False, self.debug, gui=self.has_gui)
-            self._log.warning("  Result:\n %s", ibis.ibis_parsing_errors)
-            self._rx_ibis = ibis
-            self.rx_ibis_valid = True
-            if self._rx_ibis.dll_file and self._rx_ibis.ami_file:
-                self.rx_dll_file = new_value.parent.joinpath(self._rx_ibis.dll_file)
-                self.rx_ami_file = new_value.parent.joinpath(self._rx_ibis.ami_file)
-            else:
-                self.rx_dll_file = ""
-                self.rx_ami_file = ""
-        except Exception as err:
-            self.status = "Failed to open and/or parse IBIS file!"
-            self._log.info("Failed to open and/or parse IBIS file!\n %s", err, extra={"alert": True})
-            raise
-        self._rx_ibis_dir = new_value.parent
-        self.status = "Done."
-
-    def _rx_ami_file_changed(self, new_value):
-        try:
-            self.rx_ami_valid = False
-            if new_value:
-                pcfg = AMIParamConfigurator(Path(new_value))
-                self._log.info("Parsing Rx AMI file, %s...\n%s", new_value, pcfg.ami_parsing_errors)
-                self.rx_has_getwave = pcfg.fetch_param_val(["Reserved_Parameters", "GetWave_Exists"])
-                if pcfg.fetch_param_val(["Reserved_Parameters", "Ts4file"]):
-                    self.rx_has_ts4 = True
-                else:
-                    self.rx_has_ts4 = False
-                self._rx_cfg = pcfg
-                self.rx_ami_valid = True
-        except Exception as err:
-            self._log.info("Failed to open and/or parse AMI file!\n%s", err, extra={"alert": True})
-
-    def _rx_dll_file_changed(self, new_value):
+    def _rx_dll_file_changed(self, new_rx_dll_file):
+        """The user changed `rx_dll_file`, mark the executable as invalid and open the new one."""
         try:
             self.rx_dll_valid = False
-            if new_value:
-                model = AMIModel(Path(new_value))
+            if new_rx_dll_file:
+                model = AMIModel(Path(new_rx_dll_file))
                 self._rx_model = model
                 self.rx_dll_valid = True
         except Exception as err:

@@ -1,9 +1,12 @@
-.PHONY: all lint format tests clean dev-tools etags conda-build conda-skeleton chaco enable pyibis-ami pybert
+.PHONY: all lint typecheck format tests clean dev-tools etags conda-build conda-skeleton chaco enable pyibis-ami pybert
 
 all: format tests lint
 
-lint:
-	pylint pybert/ tests/; mypy -p pybert --ignore-missing-imports
+lint: typecheck
+	pylint pybert/ tests/
+
+typecheck:
+	mypy -p pybert --ignore-missing-imports
 
 format:
 	autoflake --in-place --remove-all-unused-imports --expand-star-imports \
@@ -58,4 +61,4 @@ pybert_dev: pybert_bld
 # End Conda Packaging Commands ----------------------------------------------------------
 
 dev-tools:
-	conda env update --file environment.yml 
+	conda env update --file environment.yml

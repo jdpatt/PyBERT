@@ -58,6 +58,7 @@ def test_enable_using_dfe_should_enable_tx_taps(app):
 @patch.object(pybert, "my_run_simulation", autospec=True)
 def test_simulation_sweeping(mock_run_sim, app):
     """No step values are set, so pybert would only run one scenario * `sweep_aves` simulations."""
+    # pylint: disable=unused-argument
     app.sweep_sim = True
     app.sweep_aves = 5
     app.run_simulations()
