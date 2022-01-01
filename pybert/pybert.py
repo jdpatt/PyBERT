@@ -491,22 +491,17 @@ class PyBERT(HasTraits):
         self._rx_cfg()
 
     def _btn_sel_tx_fired(self):
-        self._tx_ibis()
-        if self._tx_ibis.dll_file and self._tx_ibis.ami_file:
-            self.tx_dll_file = self._tx_ibis_dir.joinpath(self._tx_ibis.dll_file)
-            self.tx_ami_file = self._tx_ibis_dir.joinpath(self._tx_ibis.ami_file)
-        else:
-            self.tx_dll_file = ""
-            self.tx_ami_file = ""
+        """Open the Ibis Model Selector and pull the ami/dll files from the ibis model directly."""
+        self._tx_ibis.open_gui()
+        self.tx_dll_file = self._tx_ibis.dll_file
+        self.tx_ami_file = self._tx_ibis.ami_file
 
     def _btn_sel_rx_fired(self):
-        self._rx_ibis()
-        if self._rx_ibis.dll_file and self._rx_ibis.ami_file:
-            self.rx_dll_file = self._rx_ibis_dir.joinpath(self._rx_ibis.dll_file)
-            self.rx_ami_file = self._rx_ibis_dir.joinpath(self._rx_ibis.ami_file)
-        else:
-            self.rx_dll_file = ""
-            self.rx_ami_file = ""
+        """Open the Ibis Model Selector and pull the ami/dll files from the ibis model directly."""
+        self._rx_ibis.open_gui()
+        self.rx_dll_file = self._rx_ibis.dll_file
+        self.rx_ami_file = self._rx_ibis.ami_file
+
 
     def _btn_view_tx_fired(self):
         self._tx_ibis.model()
