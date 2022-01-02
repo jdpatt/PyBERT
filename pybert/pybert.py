@@ -48,7 +48,6 @@ from traits.etsconfig.api import ETSConfig
 
 from pybert import __authors__, __copy__, __date__, __version__, plot
 from pybert.configuration import PyBertCfg
-from pybert.control import my_run_simulation
 from pybert.content import (
     help_str,
     jitter_info_table,
@@ -56,6 +55,7 @@ from pybert.content import (
     status_string,
     sweep_info_table,
 )
+from pybert.control import my_run_simulation
 from pybert.logger import ConsoleTextLogHandler
 from pybert.results import PyBertData
 from pybert.threads import CoOptThread, RxOptThread, TxOptThread
@@ -491,23 +491,34 @@ class PyBERT(HasTraits):
         self._rx_cfg()
 
     def _btn_sel_tx_fired(self):
-        """Open the Ibis Model Selector and pull the ami/dll files from the ibis model directly."""
-        self._tx_ibis.open_gui()
+        """Open the IBIS Component/Model Selector.
+
+        When the selector is closed, update the dll and ami filepaths because they could have
+        changed if a new model was selected.
+        """
+        self._tx_ibis.open_gui()  # Blocks until window is closed.
+
         self.tx_dll_file = self._tx_ibis.dll_file
         self.tx_ami_file = self._tx_ibis.ami_file
 
     def _btn_sel_rx_fired(self):
-        """Open the Ibis Model Selector and pull the ami/dll files from the ibis model directly."""
-        self._rx_ibis.open_gui()
+        """Open the IBIS Component/Model Selector.
+
+        When the selector is closed, update the dll and ami filepaths because they could have
+        changed if a new model was selected.
+        """
+        self._rx_ibis.open_gui()  # Blocks until window is closed.
+
         self.rx_dll_file = self._rx_ibis.dll_file
         self.rx_ami_file = self._rx_ibis.ami_file
 
-
     def _btn_view_tx_fired(self):
-        self._tx_ibis.model()
+        """Open the IBIS Model Viewer."""
+        self._tx_ibis.model.open_gui()
 
     def _btn_view_rx_fired(self):
-        self._rx_ibis.model()
+        """Open the IBIS Model Viewer."""
+        self._rx_ibis.model.open_gui()
 
     # Independent variable setting intercepts
     # (Primarily, for debugging.)

@@ -11,10 +11,11 @@ typecheck:
 format:
 	autoflake --in-place --remove-all-unused-imports --expand-star-imports \
 	--ignore-init-module-imports --recursive pybert/ tests/; isort pybert/ tests/; black pybert/ tests/
+	pushd PyAMI; make format; popd
 
 tests:
 	pytest -vv -n 4 --disable-pytest-warnings tests/
-	pytest -vv -n 4 --disable-pytest-warnings PyAMI/tests
+	pushd PyAMI; make tests; popd
 
 clean:
 	rm -rf .pytest_cache .tox htmlcov *.egg-info .coverage

@@ -4,6 +4,7 @@ from unittest.mock import patch
 import pytest
 
 from pybert import pybert
+from pyibisami.ami.configurator import AMIParamConfigurator
 
 # pylint: disable=redefined-outer-name,protected-access
 
@@ -63,3 +64,27 @@ def test_simulation_sweeping(mock_run_sim, app):
     app.sweep_aves = 5
     app.run_simulations()
     assert app.num_sweeps == 5
+
+
+def test_set_ibis_model_without_ami(ibis_test_file, app):
+    """When the IBIS file is updated in the GUI, read it and set flags accordlying.
+
+    Since this ibis model does not have an algorithmic model section it won't try to load the ami
+    and dll files.
+    """
+    assert not app.tx_ibis_valid
+    app._tx_ibis_file_changed(ibis_test_file)
+    assert app.tx_ibis_valid
+    assert not app.tx_dll_valid
+    assert not app.tx_ami_valid
+    assert app.tx_dll_file == ""
+    assert app.tx_ami_file == ""
+    assert "example_tx" in app._tx_ibis.models
+
+
+def test_set_ami_file(ami_test_file, app):
+    """Change the ami file directly, which should validate the file."""
+    app._tx_ami_file_changed(ami_test_file)
+    assert isinstance(app._tx_cfg, AMIParamConfigurator)
+    assert app.tx_has_getwave
+    assert not app.rx_has_ts4
