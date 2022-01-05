@@ -12,9 +12,8 @@
 
 ## Tooling
 
-The `Makefile` has most of these commands or features for easy use across developers.  Install the
-optional developer tooling run `pip install -r requirements_dev.txt` which conda will install them
-via pip into the current environment.  The most useful one is simply `make all` which will test,
+The `Makefile` has most of these commands or features for easy use across developers.  To install the optional developer tooling run either `make dev-tools` or `conda env update --file environment.yml`
+from the activated pybert environment.  The most useful one is simply `make all` which will test,
 format and lint.
 
 ### Conda
