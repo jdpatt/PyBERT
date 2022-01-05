@@ -7,27 +7,10 @@ Original date:   August 24, 2014 (Copied from pybert.py, as part of a major code
 
 Copyright (c) 2014 David Banas; all rights reserved World wide.
 """
+import logging
 from time import perf_counter
 
 import numpy as np
-from numpy import (
-    arange,
-    array,
-    convolve,
-    correlate,
-    cumsum,
-    diff,
-    histogram,
-    linspace,
-    mean,
-    ones,
-    pad,
-    repeat,
-    resize,
-    transpose,
-    where,
-    zeros,
-)
 from numpy.fft import fft, irfft
 from numpy.random import normal
 from scipy.signal import iirfilter, lfilter
@@ -49,6 +32,8 @@ from pyibisami.ami import AMIModel, AMIModelInitializer
 MIN_BATHTUB_VAL = 1.0e-18
 
 gFc = 1.0e6  # Corner frequency of high-pass filter used to model capacitive coupling of periodic noise.
+
+log = logging.getLogger("pybert.sim")
 
 
 def my_run_simulation(self, initial_run=False, update_plots=True):
@@ -119,11 +104,11 @@ def my_run_simulation(self, initial_run=False, update_plots=True):
         #
         # Duo-binary is problematic, in that it requires convolution with the ideal duobinary
         # impulse response, in order to produce the proper ideal signal.
-        x = repeat(symbols, nspui)
+        x = np.repeat(symbols, nspui)
         self.x = x
         if mod_type == 1:  # Handle duo-binary case.
-            duob_h = array(([0.5] + [0.0] * (nspui - 1)) * 2)
-            x = convolve(x, duob_h)[: len(t)]
+            duob_h = np.array(([0.5] + [0.0] * (nspui - 1)) * 2)
+            x = np.convolve(x, duob_h)[: len(t)]
         self.ideal_signal = x
 
         # Find the ideal crossing times, for subsequent jitter analysis of transmitted signal.
@@ -136,17 +121,18 @@ def my_run_simulation(self, initial_run=False, update_plots=True):
         #       create the duobinary waveform. We only create it explicitly, above,
         #       so that we'll have an ideal reference for comparison.
         chnl_h = self.calc_chnl_h()
-        chnl_out = convolve(self.x, chnl_h)[: len(t)]
+        chnl_out = np.convolve(self.x, chnl_h)[: len(t)]
 
         self.channel_perf = nbits * nspb / (perf_counter() - start_time)
-        split_time = perf_counter()
-        self.status = f"Running Tx...(sweep {sweep_num} of {num_sweeps})"
     except Exception:
         self.status = "Exception: channel"
         raise
 
     self.chnl_out = chnl_out
     self.chnl_out_H = fft(chnl_out)
+
+    split_time = perf_counter()
+    self.status = f"Running Tx...(sweep {sweep_num} of {num_sweeps})"
 
     # Generate the output from, and the incremental/cumulative impulse/step/frequency responses of, the Tx.
     try:
@@ -165,17 +151,17 @@ def my_run_simulation(self, initial_run=False, update_plots=True):
             tx_model_init.bit_time = ui
             tx_model = AMIModel(self.tx_dll_file)
             tx_model.initialize(tx_model_init)
-            self._log.info(
+            log.info(
                 "Tx IBIS-AMI model initialization results:\nInput parameters: %s\nOutput parameters: %s\nMessage: %s",
                 tx_model.ami_params_in.decode("utf-8"),
                 tx_model.ami_params_out.decode("utf-8"),
                 tx_model.msg.decode("utf-8"),
             )
             if tx_cfg.fetch_param_val(["Reserved_Parameters", "Init_Returns_Impulse"]):
-                tx_h = array(tx_model.initOut) * ts
+                tx_h = np.array(tx_model.initOut) * ts
             elif not tx_cfg.fetch_param_val(["Reserved_Parameters", "GetWave_Exists"]):
                 self.status = "Simulation Error."
-                self._log.error(
+                log.error(
                     "Both 'Init_Returns_Impulse' and 'GetWave_Exists' are False!\n \
 I cannot continue.\nYou will have to select a different model.",
                     extra={"alert": True},
@@ -183,7 +169,7 @@ I cannot continue.\nYou will have to select a different model.",
                 return
             elif not self.tx_use_getwave:
                 self.status = "Simulation Error."
-                self._log.error(
+                log.error(
                     "You have elected not to use GetWave for a model, which does not return an impulse response!\n \
 I cannot continue.\nPlease, select 'Use GetWave' and try again.",
                     extra={"alert": True},
@@ -194,10 +180,10 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
                 # Delay the input edge slightly, in order to minimize high
                 # frequency artifactual energy sometimes introduced near
                 # the signal edges by frequency domain processing in some models.
-                tmp = array([-1.0] * 128 + [1.0] * 896)  # Stick w/ 2^n, for freq. domain models' sake.
+                tmp = np.array([-1.0] * 128 + [1.0] * 896)  # Stick w/ 2^n, for freq. domain models' sake.
                 tx_s, _ = tx_model.getWave(tmp)
                 # Some models delay signal flow through GetWave() arbitrarily.
-                tmp = array([1.0] * 1024)
+                tmp = np.array([1.0] * 1024)
                 max_tries = 10
                 n_tries = 0
                 while max(tx_s) < 0.1 and n_tries < max_tries:  # Wait for step to rise, but not indefinitely.
@@ -205,32 +191,32 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
                     n_tries += 1
                 if n_tries == max_tries:
                     self.status = "Tx GetWave() Error."
-                    self._log.error("Never saw a rising step come out of Tx GetWave()!", extra={"alert": True})
+                    log.error("Never saw a rising step come out of Tx GetWave()!", extra={"alert": True})
                     return
                 # Make one more call, just to ensure a sufficient "tail".
                 tmp, _ = tx_model.getWave(tmp)
                 tx_s = np.append(tx_s, tmp)
-                tx_h, _ = trim_impulse(diff(tx_s))
+                tx_h, _ = trim_impulse(np.diff(tx_s))
                 tx_out, _ = tx_model.getWave(self.x)
             else:  # Init()-only.
-                tx_out = convolve(tx_h, self.x)
+                tx_out = np.convolve(tx_h, self.x)
             tx_s = tx_h.cumsum()
             self.tx_model = tx_model
         else:
             # - Generate the ideal, post-preemphasis signal.
             # To consider: use 'scipy.interp()'. This is what Mark does, in order to induce jitter in the Tx output.
-            ffe_out = convolve(symbols, ffe)[: len(symbols)]
+            ffe_out = np.convolve(symbols, ffe)[: len(symbols)]
             if self.use_ch_file:
-                self.rel_power = mean(ffe_out ** 2) / self.rs
+                self.rel_power = np.mean(ffe_out ** 2) / self.rs
             else:
-                self.rel_power = mean(ffe_out ** 2) / self.Z0
-            tx_out = repeat(ffe_out, nspui)  # oversampled output
+                self.rel_power = np.mean(ffe_out ** 2) / self.Z0
+            tx_out = np.repeat(ffe_out, nspui)  # oversampled output
 
             # - Calculate the responses.
             # - (The Tx is unique in that the calculated responses aren't used to form the output.
             #    This is partly due to the out of order nature in which we combine the Tx and channel,
             #    and partly due to the fact that we're adding noise to the Tx output.)
-            tx_h = array(sum([[x] + list(zeros(nspui - 1)) for x in ffe], []))  # Using sum to concatenate.
+            tx_h = np.array(sum([[x] + list(np.zeros(nspui - 1)) for x in ffe], []))  # Using sum to concatenate.
             tx_h.resize(len(chnl_h))
             tx_s = tx_h.cumsum()
         tx_out.resize(len(t))
@@ -243,9 +229,9 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
         #   - Generate the ideal rectangular aggressor waveform.
         pn_period = 1.0 / pn_freq
         pn_samps = int(pn_period / Ts + 0.5)
-        pn = zeros(pn_samps)
+        pn = np.zeros(pn_samps)
         pn[pn_samps // 2 :] = pn_mag
-        pn = resize(pn, len(tx_out))
+        pn = np.resize(pn, len(tx_out))
         #   - High pass filter it. (Simulating capacitive coupling.)
         (b, a) = iirfilter(2, gFc / (fs / 2), btype="highpass")
         pn = lfilter(b, a, pn)[: len(pn)]
@@ -255,11 +241,11 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
         tx_out += normal(scale=rn, size=(len(tx_out),))
 
         # - Convolve w/ channel.
-        tx_out_h = convolve(tx_h, chnl_h)[: len(chnl_h)]
+        tx_out_h = np.convolve(tx_h, chnl_h)[: len(chnl_h)]
         temp = tx_out_h.copy()
         temp.resize(len(t))
         tx_out_H = fft(temp)
-        rx_in = convolve(tx_out, chnl_h)[: len(tx_out)]
+        rx_in = np.convolve(tx_out, chnl_h)[: len(tx_out)]
 
         self.tx_s = tx_s
         self.tx_out = tx_out
@@ -272,12 +258,12 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
         self.tx_out_h = tx_out_h
 
         self.tx_perf = nbits * nspb / (perf_counter() - split_time)
-        split_time = perf_counter()
-        self.status = f"Running CTLE...(sweep {sweep_num} of {num_sweeps})"
     except Exception:
         self.status = "Exception: Tx"
         raise
 
+    split_time = perf_counter()
+    self.status = f"Running CTLE...(sweep {sweep_num} of {num_sweeps})"
     # Generate the output from, and the incremental/cumulative impulse/step/frequency responses of, the CTLE.
     try:
         if self.rx_use_ami:
@@ -291,17 +277,17 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
             rx_model_init.bit_time = ui
             rx_model = AMIModel(self.rx_dll_file)
             rx_model.initialize(rx_model_init)
-            self._log.info(
+            log.info(
                 "Rx IBIS-AMI model initialization results:\nInput parameters: %s\nMessage: %s\nOutput parameters: %s",
                 rx_model.ami_params_in.decode("utf-8"),
                 rx_model.msg.decode("utf-8"),
                 rx_model.ami_params_out.decode("utf-8"),
             )
             if rx_cfg.fetch_param_val(["Reserved_Parameters", "Init_Returns_Impulse"]):
-                ctle_out_h = array(rx_model.initOut) * ts
+                ctle_out_h = np.array(rx_model.initOut) * ts
             elif not rx_cfg.fetch_param_val(["Reserved_Parameters", "GetWave_Exists"]):
                 self.status = "Simulation Error."
-                self._log.error(
+                log.error(
                     "Both 'Init_Returns_Impulse' and 'GetWave_Exists' are False!\n \
 I cannot continue.\nYou will have to select a different model.",
                     extra={"alert": True},
@@ -309,7 +295,7 @@ I cannot continue.\nYou will have to select a different model.",
                 return
             elif not self.rx_use_getwave:
                 self.status = "Simulation Error."
-                self._log.error(
+                log.error(
                     "You have elected not to use GetWave for a model, which does not return an impulse response!\n \
 I cannot continue.\nPlease, select 'Use GetWave' and try again.",
                     extra={"alert": True},
@@ -318,20 +304,20 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
             if self.rx_use_getwave:
                 # ctle_out, clock_times = rx_model.getWave(rx_in, 32)
                 ctle_out, clock_times = rx_model.getWave(rx_in, len(rx_in))
-                self._log.info(rx_model.ami_params_out.decode("utf-8"))
+                log.info(rx_model.ami_params_out.decode("utf-8"))
 
                 ctle_H = fft(ctle_out * hann(len(ctle_out))) / fft(rx_in * hann(len(rx_in)))
                 ctle_h = irfft(ctle_H)
                 ctle_h.resize(len(chnl_h))
-                ctle_out_h = convolve(ctle_h, tx_out_h)[: len(chnl_h)]
+                ctle_out_h = np.convolve(ctle_h, tx_out_h)[: len(chnl_h)]
             else:  # Init() only.
-                ctle_out_h_padded = pad(
+                ctle_out_h_padded = np.pad(
                     ctle_out_h,
                     (nspb, len(rx_in) - nspb - len(ctle_out_h)),
                     "linear_ramp",
                     end_values=(0.0, 0.0),
                 )
-                tx_out_h_padded = pad(
+                tx_out_h_padded = np.pad(
                     tx_out_h,
                     (nspb, len(rx_in) - nspb - len(tx_out_h)),
                     "linear_ramp",
@@ -340,14 +326,14 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
                 ctle_H = fft(ctle_out_h_padded) / fft(tx_out_h_padded)
                 ctle_h = irfft(ctle_H)
                 ctle_h.resize(len(chnl_h))
-                ctle_out = convolve(rx_in, ctle_h)
+                ctle_out = np.convolve(rx_in, ctle_h)
             ctle_s = ctle_h.cumsum()
         else:
             if self.use_ctle_file:
                 # FIXME: The new import_channel() implementation breaks this:
                 ctle_h = import_channel(self.ctle_file, ts, self.f)
                 if max(abs(ctle_h)) < 100.0:  # step response?
-                    ctle_h = diff(ctle_h)  # impulse response is derivative of step response.
+                    ctle_h = np.diff(ctle_h)  # impulse response is derivative of step response.
                 else:
                     ctle_h *= ts  # Normalize to (V/sample)
                 ctle_h.resize(len(t))
@@ -357,14 +343,14 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
                 _, ctle_H = make_ctle(rx_bw, peak_freq, peak_mag, w, ctle_mode, ctle_offset)
                 ctle_h = irfft(ctle_H)
             ctle_h.resize(len(chnl_h))
-            ctle_out = convolve(rx_in, ctle_h)
-            ctle_out -= mean(ctle_out)  # Force zero mean.
+            ctle_out = np.convolve(rx_in, ctle_h)
+            ctle_out -= np.mean(ctle_out)  # Force zero mean.
             if self.ctle_mode == "AGC":  # Automatic gain control engaged?
                 ctle_out *= 2.0 * decision_scaler / ctle_out.ptp()
             ctle_s = ctle_h.cumsum()
-            ctle_out_h = convolve(tx_out_h, ctle_h)[: len(tx_out_h)]
+            ctle_out_h = np.convolve(tx_out_h, ctle_h)[: len(tx_out_h)]
         ctle_out.resize(len(t))
-        ctle_out_h_main_lobe = where(ctle_out_h >= max(ctle_out_h) / 2.0)[0]
+        ctle_out_h_main_lobe = np.where(ctle_out_h >= max(ctle_out_h) / 2.0)[0]
         if ctle_out_h_main_lobe.size:
             conv_dly_ix = ctle_out_h_main_lobe[0]
         else:
@@ -388,12 +374,12 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
         self.conv_dly_ix = conv_dly_ix
 
         self.ctle_perf = nbits * nspb / (perf_counter() - split_time)
-        split_time = perf_counter()
-        self.status = f"Running DFE/CDR...(sweep {sweep_num} of {num_sweeps})"
     except Exception:
         self.status = "Exception: Rx"
         raise
 
+    split_time = perf_counter()
+    self.status = f"Running DFE/CDR...(sweep {sweep_num} of {num_sweeps})"
     # Generate the output from, and the incremental/cumulative impulse/step/frequency responses of, the DFE.
     try:
         if self.use_dfe:
@@ -431,36 +417,38 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
                 ideal=True,
             )
         (dfe_out, tap_weights, ui_ests, clocks, lockeds, clock_times, bits_out) = dfe.run(t, ctle_out)
-        dfe_out = array(dfe_out)
+        dfe_out = np.array(dfe_out)
         dfe_out.resize(len(t))
-        bits_out = array(bits_out)
+        bits_out = np.array(bits_out)
         auto_corr = (
             1.0
-            * correlate(bits_out[(nbits - eye_bits) :], bits[(nbits - eye_bits) :], mode="same")
+            * np.correlate(bits_out[(nbits - eye_bits) :], bits[(nbits - eye_bits) :], mode="same")
             / sum(bits[(nbits - eye_bits) :])
         )
         auto_corr = auto_corr[len(auto_corr) // 2 :]
         self.auto_corr = auto_corr
-        bit_dly = where(auto_corr == max(auto_corr))[0][0]
+        bit_dly = np.where(auto_corr == max(auto_corr))[0][0]
         bits_ref = bits[(nbits - eye_bits) :]
         bits_tst = bits_out[(nbits + bit_dly - eye_bits) :]
         if len(bits_ref) > len(bits_tst):
             bits_ref = bits_ref[: len(bits_tst)]
         elif len(bits_tst) > len(bits_ref):
             bits_tst = bits_tst[: len(bits_ref)]
-        bit_errs = where(bits_tst ^ bits_ref)[0]
+        bit_errs = np.where(bits_tst ^ bits_ref)[0]
         self.bit_errs = len(bit_errs)
 
-        dfe_h = array([1.0] + list(zeros(nspb - 1)) + sum([[-x] + list(zeros(nspb - 1)) for x in tap_weights[-1]], []))
+        dfe_h = np.array(
+            [1.0] + list(np.zeros(nspb - 1)) + sum([[-x] + list(np.zeros(nspb - 1)) for x in tap_weights[-1]], [])
+        )
         dfe_h.resize(len(ctle_out_h))
         temp = dfe_h.copy()
         temp.resize(len(t))
         dfe_H = fft(temp)
         self.dfe_s = dfe_h.cumsum()
         dfe_out_H = ctle_out_H * dfe_H
-        dfe_out_h = convolve(ctle_out_h, dfe_h)[: len(ctle_out_h)]
+        dfe_out_h = np.convolve(ctle_out_h, dfe_h)[: len(ctle_out_h)]
         dfe_out_s = dfe_out_h.cumsum()
-        self.dfe_out_p = dfe_out_s - pad(dfe_out_s[:-nspui], (nspui, 0), "constant", constant_values=(0, 0))
+        self.dfe_out_p = dfe_out_s - np.pad(dfe_out_s[:-nspui], (nspui, 0), "constant", constant_values=(0, 0))
         self.dfe_H = dfe_H
         self.dfe_h = dfe_h
         self.dfe_out_H = dfe_out_H
@@ -469,37 +457,37 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
         self.dfe_out = dfe_out
 
         self.dfe_perf = nbits * nspb / (perf_counter() - split_time)
-        split_time = perf_counter()
-        self.status = f"Analyzing jitter...(sweep {sweep_num} of {num_sweeps})"
     except Exception:
         self.status = "Exception: DFE"
         raise
 
+    split_time = perf_counter()
+    self.status = f"Analyzing jitter...(sweep {sweep_num} of {num_sweeps})"
     # Save local variables to class instance for state preservation, performing unit conversion where necessary.
     self.adaptation = tap_weights
-    self.ui_ests = array(ui_ests) * 1.0e12  # (ps)
+    self.ui_ests = np.array(ui_ests) * 1.0e12  # (ps)
     self.clocks = clocks
     self.lockeds = lockeds
     self.clock_times = clock_times
 
     # Analyze the jitter.
-    self.thresh_tx = array([])
-    self.jitter_ext_tx = array([])
-    self.jitter_tx = array([])
-    self.jitter_spectrum_tx = array([])
-    self.jitter_ind_spectrum_tx = array([])
-    self.thresh_ctle = array([])
-    self.jitter_ext_ctle = array([])
-    self.jitter_ctle = array([])
-    self.jitter_spectrum_ctle = array([])
-    self.jitter_ind_spectrum_ctle = array([])
-    self.thresh_dfe = array([])
-    self.jitter_ext_dfe = array([])
-    self.jitter_dfe = array([])
-    self.jitter_spectrum_dfe = array([])
-    self.jitter_ind_spectrum_dfe = array([])
-    self.f_MHz_dfe = array([])
-    self.jitter_rejection_ratio = array([])
+    self.thresh_tx = np.array([])
+    self.jitter_ext_tx = np.array([])
+    self.jitter_tx = np.array([])
+    self.jitter_spectrum_tx = np.array([])
+    self.jitter_ind_spectrum_tx = np.array([])
+    self.thresh_ctle = np.array([])
+    self.jitter_ext_ctle = np.array([])
+    self.jitter_ctle = np.array([])
+    self.jitter_spectrum_ctle = np.array([])
+    self.jitter_ind_spectrum_ctle = np.array([])
+    self.thresh_dfe = np.array([])
+    self.jitter_ext_dfe = np.array([])
+    self.jitter_dfe = np.array([])
+    self.jitter_spectrum_dfe = np.array([])
+    self.jitter_ind_spectrum_dfe = np.array([])
+    self.f_MHz_dfe = np.array([])
+    self.jitter_rejection_ratio = np.array([])
 
     try:
         if mod_type == 1:  # Handle duo-binary case.
@@ -537,7 +525,7 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
         self.jitter_bins = bin_centers
         self.jitter_spectrum_chnl = jitter_spectrum
         self.jitter_ind_spectrum_chnl = jitter_ind_spectrum
-        self.f_MHz = array(spectrum_freqs) * 1.0e-6
+        self.f_MHz = np.array(spectrum_freqs) * 1.0e-6
 
         # - Tx output
         actual_xings = find_crossings(t, rx_in, decision_scaler, mod_type=mod_type)
@@ -597,7 +585,7 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
 
         # - DFE output
         ignore_until = (nui - eye_uis) * ui + 0.75 * ui  # 0.5 was causing an occasional misalignment.
-        ideal_xings = array([x for x in list(ideal_xings) if x > ignore_until])
+        ideal_xings = np.array([x for x in list(ideal_xings) if x > ignore_until])
         min_delay = ignore_until + conv_dly
         actual_xings = find_crossings(
             t, dfe_out, decision_scaler, min_delay=min_delay, mod_type=mod_type, rising_first=False
@@ -627,18 +615,18 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
         self.jitter_ext_dfe = hist_synth
         self.jitter_spectrum_dfe = jitter_spectrum
         self.jitter_ind_spectrum_dfe = jitter_ind_spectrum
-        self.f_MHz_dfe = array(spectrum_freqs) * 1.0e-6
+        self.f_MHz_dfe = np.array(spectrum_freqs) * 1.0e-6
         dfe_spec = self.jitter_spectrum_dfe
-        self.jitter_rejection_ratio = zeros(len(dfe_spec))
+        self.jitter_rejection_ratio = np.zeros(len(dfe_spec))
 
         self.jitter_perf = nbits * nspb / (perf_counter() - split_time)
         self.total_perf = nbits * nspb / (perf_counter() - start_time)
-        split_time = perf_counter()
-        self.status = f"Updating plots...(sweep {sweep_num} of {num_sweeps})"
     except Exception:
         self.status = "Exception: jitter"
         # raise
 
+    split_time = perf_counter()
+    self.status = f"Updating plots...(sweep {sweep_num} of {num_sweeps})"
     # Update plots.
     try:
         if update_plots:
@@ -647,11 +635,12 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
                 self.update_eye_diagrams()
 
         self.plotting_perf = nbits * nspb / (perf_counter() - split_time)
-        self._log.info("Simulation Complete.")
-        self.status = "Ready."
     except Exception:
         self.status = "Exception: plotting"
         raise
+
+    log.info("Simulation Complete.")
+    self.status = "Ready."
 
 
 # Plot updating
@@ -689,7 +678,7 @@ def update_results(self):
     self.plotdata.set_data("t_ns_chnl", t_ns_chnl)
 
     # DFE.
-    tap_weights = transpose(array(self.adaptation))
+    tap_weights = np.transpose(np.array(self.adaptation))
     for tap_num, tap_weight in enumerate(tap_weights, start=1):
         self.plotdata.set_data(f"tap{tap_num}_weights", tap_weight)
     self.plotdata.set_data("tap_weight_index", list(range(len(tap_weight))))
@@ -700,18 +689,18 @@ def update_results(self):
         self.plot_dfe_adapt = new_plot
         self._old_n_taps = n_taps
 
-    clock_pers = diff(clock_times)
-    lockedsTrue = where(self.lockeds)[0]
+    clock_pers = np.diff(clock_times)
+    lockedsTrue = np.where(self.lockeds)[0]
     if lockedsTrue.any():
         start_t = t[lockedsTrue[0]]
     else:
         start_t = 0
-    start_ix = where(array(clock_times) > start_t)[0][0]
-    (bin_counts, bin_edges) = histogram(clock_pers[start_ix:], bins=100)
+    start_ix = np.where(np.array(clock_times) > start_t)[0][0]
+    (bin_counts, bin_edges) = np.histogram(clock_pers[start_ix:], bins=100)
     bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2.0
     clock_spec = fft(clock_pers[start_ix:])
     clock_spec = abs(clock_spec[: len(clock_spec) // 2])
-    spec_freqs = arange(len(clock_spec)) / (2.0 * len(clock_spec))  # In this case, fNyquist = half the bit rate.
+    spec_freqs = np.arange(len(clock_spec)) / (2.0 * len(clock_spec))  # In this case, fNyquist = half the bit rate.
     clock_spec /= clock_spec[1:].mean()  # Normalize the mean non-d.c. value to 0 dB.
     self.plotdata.set_data("clk_per_hist_bins", bin_centers * 1.0e12)  # (ps)
     self.plotdata.set_data("clk_per_hist_vals", bin_counts)
@@ -768,7 +757,7 @@ def update_results(self):
     jitter_ext_tx = self.jitter_ext_tx
     jitter_ext_ctle = self.jitter_ext_ctle
     jitter_ext_dfe = self.jitter_ext_dfe
-    self.plotdata.set_data("jitter_bins", array(self.jitter_bins) * 1.0e12)
+    self.plotdata.set_data("jitter_bins", np.array(self.jitter_bins) * 1.0e12)
     self.plotdata.set_data("jitter_chnl", self.jitter_chnl)
     self.plotdata.set_data("jitter_ext_chnl", jitter_ext_chnl)
     self.plotdata.set_data("jitter_tx", self.jitter_tx)
@@ -803,57 +792,57 @@ def update_results(self):
     # Bathtubs
     half_len = len(jitter_ext_chnl) // 2
     #  - Channel
-    bathtub_chnl = list(cumsum(jitter_ext_chnl[-1 : -(half_len + 1) : -1]))
+    bathtub_chnl = list(np.cumsum(jitter_ext_chnl[-1 : -(half_len + 1) : -1]))
     bathtub_chnl.reverse()
-    bathtub_chnl = array(bathtub_chnl + list(cumsum(jitter_ext_chnl[: half_len + 1])))
-    bathtub_chnl = where(
+    bathtub_chnl = np.array(bathtub_chnl + list(np.cumsum(jitter_ext_chnl[: half_len + 1])))
+    bathtub_chnl = np.where(
         bathtub_chnl < MIN_BATHTUB_VAL,
-        0.1 * MIN_BATHTUB_VAL * ones(len(bathtub_chnl)),
+        0.1 * MIN_BATHTUB_VAL * np.ones(len(bathtub_chnl)),
         bathtub_chnl,
     )  # To avoid Chaco log scale plot wierdness.
     self.plotdata.set_data("bathtub_chnl", safe_log10(bathtub_chnl))
     #  - Tx
-    bathtub_tx = list(cumsum(jitter_ext_tx[-1 : -(half_len + 1) : -1]))
+    bathtub_tx = list(np.cumsum(jitter_ext_tx[-1 : -(half_len + 1) : -1]))
     bathtub_tx.reverse()
-    bathtub_tx = array(bathtub_tx + list(cumsum(jitter_ext_tx[: half_len + 1])))
-    bathtub_tx = where(
-        bathtub_tx < MIN_BATHTUB_VAL, 0.1 * MIN_BATHTUB_VAL * ones(len(bathtub_tx)), bathtub_tx
+    bathtub_tx = np.array(bathtub_tx + list(np.cumsum(jitter_ext_tx[: half_len + 1])))
+    bathtub_tx = np.where(
+        bathtub_tx < MIN_BATHTUB_VAL, 0.1 * MIN_BATHTUB_VAL * np.ones(len(bathtub_tx)), bathtub_tx
     )  # To avoid Chaco log scale plot wierdness.
     self.plotdata.set_data("bathtub_tx", safe_log10(bathtub_tx))
     #  - CTLE
-    bathtub_ctle = list(cumsum(jitter_ext_ctle[-1 : -(half_len + 1) : -1]))
+    bathtub_ctle = list(np.cumsum(jitter_ext_ctle[-1 : -(half_len + 1) : -1]))
     bathtub_ctle.reverse()
-    bathtub_ctle = array(bathtub_ctle + list(cumsum(jitter_ext_ctle[: half_len + 1])))
-    bathtub_ctle = where(
+    bathtub_ctle = np.array(bathtub_ctle + list(np.cumsum(jitter_ext_ctle[: half_len + 1])))
+    bathtub_ctle = np.where(
         bathtub_ctle < MIN_BATHTUB_VAL,
-        0.1 * MIN_BATHTUB_VAL * ones(len(bathtub_ctle)),
+        0.1 * MIN_BATHTUB_VAL * np.ones(len(bathtub_ctle)),
         bathtub_ctle,
     )  # To avoid Chaco log scale plot wierdness.
     self.plotdata.set_data("bathtub_ctle", safe_log10(bathtub_ctle))
     #  - DFE
-    bathtub_dfe = list(cumsum(jitter_ext_dfe[-1 : -(half_len + 1) : -1]))
+    bathtub_dfe = list(np.cumsum(jitter_ext_dfe[-1 : -(half_len + 1) : -1]))
     bathtub_dfe.reverse()
-    bathtub_dfe = array(bathtub_dfe + list(cumsum(jitter_ext_dfe[: half_len + 1])))
-    bathtub_dfe = where(
-        bathtub_dfe < MIN_BATHTUB_VAL, 0.1 * MIN_BATHTUB_VAL * ones(len(bathtub_dfe)), bathtub_dfe
+    bathtub_dfe = np.array(bathtub_dfe + list(np.cumsum(jitter_ext_dfe[: half_len + 1])))
+    bathtub_dfe = np.where(
+        bathtub_dfe < MIN_BATHTUB_VAL, 0.1 * MIN_BATHTUB_VAL * np.ones(len(bathtub_dfe)), bathtub_dfe
     )  # To avoid Chaco log scale plot wierdness.
     self.plotdata.set_data("bathtub_dfe", safe_log10(bathtub_dfe))
 
     # Eyes
     width = 2 * samps_per_ui
-    xs = linspace(-ui * 1.0e12, ui * 1.0e12, width)
+    xs = np.linspace(-ui * 1.0e12, ui * 1.0e12, width)
     height = 100
-    y_max = 1.1 * max(abs(array(self.chnl_out)))
+    y_max = 1.1 * max(abs(np.array(self.chnl_out)))
     eye_chnl = calc_eye(ui, samps_per_ui, height, self.chnl_out[ignore_samps:], y_max)
-    y_max = 1.1 * max(abs(array(self.rx_in)))
+    y_max = 1.1 * max(abs(np.array(self.rx_in)))
     eye_tx = calc_eye(ui, samps_per_ui, height, self.rx_in[ignore_samps:], y_max)
-    y_max = 1.1 * max(abs(array(self.ctle_out)))
+    y_max = 1.1 * max(abs(np.array(self.ctle_out)))
     eye_ctle = calc_eye(ui, samps_per_ui, height, self.ctle_out[ignore_samps:], y_max)
     i = 0
     while clock_times[i] <= ignore_until:
         i += 1
         assert i < len(clock_times), "ERROR: Insufficient coverage in 'clock_times' vector."
-    y_max = 1.1 * max(abs(array(self.dfe_out)))
+    y_max = 1.1 * max(abs(np.array(self.dfe_out)))
     eye_dfe = calc_eye(ui, samps_per_ui, height, self.dfe_out, y_max, clock_times[i:])
     self.plotdata.set_data("eye_index", xs)
     self.plotdata.set_data("eye_chnl", eye_chnl)
