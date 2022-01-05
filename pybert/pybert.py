@@ -1327,7 +1327,7 @@ class PyBERT(HasTraits):
 
         self.plots_eye.request_redraw()
 
-    def run_simulations(self):
+    def simulate(self, initial_run=False, update_plots=True):
         """Run all queued simulations.
 
         Normally, this is just one simulation unless `sweep_sim` is set.  Then it will run
@@ -1365,4 +1365,4 @@ class PyBERT(HasTraits):
 
             self.sweep_results = sweep_results
         else:
-            my_run_simulation(self)
+            my_run_simulation(self, initial_run=initial_run, update_plots=update_plots)

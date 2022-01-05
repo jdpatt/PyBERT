@@ -62,7 +62,7 @@ def test_simulation_sweeping(mock_run_sim, app):
     # pylint: disable=unused-argument
     app.sweep_sim = True
     app.sweep_aves = 5
-    app.run_simulations()
+    app.simulate()
     assert app.num_sweeps == 5
 
 

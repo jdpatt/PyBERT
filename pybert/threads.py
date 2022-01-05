@@ -38,7 +38,7 @@ class RunSimThread(StoppableThread):
 
     def run(self):
         """Run the simulation(s)."""
-        self.the_pybert.run_simulations()
+        self.the_pybert.simulate()
 
 
 class TxOptThread(StoppableThread):
