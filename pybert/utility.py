@@ -1212,10 +1212,32 @@ def renorm_s2p(ntwk, zs):
         Z.append(inv(I - s).dot(I + s))  # Resultant values are normalized to z0.
     Z = np.array(Z)
     Zn = []
-    for (z, zn) in zip(Z, zt):  # Iterration is over frequency and yields: (2x2 array, 2-element vector).
+    for (z, zn) in zip(Z, zt):  # Iteration is over frequency and yields: (2x2 array, 2-element vector).
         Zn.append(z.dot(z0/zn))
     Zn = np.array(Zn)
     Sn = []
     for z in Zn:
         Sn.append(inv(z + I).dot(z - I))
     return rf.Network(s=Sn, f=ntwk.f/1e9, z0=zs)
+
+def add_ondie_s(s2p, ts4f, isRx=False):
+    """Add the effect of on-die S-parameters to channel network.
+
+    Args:
+        s2p(skrf.Network): initial 2-port network.
+        ts4f(string): on-die S-parameter file name.
+
+    KeywordArgs:
+        isRx(bool): True when Rx on-die S-params. are being added. (Default = False).
+
+    Returns:
+        skrf.Network: Resultant 2-port network.
+    """
+    ts4N = rf.Network(ts4f)  # Grab the 4-port single-ended on-die network.
+    ntwk = sdd_21(ts4N)  # Convert it to a differential, 2-port network.
+    ntwk2 = interp_s2p(ntwk, s2p.f)  # Interpolate to system freqs.
+    if isRx:
+        res = s2p ** ntwk2
+    else:  # Tx
+        res = ntwk2 ** s2p
+    return (res, ts4N, ntwk2)

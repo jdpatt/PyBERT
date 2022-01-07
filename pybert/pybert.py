@@ -60,15 +60,13 @@ from pybert.logger import ConsoleTextLogHandler
 from pybert.results import PyBertData
 from pybert.threads import CoOptThread, RxOptThread, TxOptThread
 from pybert.utility import (
+    add_ondie_s,
     calc_gamma,
     import_channel,
-    interp_s2p,
-    interp_time,
     lfsr_bits,
     make_ctle,
     pulse_center,
     safe_log10,
-    sdd_21,
     trim_impulse,
 )
 from pyibisami import __version__ as PyAMI_VERSION
@@ -80,12 +78,7 @@ from pyibisami.ibis import IBISModel
 # ETSConfig.toolkit = 'qt.qpainter'  # Was causing crash on Mac.
 # fmt: on
 
-
-gDebugStatus = False
-gDebugOptimize = False
 gMaxCTLEPeak = 20.0  # max. allowed CTLE peaking (dB) (when optimizing, only)
-gMaxCTLEFreq = 20.0  # max. allowed CTLE peak frequency (GHz) (when optimizing, only)
-
 
 class TxTapTuner(HasTraits):
     """Object used to populate the rows of the Tx FFE tap tuning table."""
@@ -121,7 +114,7 @@ class TxTapTuner(HasTraits):
         if self.enabled:
             if self.steps:
                 values = list(np.arange(self.min_val, self.max_val, self.steps))
-                values.append(self.max_val)  # We want to the max value to be inclusive.
+                values.append(self.max_val)  # We want the max value to be inclusive.
             else:
                 values = [self.value]
         return values
@@ -257,7 +250,6 @@ class PyBERT(HasTraits):
     gain = Float(PyBertCfg.gain)  #: DFE error gain (unitless).
     n_ave = Float(PyBertCfg.n_ave)  #: DFE # of averages to take, before making tap corrections.
     n_taps = Int(PyBertCfg.n_taps)  #: DFE # of taps.
-    _old_n_taps = n_taps
     sum_bw = Float(PyBertCfg.sum_bw)  #: DFE summing node bandwidth (Used when sum_ideal=False.) (GHz).
 
     # - CDR
@@ -400,15 +392,16 @@ class PyBERT(HasTraits):
         self._log.debug("Debug Mode: %s", str(self.debug))
 
         self._tx_ibis: Optional[IBISModel] = None
-        self._tx_cfg: Optional[AMIParamConfigurator] = None
-        self._tx_model: Optional[AMIModel] = None
+        self._tx_ami_cfg: Optional[AMIParamConfigurator] = None
+        self._tx_ami_model: Optional[AMIModel] = None
         self._rx_ibis: Optional[IBISModel] = None
-        self._rx_cfg: Optional[AMIParamConfigurator] = None
-        self._rx_model: Optional[AMIModel] = None
+        self._rx_ami_cfg: Optional[AMIParamConfigurator] = None
+        self._rx_ami_model: Optional[AMIModel] = None
+        self._old_n_taps = self.n_taps
 
         if run_simulation:
             # Running the simulation will fill in the required data structure.
-            my_run_simulation(self, initial_run=True)
+            self.simulate(initial_run=True)
             # Once the required data structure is filled in, we can create the plots.
             self.initialize_plots()
         else:
@@ -485,10 +478,12 @@ class PyBERT(HasTraits):
             self.rx_opt_thread.join(10)
 
     def _btn_cfg_tx_fired(self):
-        self._tx_cfg()
+        """Open the AMI parameter configurator gui for user modification."""
+        self._tx_ami_cfg.open_gui()
 
     def _btn_cfg_rx_fired(self):
-        self._rx_cfg()
+        """Open the AMI parameter configurator gui for user modification."""
+        self._rx_ami_cfg.open_gui()
 
     def _btn_sel_tx_fired(self):
         """Open the IBIS Component/Model Selector.
@@ -530,10 +525,7 @@ class PyBERT(HasTraits):
     # Dependent variable definitions
     @cached_property
     def _get_t(self):
-        """
-        Calculate the system time vector, in seconds.
-
-        """
+        """Calculate the system time vector, in seconds."""
 
         ui = self.ui
         nspui = self.nspui
@@ -546,16 +538,13 @@ class PyBERT(HasTraits):
 
     @cached_property
     def _get_t_ns(self):
-        """
-        Calculate the system time vector, in ns.
-        """
+        """Calculate the system time vector, in ns."""
 
         return self.t * 1.0e9
 
     @cached_property
     def _get_f(self):
-        """
-        Calculate the frequency vector appropriate for indexing non-shifted FFT output, in Hz.
+        """Calculate the frequency vector appropriate for indexing non-shifted FFT output, in Hz.
         # (i.e. - [0, f0, 2 * f0, ... , fN] + [-(fN - f0), -(fN - 2 * f0), ... , -f0]
 
         Note: Changed to positive freqs. only, in conjunction w/ irfft() usage.
@@ -568,16 +557,12 @@ class PyBERT(HasTraits):
 
     @cached_property
     def _get_w(self):
-        """
-        System frequency vector, in rads./sec.
-        """
+        """System frequency vector, in rads./sec."""
         return 2 * pi * self.f
 
     @cached_property
     def _get_bits(self):
-        """
-        Generate the bit stream.
-        """
+        """Generate the bit stream."""
 
         pattern_len = self.pattern_len
         nbits = self.nbits
@@ -605,8 +590,9 @@ class PyBERT(HasTraits):
 
     @cached_property
     def _get_ui(self):
-        """
-        Returns the "unit interval" (i.e. - the nominal time span of each symbol moving through the channel).
+        """Returns the "unit interval".
+
+        i.e. - the nominal time span of each symbol moving through the channel.
         """
 
         mod_type = self.mod_type[0]
@@ -620,9 +606,7 @@ class PyBERT(HasTraits):
 
     @cached_property
     def _get_nui(self):
-        """
-        Returns the number of unit intervals in the test vectors.
-        """
+        """Returns the number of unit intervals in the test vectors."""
 
         mod_type = self.mod_type[0]
         nbits = self.nbits
@@ -635,9 +619,7 @@ class PyBERT(HasTraits):
 
     @cached_property
     def _get_nspui(self):
-        """
-        Returns the number of samples per unit interval.
-        """
+        """Returns the number of samples per unit interval."""
 
         mod_type = self.mod_type[0]
         nspb = self.nspb
@@ -650,9 +632,7 @@ class PyBERT(HasTraits):
 
     @cached_property
     def _get_eye_uis(self):
-        """
-        Returns the number of unit intervals to use for eye construction.
-        """
+        """Returns the number of unit intervals to use for eye construction."""
 
         mod_type = self.mod_type[0]
         eye_bits = self.eye_bits
@@ -665,9 +645,7 @@ class PyBERT(HasTraits):
 
     @cached_property
     def _get_ideal_h(self):
-        """
-        Returns the ideal link impulse response.
-        """
+        """Returns the ideal link impulse response."""
 
         ui = self.ui
         nspui = self.nspui
@@ -696,9 +674,7 @@ class PyBERT(HasTraits):
 
     @cached_property
     def _get_symbols(self):
-        """
-        Generate the symbol stream.
-        """
+        """Generate the symbol stream."""
 
         mod_type = self.mod_type[0]
         vod = self.vod
@@ -729,9 +705,7 @@ class PyBERT(HasTraits):
 
     @cached_property
     def _get_ffe(self):
-        """
-        Generate the Tx pre-emphasis FIR numerator.
-        """
+        """Generate the Tx pre-emphasis FIR numerator."""
 
         tap_tuners = self.tx_taps
 
@@ -1039,16 +1013,16 @@ class PyBERT(HasTraits):
         """The user changed `tx_ami_file`, mark the file as invalid and parse the new one."""
         if new_tx_ami_file:
             self.tx_ami_valid = False
-            self._tx_cfg, self.tx_has_getwave, self.rx_has_ts4 = self.read_in_ami_file(new_tx_ami_file)
-            if self._tx_cfg:
+            self._tx_ami_cfg, self.tx_has_getwave, self.rx_has_ts4 = self.read_in_ami_file(new_tx_ami_file)
+            if self._tx_ami_cfg:
                 self.tx_ami_valid = True
 
     def _rx_ami_file_changed(self, new_rx_ami_file):
         """The user changed `rx_ami_file`, mark the file as invalid and parse the new one."""
         if new_rx_ami_file:
             self.rx_ami_valid = False
-            self._rx_cfg, self.rx_has_getwave, self.rx_has_ts4 = self.read_in_ami_file(new_rx_ami_file)
-            if self._rx_cfg:
+            self._rx_ami_cfg, self.rx_has_getwave, self.rx_has_ts4 = self.read_in_ami_file(new_rx_ami_file)
+            if self._rx_ami_cfg:
                 self.rx_ami_valid = True
 
     def _tx_dll_file_changed(self, new_tx_dll_file):
@@ -1057,7 +1031,7 @@ class PyBERT(HasTraits):
             self.tx_dll_valid = False
             if new_tx_dll_file:
                 model = AMIModel(Path(new_tx_dll_file))
-                self._tx_model = model
+                self._tx_ami_model = model
                 self.tx_dll_valid = True
         except Exception as err:
             self._log.error("Failed to open DLL/SO file!\n %s", err, extra={"alert": True})
@@ -1068,7 +1042,7 @@ class PyBERT(HasTraits):
             self.rx_dll_valid = False
             if new_rx_dll_file:
                 model = AMIModel(Path(new_rx_dll_file))
-                self._rx_model = model
+                self._rx_ami_model = model
                 self.rx_dll_valid = True
         except Exception as err:
             self._log.info("Failed to open DLL/SO file!\n %s", err, extra={"alert": True})
@@ -1144,28 +1118,6 @@ class PyBERT(HasTraits):
         ch_s2p = ch_s2p_pre  # In case neither set of on-die S-parameters is being invoked, below.
 
         # Augment w/ IBIS-AMI on-die S-parameters, if appropriate.
-        def add_ondie_s(s2p, ts4f, isRx=False):
-            """Add the effect of on-die S-parameters to channel network.
-
-            Args:
-                s2p(skrf.Network): initial 2-port network.
-                ts4f(string): on-die S-parameter file name.
-
-            KeywordArgs:
-                isRx(bool): True when Rx on-die S-params. are being added. (Default = False).
-
-            Returns:
-                skrf.Network: Resultant 2-port network.
-            """
-            ts4N = rf.Network(ts4f)  # Grab the 4-port single-ended on-die network.
-            ntwk = sdd_21(ts4N)  # Convert it to a differential, 2-port network.
-            ntwk2 = interp_s2p(ntwk, s2p.f)  # Interpolate to system freqs.
-            if isRx:
-                res = s2p ** ntwk2
-            else:  # Tx
-                res = ntwk2 ** s2p
-            return (res, ts4N, ntwk2)
-
         if self.tx_use_ibis:
             model = self._tx_ibis.model
             Rs = model.zout * 2
@@ -1173,7 +1125,7 @@ class PyBERT(HasTraits):
             self.Rs = Rs  # Primarily for debugging.
             self.Cs = Cs
             if self.tx_use_ts4:
-                fname = join(self._tx_ibis_dir, self._tx_cfg.fetch_param_val(["Reserved_Parameters", "Ts4file"])[0])
+                fname = self._tx_ibis_dir.joinpath(self._tx_ami_cfg.fetch_param_val(["Reserved_Parameters", "Ts4file"])[0])
                 ch_s2p, ts4N, ntwk = add_ondie_s(ch_s2p, fname)
                 self.ts4N   = ts4N
                 self.ntwk   = ntwk
@@ -1185,7 +1137,7 @@ class PyBERT(HasTraits):
             self.Cp = Cp
             self._log.debug("RL: %d, Cp: %d", RL, Cp)
             if self.rx_use_ts4:
-                fname = join(self._rx_ibis_dir, self._rx_cfg.fetch_param_val(["Reserved_Parameters", "Ts4file"])[0])
+                fname = self._rx_ibis_dir.joinpath(self._rx_ami_cfg.fetch_param_val(["Reserved_Parameters", "Ts4file"])[0])
                 ch_s2p, ts4N, ntwk = add_ondie_s(ch_s2p, fname, isRx=True)
                 self.ts4N   = ts4N
                 self.ntwk   = ntwk

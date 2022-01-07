@@ -85,6 +85,6 @@ def test_set_ibis_model_without_ami(ibis_test_file, app):
 def test_set_ami_file(ami_test_file, app):
     """Change the ami file directly, which should validate the file."""
     app._tx_ami_file_changed(ami_test_file)
-    assert isinstance(app._tx_cfg, AMIParamConfigurator)
+    assert isinstance(app._tx_ami_cfg, AMIParamConfigurator)
     assert app.tx_has_getwave
     assert not app.rx_has_ts4
