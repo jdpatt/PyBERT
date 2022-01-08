@@ -11,44 +11,164 @@ import logging
 from time import perf_counter
 
 import numpy as np
+import skrf as rf
+from numpy import array, exp, pad, where, zeros
 from numpy.fft import fft, irfft
 from numpy.random import normal
 from scipy.signal import iirfilter, lfilter
 from scipy.signal.windows import hann
 
-from pybert import plot
 from pybert.dfe import DFE
 from pybert.utility import (
-    calc_eye,
+    add_ondie_s,
+    calc_gamma,
     calc_jitter,
     find_crossings,
     import_channel,
     make_ctle,
-    safe_log10,
     trim_impulse,
 )
 from pyibisami.ami import AMIModel, AMIModelInitializer
-
-MIN_BATHTUB_VAL = 1.0e-18
 
 gFc = 1.0e6  # Corner frequency of high-pass filter used to model capacitive coupling of periodic noise.
 
 log = logging.getLogger("pybert.sim")
 
+# This function has been pulled outside of the standard Traits/UI "depends_on / @cached_property" mechanism,
+# in order to more tightly control when it executes. I wasn't able to get truly lazy evaluation, and
+# this was causing noticeable GUI slowdown.
+def calc_chnl_h(self):
+    """
+    Calculates the channel impulse response.
 
-def my_run_simulation(self, initial_run=False, update_plots=True):
+    Also sets, in 'self':
+        - chnl_dly:
+            group delay of channel
+        - start_ix:
+            first element of trimmed response
+        - t_ns_chnl:
+            the x-values, in ns, for plotting 'chnl_h'
+        - chnl_H:
+            channel frequency response
+        - chnl_s:
+            channel step response
+        - chnl_p:
+            channel pulse response
+
+    """
+
+    t = self.t
+    f = self.f
+    w = self.w
+    nspui = self.nspui
+    impulse_length = self.impulse_length * 1.0e-9
+    Rs = self.rs
+    Cs = self.cout * 1.0e-12
+    RL = self.rin
+    Cp = self.cin * 1.0e-12
+    CL = self.cac * 1.0e-6
+
+    ts = t[1]
+    len_t = len(t)
+    len_f = len(f)
+
+    # Form the pre-on-die S-parameter 2-port network for the channel.
+    if self.use_ch_file:
+        ch_s2p_pre = import_channel(self.ch_file, ts, self.f)
+    else:
+        # Construct PyBERT default channel model (i.e. - Howard Johnson's UTP model).
+        # - Grab model parameters from PyBERT instance.
+        l_ch = self.l_ch
+        v0 = self.v0 * 3.0e8
+        R0 = self.R0
+        w0 = self.w0
+        Rdc = self.Rdc
+        Z0 = self.Z0
+        Theta0 = self.Theta0
+        # - Calculate propagation constant, characteristic impedance, and transfer function.
+        gamma, Zc = calc_gamma(R0, w0, Rdc, Z0, v0, Theta0, w)
+        self.Zc = Zc
+        H = exp(-l_ch * gamma)
+        self.H = H
+        # - Use the transfer function and characteristic impedance to form "perfectly matched" network.
+        tmp = np.array(list(zip(zip(zeros(len_f), H), zip(H, zeros(len_f)))))
+        ch_s2p_pre = rf.Network(s=tmp, f=f / 1e9, z0=Zc)
+        # - And, finally, renormalize to driver impedance.
+        ch_s2p_pre.renormalize(Rs)
+    ch_s2p_pre.name = "ch_s2p_pre"
+    self.ch_s2p_pre = ch_s2p_pre
+    ch_s2p = ch_s2p_pre  # In case neither set of on-die S-parameters is being invoked, below.
+
+    # Augment w/ IBIS-AMI on-die S-parameters, if appropriate.
+    if self.tx_use_ibis:
+        model = self._tx_ibis.model
+        Rs = model.zout * 2
+        Cs = model.ccomp[0] / 2  # They're in series.
+        self.Rs = Rs  # Primarily for debugging.
+        self.Cs = Cs
+        if self.tx_use_ts4:
+            fname = self._tx_ibis_dir.joinpath(self._tx_ami_cfg.fetch_param_val(["Reserved_Parameters", "Ts4file"])[0])
+            ch_s2p, ts4N, ntwk = add_ondie_s(ch_s2p, fname)
+            self.ts4N = ts4N
+            self.ntwk = ntwk
+    if self.rx_use_ibis:
+        model = self._rx_ibis.model
+        RL = model.zin * 2
+        Cp = model.ccomp[0] / 2
+        self.RL = RL  # Primarily for debugging.
+        self.Cp = Cp
+        self._log.debug("RL: %d, Cp: %d", RL, Cp)
+        if self.rx_use_ts4:
+            fname = self._rx_ibis_dir.joinpath(self._rx_ami_cfg.fetch_param_val(["Reserved_Parameters", "Ts4file"])[0])
+            ch_s2p, ts4N, ntwk = add_ondie_s(ch_s2p, fname, isRx=True)
+            self.ts4N = ts4N
+            self.ntwk = ntwk
+    ch_s2p.name = "ch_s2p"
+    self.ch_s2p = ch_s2p
+
+    # Calculate channel impulse response.
+    Zt = RL / (1 + 1j * w * RL * Cp)  # Rx termination impedance
+    ch_s2p_term = ch_s2p.copy()
+    ch_s2p_term_z0 = ch_s2p.z0.copy()
+    ch_s2p_term_z0[:, 1] = Zt
+    ch_s2p_term.renormalize(ch_s2p_term_z0)
+    ch_s2p_term.name = "ch_s2p_term"
+    self.ch_s2p_term = ch_s2p_term
+    chnl_H = ch_s2p_term.s21.s.flatten() * np.sqrt(ch_s2p_term.z0[:, 1]) / np.sqrt(ch_s2p_term.z0[:, 0])
+    chnl_h = irfft(chnl_H)
+    chnl_dly = where(chnl_h == max(chnl_h))[0][0] * ts
+
+    min_len = 20 * nspui
+    max_len = 100 * nspui
+    if impulse_length:
+        min_len = max_len = impulse_length / ts
+    chnl_h, start_ix = trim_impulse(chnl_h, min_len=min_len, max_len=max_len)
+    temp = chnl_h.copy()
+    temp.resize(len(t))
+    chnl_trimmed_H = fft(temp)
+
+    chnl_s = chnl_h.cumsum()
+    chnl_p = chnl_s - pad(chnl_s[:-nspui], (nspui, 0), "constant", constant_values=(0, 0))
+
+    self.chnl_h = chnl_h
+    self.len_h = len(chnl_h)
+    self.chnl_dly = chnl_dly
+    self.chnl_H = chnl_H
+    self.chnl_trimmed_H = chnl_trimmed_H
+    self.start_ix = start_ix
+    self.t_ns_chnl = array(t[start_ix : start_ix + len(chnl_h)]) * 1.0e9
+    self.chnl_s = chnl_s
+    self.chnl_p = chnl_p
+
+    return chnl_h
+
+
+def my_run_simulation(self):
     """
     Runs the simulation.
 
     Args:
         self(PyBERT): Reference to an instance of the *PyBERT* class.
-        initial_run(Bool): If True, don't update the eye diagrams, since
-            they haven't been created, yet. (Optional; default = False.)
-        update_plots(Bool): If True, update the plots, after simulation
-            completes. This option can be used by larger scripts, which
-            import *pybert*, in order to avoid graphical back-end
-            conflicts and speed up this function's execution time.
-            (Optional; default = True.)
     """
     num_sweeps = self.num_sweeps
     sweep_num = self.sweep_num
@@ -120,7 +240,7 @@ def my_run_simulation(self, initial_run=False, update_plots=True):
         # Note: We're not using 'self.ideal_signal', because we rely on the system response to
         #       create the duobinary waveform. We only create it explicitly, above,
         #       so that we'll have an ideal reference for comparison.
-        chnl_h = self.calc_chnl_h()
+        chnl_h = calc_chnl_h(self)
         chnl_out = np.convolve(self.x, chnl_h)[: len(t)]
 
         self.channel_perf = nbits * nspb / (perf_counter() - start_time)
@@ -140,7 +260,7 @@ def my_run_simulation(self, initial_run=False, update_plots=True):
             # Note: Within the PyBERT computational environment, we use normalized impulse responses,
             #       which have units of (V/ts), where 'ts' is the sample interval. However, IBIS-AMI models expect
             #       units of (V/s). So, we have to scale accordingly, as we transit the boundary between these two worlds.
-            tx_cfg = self._tx_cfg  # Grab the 'AMIParamConfigurator' instance for this model.
+            tx_cfg = self._tx_ami_cfg  # Grab the 'AMIParamConfigurator' instance for this model.
             # Get the model invoked and initialized, except for 'channel_response', which
             # we need to do several different ways, in order to gather all the data we need.
             tx_param_dict = tx_cfg.input_ami_params
@@ -267,7 +387,7 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
     # Generate the output from, and the incremental/cumulative impulse/step/frequency responses of, the CTLE.
     try:
         if self.rx_use_ami:
-            rx_cfg = self._rx_cfg  # Grab the 'AMIParamConfigurator' instance for this model.
+            rx_cfg = self._rx_ami_cfg  # Grab the 'AMIParamConfigurator' instance for this model.
             # Get the model invoked and initialized, except for 'channel_response', which
             # we need to do several different ways, in order to gather all the data we need.
             rx_param_dict = rx_cfg.input_ami_params
@@ -624,228 +744,4 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
     except Exception:
         self.status = "Exception: jitter"
         # raise
-
-    split_time = perf_counter()
-    self.status = f"Updating plots...(sweep {sweep_num} of {num_sweeps})"
-    # Update plots.
-    try:
-        if update_plots:
-            update_results(self)
-            if not initial_run:
-                self.update_eye_diagrams()
-
-        self.plotting_perf = nbits * nspb / (perf_counter() - split_time)
-    except Exception:
-        self.status = "Exception: plotting"
-        raise
-
     log.info("Simulation Complete.")
-    self.status = "Ready."
-
-
-# Plot updating
-def update_results(self):
-    """
-    Updates all plot data used by GUI.
-
-    Args:
-        self(PyBERT): Reference to an instance of the *PyBERT* class.
-
-    """
-
-    # Copy globals into local namespace.
-    ui = self.ui
-    samps_per_ui = self.nspui
-    eye_uis = self.eye_uis
-    num_ui = self.nui
-    clock_times = self.clock_times
-    f = self.f
-    t = self.t
-    t_ns = self.t_ns
-    t_ns_chnl = self.t_ns_chnl
-    n_taps = self.n_taps
-
-    Ts = t[1]
-    ignore_until = (num_ui - eye_uis) * ui
-    ignore_samps = (num_ui - eye_uis) * samps_per_ui
-
-    # Misc.
-    f_GHz = f[: len(f) // 2] / 1.0e9
-    len_f_GHz = len(f_GHz)
-    len_t = len(t_ns)
-    self.plotdata.set_data("f_GHz", f_GHz[1:])
-    self.plotdata.set_data("t_ns", t_ns)
-    self.plotdata.set_data("t_ns_chnl", t_ns_chnl)
-
-    # DFE.
-    tap_weights = np.transpose(np.array(self.adaptation))
-    for tap_num, tap_weight in enumerate(tap_weights, start=1):
-        self.plotdata.set_data(f"tap{tap_num}_weights", tap_weight)
-    self.plotdata.set_data("tap_weight_index", list(range(len(tap_weight))))
-    if self._old_n_taps != n_taps:
-        new_plot = plot.create_dfe_adaption_plot(self.plotdata, n_taps)
-        self.plots_dfe.remove(self.plot_dfe_adapt)
-        self.plots_dfe.insert(1, new_plot)
-        self.plot_dfe_adapt = new_plot
-        self._old_n_taps = n_taps
-
-    clock_pers = np.diff(clock_times)
-    lockedsTrue = np.where(self.lockeds)[0]
-    if lockedsTrue.any():
-        start_t = t[lockedsTrue[0]]
-    else:
-        start_t = 0
-    start_ix = np.where(np.array(clock_times) > start_t)[0][0]
-    (bin_counts, bin_edges) = np.histogram(clock_pers[start_ix:], bins=100)
-    bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2.0
-    clock_spec = fft(clock_pers[start_ix:])
-    clock_spec = abs(clock_spec[: len(clock_spec) // 2])
-    spec_freqs = np.arange(len(clock_spec)) / (2.0 * len(clock_spec))  # In this case, fNyquist = half the bit rate.
-    clock_spec /= clock_spec[1:].mean()  # Normalize the mean non-d.c. value to 0 dB.
-    self.plotdata.set_data("clk_per_hist_bins", bin_centers * 1.0e12)  # (ps)
-    self.plotdata.set_data("clk_per_hist_vals", bin_counts)
-    self.plotdata.set_data("clk_spec", 10.0 * safe_log10(clock_spec[1:]))  # Omit the d.c. value.
-    self.plotdata.set_data("clk_freqs", spec_freqs[1:])
-    self.plotdata.set_data("dfe_out", self.dfe_out)
-    self.plotdata.set_data("ui_ests", self.ui_ests)
-    self.plotdata.set_data("clocks", self.clocks)
-    self.plotdata.set_data("lockeds", self.lockeds)
-
-    # Impulse responses
-    self.plotdata.set_data("chnl_h", self.chnl_h * 1.0e-9 / Ts)  # Re-normalize to (V/ns), for plotting.
-    self.plotdata.set_data("tx_h", self.tx_h * 1.0e-9 / Ts)
-    self.plotdata.set_data("tx_out_h", self.tx_out_h * 1.0e-9 / Ts)
-    self.plotdata.set_data("ctle_h", self.ctle_h * 1.0e-9 / Ts)
-    self.plotdata.set_data("ctle_out_h", self.ctle_out_h * 1.0e-9 / Ts)
-    self.plotdata.set_data("dfe_h", self.dfe_h * 1.0e-9 / Ts)
-    self.plotdata.set_data("dfe_out_h", self.dfe_out_h * 1.0e-9 / Ts)
-
-    # Step responses
-    self.plotdata.set_data("chnl_s", self.chnl_s)
-    self.plotdata.set_data("tx_s", self.tx_s)
-    self.plotdata.set_data("tx_out_s", self.tx_out_s)
-    self.plotdata.set_data("ctle_s", self.ctle_s)
-    self.plotdata.set_data("ctle_out_s", self.ctle_out_s)
-    self.plotdata.set_data("dfe_s", self.dfe_s)
-    self.plotdata.set_data("dfe_out_s", self.dfe_out_s)
-
-    # Pulse responses
-    self.plotdata.set_data("chnl_p", self.chnl_p)
-    self.plotdata.set_data("tx_out_p", self.tx_out_p)
-    self.plotdata.set_data("ctle_out_p", self.ctle_out_p)
-    self.plotdata.set_data("dfe_out_p", self.dfe_out_p)
-
-    # Outputs
-    self.plotdata.set_data("ideal_signal", self.ideal_signal[:len_t])
-    self.plotdata.set_data("chnl_out", self.chnl_out[:len_t])
-    self.plotdata.set_data("tx_out", self.rx_in[:len_t])
-    self.plotdata.set_data("ctle_out", self.ctle_out[:len_t])
-    self.plotdata.set_data("dfe_out", self.dfe_out[:len_t])
-
-    # Frequency responses
-    self.plotdata.set_data("chnl_H", 20.0 * safe_log10(abs(self.chnl_H[1:len_f_GHz])))
-    self.plotdata.set_data("chnl_trimmed_H", 20.0 * safe_log10(abs(self.chnl_trimmed_H[1:len_f_GHz])))
-    self.plotdata.set_data("tx_H", 20.0 * safe_log10(abs(self.tx_H[1:len_f_GHz])))
-    self.plotdata.set_data("tx_out_H", 20.0 * safe_log10(abs(self.tx_out_H[1:len_f_GHz])))
-    self.plotdata.set_data("ctle_H", 20.0 * safe_log10(abs(self.ctle_H[1:len_f_GHz])))
-    self.plotdata.set_data("ctle_out_H", 20.0 * safe_log10(abs(self.ctle_out_H[1:len_f_GHz])))
-    self.plotdata.set_data("dfe_H", 20.0 * safe_log10(abs(self.dfe_H[1:len_f_GHz])))
-    self.plotdata.set_data("dfe_out_H", 20.0 * safe_log10(abs(self.dfe_out_H[1:len_f_GHz])))
-
-    # Jitter distributions
-    jitter_ext_chnl = self.jitter_ext_chnl  # These are used, again, in bathtub curve generation, below.
-    jitter_ext_tx = self.jitter_ext_tx
-    jitter_ext_ctle = self.jitter_ext_ctle
-    jitter_ext_dfe = self.jitter_ext_dfe
-    self.plotdata.set_data("jitter_bins", np.array(self.jitter_bins) * 1.0e12)
-    self.plotdata.set_data("jitter_chnl", self.jitter_chnl)
-    self.plotdata.set_data("jitter_ext_chnl", jitter_ext_chnl)
-    self.plotdata.set_data("jitter_tx", self.jitter_tx)
-    self.plotdata.set_data("jitter_ext_tx", jitter_ext_tx)
-    self.plotdata.set_data("jitter_ctle", self.jitter_ctle)
-    self.plotdata.set_data("jitter_ext_ctle", jitter_ext_ctle)
-    self.plotdata.set_data("jitter_dfe", self.jitter_dfe)
-    self.plotdata.set_data("jitter_ext_dfe", jitter_ext_dfe)
-
-    # Jitter spectrums
-    log10_ui = safe_log10(ui)
-    self.plotdata.set_data("f_MHz", self.f_MHz[1:])
-    self.plotdata.set_data("f_MHz_dfe", self.f_MHz_dfe[1:])
-    self.plotdata.set_data("jitter_spectrum_chnl", 10.0 * (safe_log10(self.jitter_spectrum_chnl[1:]) - log10_ui))
-    self.plotdata.set_data(
-        "jitter_ind_spectrum_chnl", 10.0 * (safe_log10(self.jitter_ind_spectrum_chnl[1:]) - log10_ui)
-    )
-    self.plotdata.set_data("thresh_chnl", 10.0 * (safe_log10(self.thresh_chnl[1:]) - log10_ui))
-    self.plotdata.set_data("jitter_spectrum_tx", 10.0 * (safe_log10(self.jitter_spectrum_tx[1:]) - log10_ui))
-    self.plotdata.set_data("jitter_ind_spectrum_tx", 10.0 * (safe_log10(self.jitter_ind_spectrum_tx[1:]) - log10_ui))
-    self.plotdata.set_data("thresh_tx", 10.0 * (safe_log10(self.thresh_tx[1:]) - log10_ui))
-    self.plotdata.set_data("jitter_spectrum_ctle", 10.0 * (safe_log10(self.jitter_spectrum_ctle[1:]) - log10_ui))
-    self.plotdata.set_data(
-        "jitter_ind_spectrum_ctle", 10.0 * (safe_log10(self.jitter_ind_spectrum_ctle[1:]) - log10_ui)
-    )
-    self.plotdata.set_data("thresh_ctle", 10.0 * (safe_log10(self.thresh_ctle[1:]) - log10_ui))
-    self.plotdata.set_data("jitter_spectrum_dfe", 10.0 * (safe_log10(self.jitter_spectrum_dfe[1:]) - log10_ui))
-    self.plotdata.set_data("jitter_ind_spectrum_dfe", 10.0 * (safe_log10(self.jitter_ind_spectrum_dfe[1:]) - log10_ui))
-    self.plotdata.set_data("thresh_dfe", 10.0 * (safe_log10(self.thresh_dfe[1:]) - log10_ui))
-    self.plotdata.set_data("jitter_rejection_ratio", self.jitter_rejection_ratio[1:])
-
-    # Bathtubs
-    half_len = len(jitter_ext_chnl) // 2
-    #  - Channel
-    bathtub_chnl = list(np.cumsum(jitter_ext_chnl[-1 : -(half_len + 1) : -1]))
-    bathtub_chnl.reverse()
-    bathtub_chnl = np.array(bathtub_chnl + list(np.cumsum(jitter_ext_chnl[: half_len + 1])))
-    bathtub_chnl = np.where(
-        bathtub_chnl < MIN_BATHTUB_VAL,
-        0.1 * MIN_BATHTUB_VAL * np.ones(len(bathtub_chnl)),
-        bathtub_chnl,
-    )  # To avoid Chaco log scale plot wierdness.
-    self.plotdata.set_data("bathtub_chnl", safe_log10(bathtub_chnl))
-    #  - Tx
-    bathtub_tx = list(np.cumsum(jitter_ext_tx[-1 : -(half_len + 1) : -1]))
-    bathtub_tx.reverse()
-    bathtub_tx = np.array(bathtub_tx + list(np.cumsum(jitter_ext_tx[: half_len + 1])))
-    bathtub_tx = np.where(
-        bathtub_tx < MIN_BATHTUB_VAL, 0.1 * MIN_BATHTUB_VAL * np.ones(len(bathtub_tx)), bathtub_tx
-    )  # To avoid Chaco log scale plot wierdness.
-    self.plotdata.set_data("bathtub_tx", safe_log10(bathtub_tx))
-    #  - CTLE
-    bathtub_ctle = list(np.cumsum(jitter_ext_ctle[-1 : -(half_len + 1) : -1]))
-    bathtub_ctle.reverse()
-    bathtub_ctle = np.array(bathtub_ctle + list(np.cumsum(jitter_ext_ctle[: half_len + 1])))
-    bathtub_ctle = np.where(
-        bathtub_ctle < MIN_BATHTUB_VAL,
-        0.1 * MIN_BATHTUB_VAL * np.ones(len(bathtub_ctle)),
-        bathtub_ctle,
-    )  # To avoid Chaco log scale plot wierdness.
-    self.plotdata.set_data("bathtub_ctle", safe_log10(bathtub_ctle))
-    #  - DFE
-    bathtub_dfe = list(np.cumsum(jitter_ext_dfe[-1 : -(half_len + 1) : -1]))
-    bathtub_dfe.reverse()
-    bathtub_dfe = np.array(bathtub_dfe + list(np.cumsum(jitter_ext_dfe[: half_len + 1])))
-    bathtub_dfe = np.where(
-        bathtub_dfe < MIN_BATHTUB_VAL, 0.1 * MIN_BATHTUB_VAL * np.ones(len(bathtub_dfe)), bathtub_dfe
-    )  # To avoid Chaco log scale plot wierdness.
-    self.plotdata.set_data("bathtub_dfe", safe_log10(bathtub_dfe))
-
-    # Eyes
-    width = 2 * samps_per_ui
-    xs = np.linspace(-ui * 1.0e12, ui * 1.0e12, width)
-    height = 100
-    y_max = 1.1 * max(abs(np.array(self.chnl_out)))
-    eye_chnl = calc_eye(ui, samps_per_ui, height, self.chnl_out[ignore_samps:], y_max)
-    y_max = 1.1 * max(abs(np.array(self.rx_in)))
-    eye_tx = calc_eye(ui, samps_per_ui, height, self.rx_in[ignore_samps:], y_max)
-    y_max = 1.1 * max(abs(np.array(self.ctle_out)))
-    eye_ctle = calc_eye(ui, samps_per_ui, height, self.ctle_out[ignore_samps:], y_max)
-    i = 0
-    while clock_times[i] <= ignore_until:
-        i += 1
-        assert i < len(clock_times), "ERROR: Insufficient coverage in 'clock_times' vector."
-    y_max = 1.1 * max(abs(np.array(self.dfe_out)))
-    eye_dfe = calc_eye(ui, samps_per_ui, height, self.dfe_out, y_max, clock_times[i:])
-    self.plotdata.set_data("eye_index", xs)
-    self.plotdata.set_data("eye_chnl", eye_chnl)
-    self.plotdata.set_data("eye_tx", eye_tx)
-    self.plotdata.set_data("eye_ctle", eye_ctle)
-    self.plotdata.set_data("eye_dfe", eye_dfe)

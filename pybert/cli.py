@@ -3,7 +3,6 @@ from pathlib import Path
 
 import click
 
-from pybert.control import my_run_simulation
 from pybert.logger import setup_logging
 from pybert.pybert import PyBERT
 from pybert.view import traits_view
