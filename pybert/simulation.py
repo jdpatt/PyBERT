@@ -269,7 +269,7 @@ def my_run_simulation(self):
             # Start with a delta function, to capture the model's impulse response.
             tx_model_init.channel_response = [1.0 / ts] + [0.0] * (len(chnl_h) - 1)
             tx_model_init.bit_time = ui
-            tx_model = AMIModel(self.tx_dll_file)
+            tx_model = self._tx_ami_model
             tx_model.initialize(tx_model_init)
             log.info(
                 "Tx IBIS-AMI model initialization results:\nInput parameters: %s\nOutput parameters: %s\nMessage: %s",
@@ -395,7 +395,7 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
             rx_model_init.sample_interval = ts  # Must be set, before 'channel_response'!
             rx_model_init.channel_response = tx_out_h / ts
             rx_model_init.bit_time = ui
-            rx_model = AMIModel(self.rx_dll_file)
+            rx_model = self._rx_ami_model
             rx_model.initialize(rx_model_init)
             log.info(
                 "Rx IBIS-AMI model initialization results:\nInput parameters: %s\nMessage: %s\nOutput parameters: %s",
