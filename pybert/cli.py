@@ -45,7 +45,7 @@ def simulate(config, verbose):
     setup_logging(verbose)
     pybert = PyBERT(run_simulation=False, gui=False)
     pybert.load_configuration(config)
-    pybert.simulate(initial_run=True, update_plots=False)
+    pybert.simulate(initial_run=True, update_plots=True)
     pybert.save_results(Path(config).with_suffix(".pybert_data"))
 
 
