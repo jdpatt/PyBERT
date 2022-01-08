@@ -63,3 +63,4 @@ pybert_dev: pybert_bld
 
 dev-tools:
 	conda env update --file environment.yml
+	pre-commit install
