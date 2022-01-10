@@ -19,16 +19,15 @@ from scipy.signal import iirfilter, lfilter
 from scipy.signal.windows import hann
 
 from pybert.dfe import DFE
+from pybert.jitter import calc_jitter, find_crossings
 from pybert.utility import (
     add_ondie_s,
     calc_gamma,
-    calc_jitter,
-    find_crossings,
     import_channel,
     make_ctle,
     trim_impulse,
 )
-from pyibisami.ami import AMIModel, AMIModelInitializer
+from pyibisami.ami import AMIModelInitializer
 
 gFc = 1.0e6  # Corner frequency of high-pass filter used to model capacitive coupling of periodic noise.
 
@@ -500,7 +499,7 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
 
     split_time = perf_counter()
     self.status = f"Running DFE/CDR...(sweep {sweep_num} of {num_sweeps})"
-    # Generate the output from, and the incremental/cumulative impulse/step/frequency responses of, the DFE.
+    # Generate the output from, and the incremental/cumulative impulse/step/frequency responses of the DFE.
     try:
         if self.use_dfe:
             dfe = DFE(
@@ -581,8 +580,6 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
         self.status = "Exception: DFE"
         raise
 
-    split_time = perf_counter()
-    self.status = f"Analyzing jitter...(sweep {sweep_num} of {num_sweeps})"
     # Save local variables to class instance for state preservation, performing unit conversion where necessary.
     self.adaptation = tap_weights
     self.ui_ests = np.array(ui_ests) * 1.0e12  # (ps)
@@ -591,117 +588,29 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
     self.clock_times = clock_times
 
     # Analyze the jitter.
-    self.thresh_tx = np.array([])
-    self.jitter_ext_tx = np.array([])
-    self.jitter_tx = np.array([])
-    self.jitter_spectrum_tx = np.array([])
-    self.jitter_ind_spectrum_tx = np.array([])
-    self.thresh_ctle = np.array([])
-    self.jitter_ext_ctle = np.array([])
-    self.jitter_ctle = np.array([])
-    self.jitter_spectrum_ctle = np.array([])
-    self.jitter_ind_spectrum_ctle = np.array([])
-    self.thresh_dfe = np.array([])
-    self.jitter_ext_dfe = np.array([])
-    self.jitter_dfe = np.array([])
-    self.jitter_spectrum_dfe = np.array([])
-    self.jitter_ind_spectrum_dfe = np.array([])
-    self.f_MHz_dfe = np.array([])
-    self.jitter_rejection_ratio = np.array([])
+    split_time = perf_counter()
+    self.status = f"Analyzing jitter...(sweep {sweep_num} of {num_sweeps})"
+    jitter = {}
 
     try:
         if mod_type == 1:  # Handle duo-binary case.
             pattern_len *= 2  # Because, the XOR pre-coding can invert every other pattern rep.
-        if mod_type == 2:  # Handle PAM-4 case.
+        elif mod_type == 2:  # Handle PAM-4 case.
             if pattern_len % 2:
                 pattern_len *= 2  # Because, the bits are taken in pairs, to form the symbols.
 
         # - channel output
         actual_xings = find_crossings(t, chnl_out, decision_scaler, mod_type=mod_type)
-        (
-            _,
-            t_jitter,
-            isi,
-            dcd,
-            pj,
-            rj,
-            _,
-            thresh,
-            jitter_spectrum,
-            jitter_ind_spectrum,
-            spectrum_freqs,
-            hist,
-            hist_synth,
-            bin_centers,
-        ) = calc_jitter(ui, nui, pattern_len, ideal_xings, actual_xings, rel_thresh)
-        self.t_jitter = t_jitter
-        self.isi_chnl = isi
-        self.dcd_chnl = dcd
-        self.pj_chnl = pj
-        self.rj_chnl = rj
-        self.thresh_chnl = thresh
-        self.jitter_chnl = hist
-        self.jitter_ext_chnl = hist_synth
-        self.jitter_bins = bin_centers
-        self.jitter_spectrum_chnl = jitter_spectrum
-        self.jitter_ind_spectrum_chnl = jitter_ind_spectrum
-        self.f_MHz = np.array(spectrum_freqs) * 1.0e-6
+        jitter.update({"chnl": calc_jitter(ui, nui, pattern_len, ideal_xings, actual_xings, rel_thresh)})
+        jitter.update({"f_MHz": np.array(jitter["chnl"].spectrum_freqs) * 1.0e-6})
 
         # - Tx output
         actual_xings = find_crossings(t, rx_in, decision_scaler, mod_type=mod_type)
-        (
-            _,
-            t_jitter,
-            isi,
-            dcd,
-            pj,
-            rj,
-            _,
-            thresh,
-            jitter_spectrum,
-            jitter_ind_spectrum,
-            spectrum_freqs,
-            hist,
-            hist_synth,
-            bin_centers,
-        ) = calc_jitter(ui, nui, pattern_len, ideal_xings, actual_xings, rel_thresh)
-        self.isi_tx = isi
-        self.dcd_tx = dcd
-        self.pj_tx = pj
-        self.rj_tx = rj
-        self.thresh_tx = thresh
-        self.jitter_tx = hist
-        self.jitter_ext_tx = hist_synth
-        self.jitter_spectrum_tx = jitter_spectrum
-        self.jitter_ind_spectrum_tx = jitter_ind_spectrum
+        jitter.update({"tx": calc_jitter(ui, nui, pattern_len, ideal_xings, actual_xings, rel_thresh)})
 
         # - CTLE output
         actual_xings = find_crossings(t, ctle_out, decision_scaler, mod_type=mod_type)
-        (
-            jitter,
-            t_jitter,
-            isi,
-            dcd,
-            pj,
-            rj,
-            jitter_ext,
-            thresh,
-            jitter_spectrum,
-            jitter_ind_spectrum,
-            spectrum_freqs,
-            hist,
-            hist_synth,
-            bin_centers,
-        ) = calc_jitter(ui, nui, pattern_len, ideal_xings, actual_xings, rel_thresh)
-        self.isi_ctle = isi
-        self.dcd_ctle = dcd
-        self.pj_ctle = pj
-        self.rj_ctle = rj
-        self.thresh_ctle = thresh
-        self.jitter_ctle = hist
-        self.jitter_ext_ctle = hist_synth
-        self.jitter_spectrum_ctle = jitter_spectrum
-        self.jitter_ind_spectrum_ctle = jitter_ind_spectrum
+        jitter.update({"ctle": calc_jitter(ui, nui, pattern_len, ideal_xings, actual_xings, rel_thresh)})
 
         # - DFE output
         ignore_until = (nui - eye_uis) * ui + 0.75 * ui  # 0.5 was causing an occasional misalignment.
@@ -710,38 +619,16 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
         actual_xings = find_crossings(
             t, dfe_out, decision_scaler, min_delay=min_delay, mod_type=mod_type, rising_first=False
         )
-        (
-            jitter,
-            t_jitter,
-            isi,
-            dcd,
-            pj,
-            rj,
-            jitter_ext,
-            thresh,
-            jitter_spectrum,
-            jitter_ind_spectrum,
-            spectrum_freqs,
-            hist,
-            hist_synth,
-            bin_centers,
-        ) = calc_jitter(ui, eye_uis, pattern_len, ideal_xings, actual_xings, rel_thresh)
-        self.isi_dfe = isi
-        self.dcd_dfe = dcd
-        self.pj_dfe = pj
-        self.rj_dfe = rj
-        self.thresh_dfe = thresh
-        self.jitter_dfe = hist
-        self.jitter_ext_dfe = hist_synth
-        self.jitter_spectrum_dfe = jitter_spectrum
-        self.jitter_ind_spectrum_dfe = jitter_ind_spectrum
-        self.f_MHz_dfe = np.array(spectrum_freqs) * 1.0e-6
-        dfe_spec = self.jitter_spectrum_dfe
-        self.jitter_rejection_ratio = np.zeros(len(dfe_spec))
+        jitter.update({"dfe": calc_jitter(ui, eye_uis, pattern_len, ideal_xings, actual_xings, rel_thresh)})
+        jitter.update({"f_MHz_dfe": np.array(jitter["dfe"].spectrum_freqs) * 1.0e-6})
+
+        self.jitter = jitter
+        self.jitter_rejection_ratio = np.zeros(len(jitter["dfe"].jitter_spectrum))
 
         self.jitter_perf = nbits * nspb / (perf_counter() - split_time)
         self.total_perf = nbits * nspb / (perf_counter() - start_time)
-    except Exception:
+    except Exception as error:
         self.status = "Exception: jitter"
-        # raise
+        log.debug(error)
+
     log.info("Simulation Complete.")

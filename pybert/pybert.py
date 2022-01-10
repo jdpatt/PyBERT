@@ -389,6 +389,7 @@ class PyBERT(HasTraits):
         self._rx_ami_cfg: Optional[AMIParamConfigurator] = None
         self._rx_ami_model: Optional[AMIModel] = None
         self._old_n_taps = self.n_taps
+        self.jitter: dict = {}
 
         if run_simulation:
             # Running the simulation will fill in the required data structure.
@@ -714,22 +715,22 @@ class PyBERT(HasTraits):
     def _get_jitter_info(self):
         try:
             jitter = {
-                "isi_chnl": self.isi_chnl * 1.0e12,
-                "dcd_chnl": self.dcd_chnl * 1.0e12,
-                "pj_chnl": self.pj_chnl * 1.0e12,
-                "rj_chnl": self.rj_chnl * 1.0e12,
-                "isi_tx": self.isi_tx * 1.0e12,
-                "dcd_tx": self.dcd_tx * 1.0e12,
-                "pj_tx": self.pj_tx * 1.0e12,
-                "rj_tx": self.rj_tx * 1.0e12,
-                "isi_ctle": self.isi_ctle * 1.0e12,
-                "dcd_ctle": self.dcd_ctle * 1.0e12,
-                "pj_ctle": self.pj_ctle * 1.0e12,
-                "rj_ctle": self.rj_ctle * 1.0e12,
-                "isi_dfe": self.isi_dfe * 1.0e12,
-                "dcd_dfe": self.dcd_dfe * 1.0e12,
-                "pj_dfe": self.pj_dfe * 1.0e12,
-                "rj_dfe": self.rj_dfe * 1.0e12,
+                "isi_chnl": self.jitter["chnl"].isi * 1.0e12,
+                "dcd_chnl": self.jitter["chnl"].dcd * 1.0e12,
+                "pj_chnl": self.jitter["chnl"].pj * 1.0e12,
+                "rj_chnl": self.jitter["chnl"].rj * 1.0e12,
+                "isi_tx": self.jitter["tx"].isi * 1.0e12,
+                "dcd_tx": self.jitter["tx"].dcd * 1.0e12,
+                "pj_tx": self.jitter["tx"].pj * 1.0e12,
+                "rj_tx": self.jitter["tx"].rj * 1.0e12,
+                "isi_ctle": self.jitter["ctle"].isi * 1.0e12,
+                "dcd_ctle": self.jitter["ctle"].dcd * 1.0e12,
+                "pj_ctle": self.jitter["ctle"].pj * 1.0e12,
+                "rj_ctle": self.jitter["ctle"].rj * 1.0e12,
+                "isi_dfe": self.jitter["dfe"].isi * 1.0e12,
+                "dcd_dfe": self.jitter["dfe"].dcd * 1.0e12,
+                "pj_dfe": self.jitter["dfe"].pj * 1.0e12,
+                "rj_dfe": self.jitter["dfe"].rj * 1.0e12,
             }
 
             if jitter["isi_tx"]:
@@ -1244,84 +1245,41 @@ class PyBERT(HasTraits):
         self.plotdata.set_data("dfe_out_H", 20.0 * safe_log10(abs(self.dfe_out_H[1:len_f_GHz])))
 
         # Jitter distributions
-        jitter_ext_chnl = self.jitter_ext_chnl  # These are used, again, in bathtub curve generation, below.
-        jitter_ext_tx = self.jitter_ext_tx
-        jitter_ext_ctle = self.jitter_ext_ctle
-        jitter_ext_dfe = self.jitter_ext_dfe
-        self.plotdata.set_data("jitter_bins", np.array(self.jitter_bins) * 1.0e12)
-        self.plotdata.set_data("jitter_chnl", self.jitter_chnl)
-        self.plotdata.set_data("jitter_ext_chnl", jitter_ext_chnl)
-        self.plotdata.set_data("jitter_tx", self.jitter_tx)
-        self.plotdata.set_data("jitter_ext_tx", jitter_ext_tx)
-        self.plotdata.set_data("jitter_ctle", self.jitter_ctle)
-        self.plotdata.set_data("jitter_ext_ctle", jitter_ext_ctle)
-        self.plotdata.set_data("jitter_dfe", self.jitter_dfe)
-        self.plotdata.set_data("jitter_ext_dfe", jitter_ext_dfe)
+        self.plotdata.set_data("jitter_bins", np.array(self.jitter["chnl"].bin_centers) * 1.0e12)
+        for output in ("chnl", "tx", "ctle", "dfe"):
+            self.plotdata.set_data(f"jitter_{output}", self.jitter[output].hist)
+            self.plotdata.set_data(f"jitter_ext_{output}", self.jitter[output].hist_synth)
 
         # Jitter spectrums
         log10_ui = safe_log10(ui)
-        self.plotdata.set_data("f_MHz", self.f_MHz[1:])
-        self.plotdata.set_data("f_MHz_dfe", self.f_MHz_dfe[1:])
-        self.plotdata.set_data("jitter_spectrum_chnl", 10.0 * (safe_log10(self.jitter_spectrum_chnl[1:]) - log10_ui))
-        self.plotdata.set_data(
-            "jitter_ind_spectrum_chnl", 10.0 * (safe_log10(self.jitter_ind_spectrum_chnl[1:]) - log10_ui)
-        )
-        self.plotdata.set_data("thresh_chnl", 10.0 * (safe_log10(self.thresh_chnl[1:]) - log10_ui))
-        self.plotdata.set_data("jitter_spectrum_tx", 10.0 * (safe_log10(self.jitter_spectrum_tx[1:]) - log10_ui))
-        self.plotdata.set_data(
-            "jitter_ind_spectrum_tx", 10.0 * (safe_log10(self.jitter_ind_spectrum_tx[1:]) - log10_ui)
-        )
-        self.plotdata.set_data("thresh_tx", 10.0 * (safe_log10(self.thresh_tx[1:]) - log10_ui))
-        self.plotdata.set_data("jitter_spectrum_ctle", 10.0 * (safe_log10(self.jitter_spectrum_ctle[1:]) - log10_ui))
-        self.plotdata.set_data(
-            "jitter_ind_spectrum_ctle", 10.0 * (safe_log10(self.jitter_ind_spectrum_ctle[1:]) - log10_ui)
-        )
-        self.plotdata.set_data("thresh_ctle", 10.0 * (safe_log10(self.thresh_ctle[1:]) - log10_ui))
-        self.plotdata.set_data("jitter_spectrum_dfe", 10.0 * (safe_log10(self.jitter_spectrum_dfe[1:]) - log10_ui))
-        self.plotdata.set_data(
-            "jitter_ind_spectrum_dfe", 10.0 * (safe_log10(self.jitter_ind_spectrum_dfe[1:]) - log10_ui)
-        )
-        self.plotdata.set_data("thresh_dfe", 10.0 * (safe_log10(self.thresh_dfe[1:]) - log10_ui))
+        self.plotdata.set_data("f_MHz", self.jitter["f_MHz"][1:])
+        self.plotdata.set_data("f_MHz_dfe", self.jitter["f_MHz_dfe"][1:])
+
+        for output in ("chnl", "tx", "ctle", "dfe"):
+            self.plotdata.set_data(
+                f"jitter_spectrum_{output}", 10.0 * (safe_log10(self.jitter[output].jitter_spectrum[1:]) - log10_ui)
+            )
+            self.plotdata.set_data(
+                f"jitter_ind_spectrum_{output}",
+                10.0 * (safe_log10(self.jitter[output].tie_ind_spectrum[1:]) - log10_ui),
+            )
+            self.plotdata.set_data(f"thresh_{output}", 10.0 * (safe_log10(self.jitter[output].thresh[1:]) - log10_ui))
+
         self.plotdata.set_data("jitter_rejection_ratio", self.jitter_rejection_ratio[1:])
 
         # Bathtubs
-        half_len = len(jitter_ext_chnl) // 2
-        #  - Channel
-        bathtub_chnl = list(np.cumsum(jitter_ext_chnl[-1 : -(half_len + 1) : -1]))
-        bathtub_chnl.reverse()
-        bathtub_chnl = np.array(bathtub_chnl + list(np.cumsum(jitter_ext_chnl[: half_len + 1])))
-        bathtub_chnl = np.where(
-            bathtub_chnl < MIN_BATHTUB_VAL,
-            0.1 * MIN_BATHTUB_VAL * np.ones(len(bathtub_chnl)),
-            bathtub_chnl,
-        )  # To avoid Chaco log scale plot wierdness.
-        self.plotdata.set_data("bathtub_chnl", safe_log10(bathtub_chnl))
-        #  - Tx
-        bathtub_tx = list(np.cumsum(jitter_ext_tx[-1 : -(half_len + 1) : -1]))
-        bathtub_tx.reverse()
-        bathtub_tx = np.array(bathtub_tx + list(np.cumsum(jitter_ext_tx[: half_len + 1])))
-        bathtub_tx = np.where(
-            bathtub_tx < MIN_BATHTUB_VAL, 0.1 * MIN_BATHTUB_VAL * np.ones(len(bathtub_tx)), bathtub_tx
-        )  # To avoid Chaco log scale plot wierdness.
-        self.plotdata.set_data("bathtub_tx", safe_log10(bathtub_tx))
-        #  - CTLE
-        bathtub_ctle = list(np.cumsum(jitter_ext_ctle[-1 : -(half_len + 1) : -1]))
-        bathtub_ctle.reverse()
-        bathtub_ctle = np.array(bathtub_ctle + list(np.cumsum(jitter_ext_ctle[: half_len + 1])))
-        bathtub_ctle = np.where(
-            bathtub_ctle < MIN_BATHTUB_VAL,
-            0.1 * MIN_BATHTUB_VAL * np.ones(len(bathtub_ctle)),
-            bathtub_ctle,
-        )  # To avoid Chaco log scale plot wierdness.
-        self.plotdata.set_data("bathtub_ctle", safe_log10(bathtub_ctle))
-        #  - DFE
-        bathtub_dfe = list(np.cumsum(jitter_ext_dfe[-1 : -(half_len + 1) : -1]))
-        bathtub_dfe.reverse()
-        bathtub_dfe = np.array(bathtub_dfe + list(np.cumsum(jitter_ext_dfe[: half_len + 1])))
-        bathtub_dfe = np.where(
-            bathtub_dfe < MIN_BATHTUB_VAL, 0.1 * MIN_BATHTUB_VAL * np.ones(len(bathtub_dfe)), bathtub_dfe
-        )  # To avoid Chaco log scale plot wierdness.
-        self.plotdata.set_data("bathtub_dfe", safe_log10(bathtub_dfe))
+        half_len = len(self.jitter["chnl"].hist_synth) // 2
+
+        for output in ("chnl", "tx", "ctle", "dfe"):
+            bathtub = list(np.cumsum(self.jitter[output].hist_synth[-1 : -(half_len + 1) : -1]))
+            bathtub.reverse()
+            bathtub = np.array(bathtub + list(np.cumsum(self.jitter[output].hist_synth[: half_len + 1])))
+            bathtub = np.where(
+                bathtub < MIN_BATHTUB_VAL,
+                0.1 * MIN_BATHTUB_VAL * np.ones(len(bathtub)),
+                bathtub,
+            )  # To avoid Chaco log scale plot wierdness.
+            self.plotdata.set_data(f"bathtub_{output}", safe_log10(bathtub))
 
         # Eyes Diagrams
         width = 2 * samps_per_ui
@@ -1405,8 +1363,9 @@ class PyBERT(HasTraits):
                 if not initial_run:
                     self.update_eye_diagrams()
                 self.plotting_perf = self.nbits * self.nspb / (time.perf_counter() - split_time)
-            except Exception:
+            except Exception as error:
                 self.status = "Exception: plotting"
+                self._log.debug(error)
                 raise
 
         self.status = "Ready."
