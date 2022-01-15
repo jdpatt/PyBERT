@@ -44,20 +44,21 @@ from traits.api import (
 )
 from traits.etsconfig.api import ETSConfig
 
-from pybert import __authors__, __copy__, __date__, __version__, plot
+from pybert import __authors__, __copy__, __date__, __version__
 from pybert.configuration import PyBertCfg
-from pybert.content import (
+from pybert.logger import ConsoleTextLogHandler
+from pybert.results import PyBertData
+from pybert.sim.simulation import calc_chnl_h, my_run_simulation
+from pybert.threads import CoOptThread, RxOptThread, TxOptThread
+from pybert.utility import calc_eye, lfsr_bits, make_ctle, pulse_center, safe_log10
+from pybert.views import (
     help_str,
     jitter_info_table,
     performance_info_table,
+    plots,
     status_string,
     sweep_info_table,
 )
-from pybert.logger import ConsoleTextLogHandler
-from pybert.results import PyBertData
-from pybert.simulation import calc_chnl_h, my_run_simulation
-from pybert.threads import CoOptThread, RxOptThread, TxOptThread
-from pybert.utility import calc_eye, lfsr_bits, make_ctle, pulse_center, safe_log10
 from pyibisami import __version__ as PyAMI_VERSION
 from pyibisami.ami import AMIModel, AMIParamConfigurator
 from pyibisami.ibis import IBISModel
@@ -1098,17 +1099,17 @@ class PyBERT(HasTraits):
 
     def initialize_plots(self):
         """Create and initialize all of the plot containers with the default simulation results."""
-        self.plots_dfe, self.plot_dfe_adapt = plot.init_dfe_tab_plots(self.plotdata, n_dfe_taps=PyBertCfg.n_taps)
-        self.plot_h_tune = plot.init_eq_tune_tab_plots(self.plotdata)
-        self.plots_h = plot.init_impulse_tab_plots(self.plotdata)
-        self.plots_s = plot.init_step_tab_plots(self.plotdata)
-        self.plots_p = plot.init_pulse_tab_plots(self.plotdata)
-        self.plots_H = plot.init_frequency_tab_plots(self.plotdata)
-        self.plots_out = plot.init_output_tab_plots(self.plotdata)
-        self.plots_eye = plot.init_eye_diagram_plots(self.plotdata)
-        self.plots_jitter_dist = plot.init_jitter_dist_plots(self.plotdata)
-        self.plots_jitter_spec = plot.init_jitter_spec_plots(self.plotdata)
-        self.plots_bathtub = plot.init_bathtub_plots(self.plotdata)
+        self.plots_dfe, self.plot_dfe_adapt = plots.init_dfe_tab_plots(self.plotdata, n_dfe_taps=PyBertCfg.n_taps)
+        self.plot_h_tune = plots.init_eq_tune_tab_plots(self.plotdata)
+        self.plots_h = plots.init_impulse_tab_plots(self.plotdata)
+        self.plots_s = plots.init_step_tab_plots(self.plotdata)
+        self.plots_p = plots.init_pulse_tab_plots(self.plotdata)
+        self.plots_H = plots.init_frequency_tab_plots(self.plotdata)
+        self.plots_out = plots.init_output_tab_plots(self.plotdata)
+        self.plots_eye = plots.init_eye_diagram_plots(self.plotdata)
+        self.plots_jitter_dist = plots.init_jitter_dist_plots(self.plotdata)
+        self.plots_jitter_spec = plots.init_jitter_spec_plots(self.plotdata)
+        self.plots_bathtub = plots.init_bathtub_plots(self.plotdata)
 
         # Regenerate the eye diagrams after they have been populated.
         self.update_eye_diagrams()

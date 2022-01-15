@@ -5,7 +5,7 @@ import click
 
 from pybert.logger import setup_logging
 from pybert.pybert import PyBERT
-from pybert.view import traits_view
+from pybert.views import traits_view
 
 
 @click.group(invoke_without_command=True, context_settings=dict(help_option_names=["-h", "--help"]))

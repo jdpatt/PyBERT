@@ -1,7 +1,7 @@
 """Various menus have information or status strings based of the current configuration or results.
 """
-from pybert.content import performance_info_table
 from pybert.pybert import PyBERT
+from pybert.views.content import performance_info_table
 
 # pylint: disable=redefined-outer-name,protected-access
 

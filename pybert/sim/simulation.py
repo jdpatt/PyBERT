@@ -18,8 +18,8 @@ from numpy.random import normal
 from scipy.signal import iirfilter, lfilter
 from scipy.signal.windows import hann
 
-from pybert.dfe import DFE
-from pybert.jitter import calc_jitter, find_crossings
+from pybert.sim.dfe import DFE
+from pybert.sim.jitter import calc_jitter, find_crossings
 from pybert.utility import (
     add_ondie_s,
     calc_gamma,
