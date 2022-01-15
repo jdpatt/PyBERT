@@ -1174,7 +1174,7 @@ class PyBERT(HasTraits):
             self.plotdata.set_data(f"tap{tap_num}_weights", tap_weight)
         self.plotdata.set_data("tap_weight_index", list(range(len(tap_weight))))
         if self._old_n_taps != n_taps:
-            new_plot = plot.create_dfe_adaption_plot(self.plotdata, n_taps)
+            new_plot = plots.create_dfe_adaption_plot(self.plotdata, n_taps)
             self.plots_dfe.remove(self.plot_dfe_adapt)
             self.plots_dfe.insert(1, new_plot)
             self.plot_dfe_adapt = new_plot
