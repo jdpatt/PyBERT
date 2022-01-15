@@ -243,10 +243,10 @@ def jiffer_status_string(pybert) -> str:
     """Return the jitter portion of the statusbar string."""
     try:
         jit_str = "         | Jitter (ps):    ISI=%6.3f    DCD=%6.3f    Pj=%6.3f    Rj=%6.3f" % (
-            pybert.isi_dfe * 1.0e12,
-            pybert.dcd_dfe * 1.0e12,
-            pybert.pj_dfe * 1.0e12,
-            pybert.rj_dfe * 1.0e12,
+            pybert.jitter["dfe"].isi * 1.0e12,
+            pybert.jitter["dfe"].dcd * 1.0e12,
+            pybert.jitter["dfe"].pj * 1.0e12,
+            pybert.jitter["dfe"].rj * 1.0e12,
         )
     except:
         jit_str = "         | (Jitter not available.)"
