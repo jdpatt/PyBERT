@@ -9,9 +9,21 @@ as well as the NumPy and SciPy packages.
 
 Notice: Before using this package for any purpose, you MUST read and understand the terms put forward in the accompanying "LICENSE" file.
 
-## Installation
+## Wiki
+
+- <https://github.com/capn-freako/PyBERT/wiki>
+
+## FAQ
+
+- <https://github.com/capn-freako/PyBERT/wiki/pybert_faq>
+
+## User Installation
 
 - <https://github.com/capn-freako/PyBERT/wiki/instant_gratification>
+
+## Developer Installation
+
+- <https://github.com/capn-freako/PyBERT/wiki/dev_install>
 
 ## Documentation
 
@@ -20,7 +32,7 @@ PyBERT documentation exists in 2 separate forms:
 ### For developers
 
 - pybert/doc/build/html/index.html
-- [Contributing.md](docs/CONTRIBUTING.md)
+- <https://github.com/capn-freako/PyBERT/wiki/dev_install>
 
 ### For users
 
