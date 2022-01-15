@@ -29,11 +29,12 @@ from traitsui.api import (
     View,
     spring,
 )
+from traitsui.menu import Menu, MenuBar, Separator
 
 from pybert.threads import RunSimThread
 
 
-class MyHandler(Handler):
+class GlobalHandler(Handler):
     """This handler is instantiated by the View and handles user button clicks."""
 
     run_sim_thread = Instance(RunSimThread)
@@ -96,12 +97,27 @@ class MyHandler(Handler):
 
 # These are the "globally applicable" buttons referred to in pybert.py,
 # just above the button definitions (approx. line 580).
-run_sim = Action(name="Run", action="run_simulation_clicked")
+run_sim = Action(name="Run", action="run_simulation_clicked", accelerator="Ctrl+R")
 stop_sim = Action(name="Stop", action="stop_simulation_clicked")
 save_data = Action(name="Save Results", action="save_data_clicked")
 load_data = Action(name="Load Results", action="load_data_clicked")
-save_cfg = Action(name="Save Config.", action="save_config_clicked")
-load_cfg = Action(name="Load Config.", action="load_config_clicked")
+save_cfg = Action(name="Save Config.", action="save_config_clicked", accelerator="Ctrl+S")
+load_cfg = Action(name="Load Config.", action="load_config_clicked", accelerator="Ctrl+O")
+
+menu_bar = MenuBar(
+    Menu(
+        load_cfg,
+        load_data,
+        Separator(),
+        save_cfg,
+        save_data,
+        Separator(),
+        name="&File",
+    ),
+    Menu(run_sim, name="&Simulation"),
+)
+#! Unable to add FileMenu CloseAction due to https://github.com/enthought/traitsui/issues/1442
+
 
 # fmt: off
 # Main window layout definition.
@@ -733,8 +749,9 @@ traits_view = View(
         id="tabs",
     ),
     resizable=True,
-    handler=MyHandler(),
+    handler=GlobalHandler(),
     buttons=[run_sim, save_cfg, load_cfg, save_data, load_data],
+    menubar=menu_bar,
     statusbar="status_str",
     title="PyBERT",
     # width=0.95,
