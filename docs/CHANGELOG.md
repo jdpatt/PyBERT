@@ -27,3 +27,4 @@ All notable changes to this project will be documented in this file.  Notes for 
   jitter element.
 - AMI and IBIS models should handle their own paths not pybert.
 - Reduced what different parts of pybert modify internal state of pybert.
+- Moved help and about to menubar like a traditional application.

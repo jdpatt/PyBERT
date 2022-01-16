@@ -44,7 +44,7 @@ from traits.api import (
 )
 from traits.etsconfig.api import ETSConfig
 
-from pybert import __authors__, __copy__, __date__, __version__
+from pybert import __version__
 from pybert.configuration import PyBertCfg
 from pybert.logger import ConsoleTextLogHandler
 from pybert.results import PyBertData
@@ -52,7 +52,6 @@ from pybert.sim.simulation import calc_chnl_h, my_run_simulation
 from pybert.threads import CoOptThread, RxOptThread, TxOptThread
 from pybert.utility import calc_eye, lfsr_bits, make_ctle, pulse_center, safe_log10
 from pybert.views import (
-    help_str,
     jitter_info_table,
     performance_info_table,
     plots,
@@ -283,16 +282,6 @@ class PyBERT(HasTraits):
 
     # About
     perf_info = Property(String, depends_on=["total_perf"])
-    ident = String(
-        f"<H1>PyBERT v{__version__} - a serial communication link design tool, written in Python.</H1>\n\n \
-    {__authors__}<BR>\n \
-    {__date__}<BR><BR>\n\n \
-    {__copy__};<BR>\n \
-    All rights reserved World wide."
-    )
-
-    # Help
-    instructions = help_str
 
     # Console
     console_log = String("PyBERT Console Log\n\n")

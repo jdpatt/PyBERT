@@ -7,10 +7,11 @@ Original date:   August 24, 2014 (Copied from pybert.py, as part of a major code
 
 Copyright (c) 2014 David Banas; all rights reserved World wide.
 """
+import webbrowser
 from pathlib import Path
 
 from enable.component_editor import ComponentEditor
-from pyface.api import OK, FileDialog
+from pyface.api import OK, FileDialog, MessageDialog
 from pyface.image_resource import ImageResource
 from traits.api import Instance
 from traitsui.api import (
@@ -31,6 +32,7 @@ from traitsui.api import (
 )
 from traitsui.menu import Menu, MenuBar, Separator
 
+from pybert import __authors__, __copy__, __date__, __version__
 from pybert.threads import RunSimThread
 
 
@@ -96,7 +98,27 @@ class GlobalHandler(Handler):
 
     def toggle_debug_clicked(self, info):
         """Toggle whether debug mode is enabled or not."""
+        # pylint: disable=no-self-use
         info.object.debug = not info.object.debug
+
+    def getting_started_clicked(self, info):
+        """Open up Pybert's wiki."""
+        # pylint: disable=no-self-use,unused-argument
+        webbrowser.open("https://github.com/capn-freako/PyBERT/wiki")
+
+    def show_about_clicked(self, info):
+        """Open a dialog and show the user the about info."""
+        # pylint: disable=no-self-use,unused-argument
+        dialog = MessageDialog(
+            title="About Pybert",
+            message=f"PyBERT v{__version__} - a serial communication link design tool, written in Python.",
+            informative=(
+                f"{__authors__}<BR>\n" f"{__date__}<BR><BR>\n\n" f"{__copy__};<BR>\n" "All rights reserved World wide."
+            ),
+            severity="information",
+        )
+        dialog.open()
+
 
 # fmt: off
 # Main window layout definition.
@@ -710,17 +732,12 @@ traits_view = View(
             label='Jitter',
             id='jitter'
         ),
-        Group(  # Help
-            Group(
-                Item("ident",     style="readonly", show_label=False),
+        Group(
+            VGroup(
+                Item("console_log", editor=CodeEditor(), style="readonly",   show_label=False),
                 Item("perf_info", style="readonly", show_label=False),
-                label="About",
             ),
-            Group(Item("instructions", style="readonly", show_label=False), label="Guide"),
-            Group(Item("console_log", editor=CodeEditor(), style="readonly",   show_label=False), label="Console", id="console"),
-            layout='tabbed',
-            label='Help',
-            id='help'
+            label="Console", id="console", layout='tabbed'
         ),
         layout="tabbed",
         springy=True,
@@ -752,6 +769,11 @@ traits_view = View(
         Menu(
             Action(name="Run", action="run_simulation_clicked", accelerator="Ctrl+R"),
             name="&Simulation"
+        ),
+        Menu(
+            Action(name="Getting Started", action="getting_started_clicked"),
+            Action(name="&About", action="show_about_clicked"),
+            name="&Help",
         ),
     ),
     statusbar="status_str",
