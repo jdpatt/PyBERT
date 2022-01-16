@@ -94,6 +94,10 @@ class GlobalHandler(Handler):
         if dialog.open() == OK:
             pybert.load_results(Path(dialog.path))
 
+    def toggle_debug_clicked(self, info):
+        """Toggle whether debug mode is enabled or not."""
+        info.object.debug = not info.object.debug
+
 
 # These are the "globally applicable" buttons referred to in pybert.py,
 # just above the button definitions (approx. line 580).
@@ -113,6 +117,16 @@ menu_bar = MenuBar(
         save_data,
         Separator(),
         name="&File",
+    ),
+    Menu(
+        Action(
+            name="Debug Mode",
+            action="toggle_debug_clicked",
+            accelerator="Ctrl+`",
+            style="toggle",
+            checked_when="debug == True",
+        ),
+        name="&View",
     ),
     Menu(run_sim, name="&Simulation"),
 )
@@ -197,7 +211,6 @@ traits_view = View(
                         label="Impulse Response Length (ns)",
                         tooltip="Manual impulse response length override",
                     ),
-                    Item(name="debug", label="Debug", tooltip="Enable to log extra information to console."),
                     label="Analysis Parameters",
                     show_border=True,
                 ),
