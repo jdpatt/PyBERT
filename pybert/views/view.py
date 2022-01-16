@@ -98,41 +98,6 @@ class GlobalHandler(Handler):
         """Toggle whether debug mode is enabled or not."""
         info.object.debug = not info.object.debug
 
-
-# These are the "globally applicable" buttons referred to in pybert.py,
-# just above the button definitions (approx. line 580).
-run_sim = Action(name="Run", action="run_simulation_clicked", accelerator="Ctrl+R")
-stop_sim = Action(name="Stop", action="stop_simulation_clicked")
-save_data = Action(name="Save Results", action="save_data_clicked")
-load_data = Action(name="Load Results", action="load_data_clicked")
-save_cfg = Action(name="Save Config.", action="save_config_clicked", accelerator="Ctrl+S")
-load_cfg = Action(name="Load Config.", action="load_config_clicked", accelerator="Ctrl+O")
-
-menu_bar = MenuBar(
-    Menu(
-        load_cfg,
-        load_data,
-        Separator(),
-        save_cfg,
-        save_data,
-        Separator(),
-        name="&File",
-    ),
-    Menu(
-        Action(
-            name="Debug Mode",
-            action="toggle_debug_clicked",
-            accelerator="Ctrl+`",
-            style="toggle",
-            checked_when="debug == True",
-        ),
-        name="&View",
-    ),
-    Menu(run_sim, name="&Simulation"),
-)
-#! Unable to add FileMenu CloseAction due to https://github.com/enthought/traitsui/issues/1442
-
-
 # fmt: off
 # Main window layout definition.
 traits_view = View(
@@ -763,8 +728,32 @@ traits_view = View(
     ),
     resizable=True,
     handler=GlobalHandler(),
-    buttons=[run_sim, save_cfg, load_cfg, save_data, load_data],
-    menubar=menu_bar,
+    menubar=MenuBar(
+        Menu(
+            Action(name="Load Config.", action="load_config_clicked", accelerator="Ctrl+O"),
+            Action(name="Load Results", action="load_data_clicked"),
+            Separator(),
+            Action(name="Save Config.", action="save_config_clicked", accelerator="Ctrl+S"),
+            Action(name="Save Results", action="save_data_clicked"),
+            Separator(),
+            # CloseAction, #! Unable to add due to https://github.com/enthought/traitsui/issues/1442
+            name="&File",
+        ),
+        Menu(
+            Action(
+                name="Debug Mode",
+                action="toggle_debug_clicked",
+                accelerator="Ctrl+`",
+                style="toggle",
+                checked_when="debug == True",
+            ),
+            name="&View",
+        ),
+        Menu(
+            Action(name="Run", action="run_simulation_clicked", accelerator="Ctrl+R"),
+            name="&Simulation"
+        ),
+    ),
     statusbar="status_str",
     title="PyBERT",
     # width=0.95,
