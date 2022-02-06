@@ -89,12 +89,31 @@ class GlobalHandler(Handler):
             pybert.save_results(Path(dialog.path))
 
     def load_data_clicked(self, info):
-        """Prompt the user to choose where to load the results from and load it."""
+        """Prompt the user to choose where to load the results from and load it.
+
+        Pybert will load these as "reference" plots for the responses.
+        """
         # pylint: disable=no-self-use
         pybert = info.object
         dialog = FileDialog(action="open", wildcard="*.pybert_data", default_path=pybert.data_file)
         if dialog.open() == OK:
             pybert.load_results(Path(dialog.path))
+
+    def clear_reference_clicked(self, info):
+        """If the user has loaded previous "reference" data, clear that data from the plots."""
+
+        # Remove the data from the ArrayPlotContainer
+        for reference_plot in info.object.plotdata.list_data():
+            if "ref" in reference_plot:
+                try:
+                    info.object.plotdata.del_data(reference_plot)
+                except KeyError:
+                    pass
+
+        # Recreate the diagrams.
+        # TODO: Could just remote individual plots similar to how its loaded.
+        info.object.initialize_plots()
+        info.object.update_results()
 
     def toggle_debug_clicked(self, info):
         """Toggle whether debug mode is enabled or not."""
@@ -763,6 +782,10 @@ traits_view = View(
                 accelerator="Ctrl+`",
                 style="toggle",
                 checked_when="debug == True",
+            ),
+            Action(
+                name="Clear Reference Waveform(s)",
+                action="clear_reference_clicked",
             ),
             name="&View",
         ),

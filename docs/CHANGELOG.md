@@ -10,7 +10,9 @@ All notable changes to this project will be documented in this file.  Notes for 
 - Added a command line interface to pybert.
 - Added test suite to start unit testing pybert.
 - Added menubar to gui.
+- Added "shortcuts" to common actions like "Ctrl + R" to run a simulation.
 - Added ability to save configuration as yaml or pickle without hard coding the choice.
+- Added ability to clear a loaded waveform. (`View -> Clear Reference Waveform(s)`)
 
 ### Fixed
 
@@ -28,3 +30,7 @@ All notable changes to this project will be documented in this file.  Notes for 
 - AMI and IBIS models should handle their own paths not pybert.
 - Reduced what different parts of pybert modify internal state of pybert.
 - Moved help and about to menubar like a traditional application.
+
+### TO-DO
+
+- Fix console entry points and conda for CLI. (Currently using pip install -e for workaround.)
