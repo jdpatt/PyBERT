@@ -962,6 +962,7 @@ class PyBERT(HasTraits):
             self.tx_dll_file = ibis_model.dll_file
             self.tx_ami_file = ibis_model.ami_file
             self.tx_ibis_valid = True
+            self.tx_use_ibis = True
         self.status = "Done."
 
     def _rx_ibis_file_changed(self, new_rx_ibis_file):
@@ -974,6 +975,7 @@ class PyBERT(HasTraits):
             self.rx_dll_file = ibis_model.dll_file
             self.rx_ami_file = ibis_model.ami_file
             self.rx_ibis_valid = True
+            self.rx_use_ibis = True
         self.status = "Done."
 
     def read_in_ami_file(self, new_ami_file: Path):
