@@ -956,27 +956,39 @@ class PyBERT(HasTraits):
         """The user changed `tx_ibis_file`, mark the file as invalid and parse the new one."""
         self.tx_ibis_valid = False
         self.tx_use_ami = False
-        ibis_model = self.read_in_ibis_model(Path(new_tx_ibis_file), is_tx=True)
-        if ibis_model:
-            self._tx_ibis = ibis_model
-            self.tx_dll_file = ibis_model.dll_file
-            self.tx_ami_file = ibis_model.ami_file
-            self.tx_ibis_valid = True
-            self.tx_use_ibis = True
-        self.status = "Done."
+        new_ibis = Path(new_tx_ibis_file)
+        if not new_ibis.is_dir():  # Either the field was cleared or a directory was selected.
+            ibis_model = self.read_in_ibis_model(new_ibis, is_tx=True)
+            if ibis_model:
+                self._tx_ibis = ibis_model
+                self.tx_dll_file = ibis_model.dll_file
+                self.tx_ami_file = ibis_model.ami_file
+                self.tx_ibis_valid = True
+                self.tx_use_ibis = True
+            self.status = "Done."
+        else:
+            self._tx_ibis = None
+            self.tx_ibis_valid = False
+            self.tx_use_ibis = False
 
     def _rx_ibis_file_changed(self, new_rx_ibis_file):
         """The user changed `rx_ibis_file`, mark the file as invalid and parse the new one."""
         self.rx_ibis_valid = False
         self.rx_use_ami = False
-        ibis_model = self.read_in_ibis_model(Path(new_rx_ibis_file), is_tx=False)
-        if ibis_model:
-            self._rx_ibis = ibis_model
-            self.rx_dll_file = ibis_model.dll_file
-            self.rx_ami_file = ibis_model.ami_file
-            self.rx_ibis_valid = True
-            self.rx_use_ibis = True
-        self.status = "Done."
+        new_ibis = Path(new_rx_ibis_file)
+        if not new_ibis.is_dir():  # Either the field was cleared or a directory was selected.
+            ibis_model = self.read_in_ibis_model(new_ibis, is_tx=False)
+            if ibis_model:
+                self._rx_ibis = ibis_model
+                self.rx_dll_file = ibis_model.dll_file
+                self.rx_ami_file = ibis_model.ami_file
+                self.rx_ibis_valid = True
+                self.rx_use_ibis = True
+            self.status = "Done."
+        else:
+            self._rx_ibis = None
+            self.rx_ibis_valid = False
+            self.rx_use_ibis = False
 
     def read_in_ami_file(self, new_ami_file: Path):
         """Read in a new ibis ami file and return infomation about the AMI or log an error."""
