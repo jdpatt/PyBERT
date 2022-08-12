@@ -1,3 +1,36 @@
+[build-system]
+requires = ["setuptools>=45", "setuptools_scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "PyBERT"
+dynamic = ["version"]
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "BSD"}
+dependencies = [
+    #! Note: pybert is managed by conda and some of its dependencies are not pip installable.
+    "click==8.0.3",
+    "chaco",
+    "enable>=4.8.1",
+    "kiwisolver",
+    "numpy",
+    "scikit-rf",
+    "scipy",
+    "traits",
+    "traitsui",
+    "PyIBIS-AMI>=3.3.3",
+    "pyyaml==6.0",
+    ]
+
+[project.scripts]
+pybert = "pybert.cli:cli"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools_scm]
+
 [tool.black]
 line-length = 119
 
