@@ -21,7 +21,7 @@ dependencies = [
     "traitsui==7.4.0",
     "PyIBIS-AMI>=3.4.0",
     "pyyaml==6.0",
-    "pyside2==5.15"
+    "pyside2==5.15.2.1"
     ]
 
 [project.scripts]

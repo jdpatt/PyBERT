@@ -111,7 +111,7 @@ class GlobalHandler(Handler):
                     pass
 
         # Recreate the diagrams.
-        # TODO: Could just remote individual plots similar to how its loaded.
+        # TODO: Could just remove individual plots similar to how its loaded.
         info.object.initialize_plots()
         info.object.update_results()
 
