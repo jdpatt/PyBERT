@@ -30,7 +30,4 @@ All notable changes to this project will be documented in this file.  Notes for 
 - AMI and IBIS models should handle their own paths not pybert.
 - Reduced what different parts of pybert modify internal state of pybert.
 - Moved help and about to menubar like a traditional application.
-
-### TO-DO
-
-- Fix console entry points and conda for CLI. (Currently using pip install -e for workaround.)
+- Removed all of the conda tied tooling so where both pypi or conda env. could be used/created.
