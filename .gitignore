@@ -144,3 +144,4 @@ pybert/doc/build/*
 *~
 *.log
 .vscode/
+*.code-workspace

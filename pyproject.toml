@@ -9,17 +9,17 @@ readme = "README.md"
 requires-python = ">=3.8"
 license = {text = "BSD"}
 dependencies = [
-    #! Note: pybert is managed by conda and some of its dependencies are not pip installable.
-    "click==8.0.3",
-    "chaco",
-    "enable>=4.8.1",
-    "kiwisolver",
-    "numpy",
-    "scikit-rf",
-    "scipy",
-    "traits",
-    "traitsui",
-    "PyIBIS-AMI>=3.3.3",
+    "click==8.1.3",
+    "chaco==5.0.0",
+    "enable==5.3.1",
+    "parsec==3.13",
+    "empy==3.3.4",
+    "numpy==1.23.1",
+    "scikit-rf==0.23.1",
+    "scipy==1.9.0",
+    "traits==6.4.1",
+    "traitsui==7.4.0",
+    "PyIBIS-AMI>=3.4.0",
     "pyyaml==6.0",
     ]
 
@@ -28,6 +28,7 @@ pybert = "pybert.cli:cli"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+include = ["pybert*"]
 
 [tool.setuptools_scm]
 
