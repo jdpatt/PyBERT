@@ -96,7 +96,7 @@ class TxTapTuner(HasTraits):
         self.steps: int = steps
 
     def sweep_values(self):
-        """Return what values should be interated through if sweeping in the main simulation.
+        """Return what values should be integrated through if sweeping in the main simulation.
 
         If its enabled either create a list of equally spaced steps or just append the value if
         steps is zero.  If the tap isn't enabled period, append zero.

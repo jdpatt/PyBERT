@@ -44,7 +44,7 @@ class PyBertCfg:
     # - Channel Control
     #     - parameters for Howard Johnson's "Metallic Transmission Model"
     #     - (See "High Speed Signal Propagation", Sec. 3.1.)
-    #     - ToDo: These are the values for 24 guage twisted copper pair; need to add other options.
+    #     - ToDo: These are the values for 24 gauge twisted copper pair; need to add other options.
     Rdc: float = 0.1876   # Ohms/m
     w0: float = 10.0e6    # 10 MHz is recommended in Ch. 8 of his second book, in which UTP is described in detail.
     R0: float = 1.452     # skin-effect resistance (Ohms/m)log

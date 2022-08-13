@@ -34,10 +34,7 @@ def setup_logging(verbose=False) -> Logger:
 
     log.addHandler(console_handler)
     log.addHandler(file_handler)
-    if verbose:
-        log.setLevel(logging.DEBUG)
-    else:
-        log.setLevel(logging.INFO)
+    log.setLevel(logging.DEBUG)
 
     log.info("Log file created at: %s", log_file)
 
