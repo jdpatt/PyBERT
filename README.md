@@ -1,45 +1,19 @@
 # PyBERT
 
-PyBERT is a serial communication link bit error rate tester simulator with a graphical user interface (GUI).
+PyBERT is a serial communication link bit error rate tester simulator.  It allows users to
+simulate the performance of a channel given a transmitter and receiver.
+
+**NOTE that this is a fork of [pybert](https://github.com/capn-freako/PyBERT/wiki).**
+These changes may or may not get merged in later.  A high level list of changes can be found in
+[CHANGELOG.md](docs/CHANGELOG.md).
 
 ![screenshot](/docs/screen_shot.png)
 
-It uses the Traits/UI package of the Enthought Python Distribution (EPD) <http://www.enthought.com/products/epd.php>,
-as well as the NumPy and SciPy packages.
-
 Notice: Before using this package for any purpose, you MUST read and understand the terms put forward in the accompanying "LICENSE" file.
-
-## Wiki
-
-- <https://github.com/capn-freako/PyBERT/wiki>
-
-## FAQ
-
-- <https://github.com/capn-freako/PyBERT/wiki/pybert_faq>
-
-## User Installation
-
-- <https://github.com/capn-freako/PyBERT/wiki/instant_gratification>
-
-## Developer Installation
-
-- <https://github.com/capn-freako/PyBERT/wiki/dev_install>
 
 ## Documentation
 
-PyBERT documentation exists in 2 separate forms:
-
-### For developers
-
-- pybert/doc/build/html/index.html
-- <https://github.com/capn-freako/PyBERT/wiki/dev_install>
-
-### For users
-
-- Quick installation instructions at <https://github.com/capn-freako/PyBERT/wiki/instant_gratification>
-- The 'Help' tab of the PyBERT GUI
-- The PyBERT FAQ at <https://github.com/capn-freako/PyBERT/wiki/pybert_faq>
-- Sending e-mail to David Banas at <capn.freako@gmail.com>
+- <https://github.com/capn-freako/PyBERT/wiki>
 
 ## Acknowledgements
 
