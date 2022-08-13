@@ -5,6 +5,7 @@ black
 isort
 pytest
 pytest-cov
+pytest-xdist
 pylint
 pre-commit
 mypy
