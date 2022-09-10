@@ -23,6 +23,7 @@ from pybert.sim.jitter import calc_jitter, find_crossings
 from pybert.utility import (
     add_ondie_s,
     calc_gamma,
+    getwave_step_resp,
     import_channel,
     make_ctle,
     trim_impulse,
@@ -298,40 +299,26 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
                 )
                 return
             if self.tx_use_getwave:
-                # For GetWave, use a step to extract the model's native properties.
-                # Delay the input edge slightly, in order to minimize high
-                # frequency artifactual energy sometimes introduced near
-                # the signal edges by frequency domain processing in some models.
-                tmp = np.array([-1.0] * 128 + [1.0] * 896)  # Stick w/ 2^n, for freq. domain models' sake.
-                tx_s, _ = tx_model.getWave(tmp)
-                # Some models delay signal flow through GetWave() arbitrarily.
-                tmp = np.array([1.0] * 1024)
-                max_tries = 10
-                n_tries = 0
-                while max(tx_s) < 0.1 and n_tries < max_tries:  # Wait for step to rise, but not indefinitely.
-                    tx_s, _ = tx_model.getWave(tmp)
-                    n_tries += 1
-                if n_tries == max_tries:
+                try:
+                    tx_s = getwave_step_resp(tx_model)
+                except RuntimeError as err:
                     self.status = "Tx GetWave() Error."
-                    log.error("Never saw a rising step come out of Tx GetWave()!", extra={"alert": True})
+                    self.log("ERROR: Never saw a rising step come out of Tx GetWave()!", alert=True)
                     return
-                # Make one more call, just to ensure a sufficient "tail".
-                tmp, _ = tx_model.getWave(tmp)
-                tx_s = np.append(tx_s, tmp)
                 tx_h, _ = trim_impulse(np.diff(tx_s))
                 tx_out, _ = tx_model.getWave(self.x)
             else:  # Init()-only.
                 tx_out = np.convolve(tx_h, self.x)
-            tx_s = tx_h.cumsum()
+                tx_s = tx_h.cumsum()
             self.tx_model = tx_model
         else:
             # - Generate the ideal, post-preemphasis signal.
             # To consider: use 'scipy.interp()'. This is what Mark does, in order to induce jitter in the Tx output.
             ffe_out = np.convolve(symbols, ffe)[: len(symbols)]
             if self.use_ch_file:
-                self.rel_power = np.mean(ffe_out ** 2) / self.rs
+                self.rel_power = np.mean(ffe_out**2) / self.rs
             else:
-                self.rel_power = np.mean(ffe_out ** 2) / self.Z0
+                self.rel_power = np.mean(ffe_out**2) / self.Z0
             tx_out = np.repeat(ffe_out, nspui)  # oversampled output
 
             # - Calculate the responses.
@@ -424,32 +411,36 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
                 )
                 return
             if self.rx_use_getwave:
-                # ctle_out, clock_times = rx_model.getWave(rx_in, 32)
-                ctle_out, clock_times = rx_model.getWave(rx_in, len(rx_in))
-                log.info(rx_model.ami_params_out.decode("utf-8"))
-
-                ctle_H = fft(ctle_out * hann(len(ctle_out))) / fft(rx_in * hann(len(rx_in)))
-                ctle_h = irfft(ctle_H)
+                try:
+                    ctle_s = getwave_step_resp(rx_model)
+                except RuntimeError as err:
+                    self.status = "Rx GetWave() Error."
+                    self.log("ERROR: Never saw a rising step come out of Rx GetWave()!", alert=True)
+                    return
+                ctle_h = np.diff(ctle_s)
+                temp = ctle_h.copy()
+                temp.resize(len(t))
+                ctle_H = fft(temp)
                 ctle_h.resize(len(chnl_h))
                 ctle_out_h = np.convolve(ctle_h, tx_out_h)[: len(chnl_h)]
             else:  # Init() only.
-                ctle_out_h_padded = np.pad(
+                ctle_out_h_padded = pad(
                     ctle_out_h,
                     (nspb, len(rx_in) - nspb - len(ctle_out_h)),
                     "linear_ramp",
                     end_values=(0.0, 0.0),
                 )
-                tx_out_h_padded = np.pad(
+                tx_out_h_padded = pad(
                     tx_out_h,
                     (nspb, len(rx_in) - nspb - len(tx_out_h)),
                     "linear_ramp",
                     end_values=(0.0, 0.0),
                 )
-                ctle_H = fft(ctle_out_h_padded) / fft(tx_out_h_padded)
-                ctle_h = irfft(ctle_H)
+                ctle_H = fft(ctle_out_h_padded) / fft(tx_out_h_padded)  # ToDo: I think this is wrong.
+                ctle_h = irfft(ctle_H)  # I shouldn't be sending the output of `fft()` into `irfft()`, should I?
                 ctle_h.resize(len(chnl_h))
-                ctle_out = np.convolve(rx_in, ctle_h)
             ctle_s = ctle_h.cumsum()
+            ctle_out = np.convolve(rx_in, ctle_h)
         else:
             if self.use_ctle_file:
                 # FIXME: The new import_channel() implementation breaks this:

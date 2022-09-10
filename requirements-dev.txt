@@ -1,6 +1,7 @@
 # Install with `pip install -r requirements.txt`
 
 # Developer tooling
+autoflake
 black
 isort
 pytest

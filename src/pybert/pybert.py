@@ -212,7 +212,7 @@ class PyBERT(HasTraits):
 
     # - Rx
     rin = Float(PyBertCfg.rin)  #: Rx input impedance (Ohm)
-    cin = Range(low=0.0, high=1000, value=PyBertCfg.cin)  #: Rx parasitic input capacitance (pF)
+    cin = Float(PyBertCfg.cin)  #: Rx parasitic input capacitance (pF)
     cac = Float(PyBertCfg.cac)  #: Rx a.c. coupling capacitance (uF)
     use_ctle_file = Bool(False)  #: For importing CTLE impulse/step response directly.
     ctle_file = File("", entries=5, filter=["*.csv"])  #: CTLE response file (when use_ctle_file = True).

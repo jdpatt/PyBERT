@@ -124,7 +124,7 @@ class CDR:
             proportional_corrections.pop(0)
         if len(proportional_corrections) == n_lock_ave:
             x = array(integral_corrections)  # - mean(integral_corrections)
-            var = sum(x ** 2) / n_lock_ave
+            var = sum(x**2) / n_lock_ave
             lock = abs(mean(proportional_corrections) / delta_t) < rel_lock_tol and (var / delta_t) < rel_lock_tol
             lockeds.append(lock)
             if len(lockeds) > lock_sustain:
