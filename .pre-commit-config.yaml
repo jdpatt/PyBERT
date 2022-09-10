@@ -20,3 +20,5 @@ repos:
       - id: check-merge-conflict
       - id: debug-statements
       - id: mixed-line-ending
+      - id: no-commit-to-branch
+        args: ["--branch", "master", "--branch", "main"]
