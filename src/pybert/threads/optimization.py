@@ -36,22 +36,13 @@ class TxOptThread(StoppableThread):
         bounds = list(zip(min_vals, max_vals))
 
         try:
-            if gDebugOptimize:
-                res = minimize(
-                    self.do_opt_tx,
-                    old_taps,
-                    bounds=bounds,
-                    constraints=cons,
-                    options={"disp": True, "maxiter": max_iter},
-                )
-            else:
-                res = minimize(
-                    self.do_opt_tx,
-                    old_taps,
-                    bounds=bounds,
-                    constraints=cons,
-                    options={"disp": False, "maxiter": max_iter},
-                )
+            res = minimize(
+                self.do_opt_tx,
+                old_taps,
+                bounds=bounds,
+                constraints=cons,
+                options={"disp": gDebugOptimize, "maxiter": max_iter},
+            )
 
             if self.update_status:
                 if res["success"]:
@@ -92,20 +83,12 @@ class RxOptThread(StoppableThread):
         max_mag_tune = pybert.max_mag_tune
 
         try:
-            if gDebugOptimize:
-                res = minimize_scalar(
-                    self.do_opt_rx,
-                    bounds=(0, max_mag_tune),
-                    method="Bounded",
-                    options={"disp": True, "maxiter": max_iter},
-                )
-            else:
-                res = minimize_scalar(
-                    self.do_opt_rx,
-                    bounds=(0, max_mag_tune),
-                    method="Bounded",
-                    options={"disp": False, "maxiter": max_iter},
-                )
+            res = minimize_scalar(
+                self.do_opt_rx,
+                bounds=(0, max_mag_tune),
+                method="Bounded",
+                options={"disp": gDebugOptimize, "maxiter": max_iter},
+            )
 
             if res["success"]:
                 pybert.status = "Optimization succeeded."
@@ -141,20 +124,12 @@ class CoOptThread(StoppableThread):
         max_mag_tune = pybert.max_mag_tune
 
         try:
-            if gDebugOptimize:
-                res = minimize_scalar(
-                    self.do_coopt,
-                    bounds=(0, max_mag_tune),
-                    method="Bounded",
-                    options={"disp": True, "maxiter": max_iter},
-                )
-            else:
-                res = minimize_scalar(
-                    self.do_coopt,
-                    bounds=(0, max_mag_tune),
-                    method="Bounded",
-                    options={"disp": False, "maxiter": max_iter},
-                )
+            res = minimize_scalar(
+                self.do_coopt,
+                bounds=(0, max_mag_tune),
+                method="Bounded",
+                options={"disp": gDebugOptimize, "maxiter": max_iter},
+            )
 
             if res["success"]:
                 pybert.status = "Optimization succeeded."
