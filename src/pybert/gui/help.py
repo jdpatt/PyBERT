@@ -33,16 +33,3 @@ help_str = """<H2>PyBERT User's Guide</H2>\n
       This tab allows you to configure the simulation.\n
       Hover over any user configurable element for a help message.\n
 """
-# +           "    <H4>DFE</H4>\n" \
-# +           "    <H4>EQ Tune</H4>\n" \
-# +           "    <H4>Impulses</H4>\n" \
-# +           "    <H4>Steps</H4>\n" \
-# +           "    <H4>Pulses</H4>\n" \
-# +           "    <H4>Freq. Resp.</H4>\n" \
-# +           "    <H4>Outputs</H4>\n" \
-# +           "    <H4>Eyes</H4>\n" \
-# +           "    <H4>Jitter Dist.</H4>\n" \
-# +           "    <H4>Jitter Spec.</H4>\n" \
-# +           "    <H4>Bathtubs</H4>\n" \
-# +           "    <H4>Jitter Info</H4>\n" \
-# +           "    <H4>Sweep Info</H4>\n" \

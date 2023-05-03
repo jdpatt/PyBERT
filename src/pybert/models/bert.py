@@ -222,11 +222,11 @@ def my_run_simulation(self, initial_run=False, update_plots=True, aborted_sim: O
 
     # Generate the output from, and the incremental/cumulative impulse/step/frequency responses of, the Tx.
     try:
-        if self.tx_use_ami:
+        if self.tx.use_ami:
             # Note: Within the PyBERT computational environment, we use normalized impulse responses,
             #       which have units of (V/ts), where 'ts' is the sample interval. However, IBIS-AMI models expect
             #       units of (V/s). So, we have to scale accordingly, as we transit the boundary between these two worlds.
-            tx_cfg = self._tx_cfg  # Grab the 'AMIParamConfigurator' instance for this model.
+            tx_cfg = self.tx.ami_config  # Grab the 'AMIParamConfigurator' instance for this model.
             # Get the model invoked and initialized, except for 'channel_response', which
             # we need to do several different ways, in order to gather all the data we need.
             tx_param_dict = tx_cfg.input_ami_params
@@ -235,7 +235,7 @@ def my_run_simulation(self, initial_run=False, update_plots=True, aborted_sim: O
             # Start with a delta function, to capture the model's impulse response.
             tx_model_init.channel_response = [1.0 / ts] + [0.0] * (len(chnl_h) - 1)
             tx_model_init.bit_time = ui
-            tx_model = AMIModel(self.tx_dll_file)
+            tx_model = self.tx.ami_model
             tx_model.initialize(tx_model_init)
             self.log(
                 "Tx IBIS-AMI model initialization results:\nInput parameters: {}\nOutput parameters: {}\nMessage: {}".format(
@@ -254,7 +254,7 @@ I cannot continue.\nYou will have to select a different model.",
                     alert=True,
                 )
                 return
-            elif not self.tx_use_getwave:
+            elif not self.tx.use_getwave:
                 self.status = "Simulation Error."
                 self.log(
                     "ERROR: You have elected not to use GetWave for a model, which does not return an impulse response!\n \
@@ -262,7 +262,7 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
                     alert=True,
                 )
                 return
-            if self.tx_use_getwave:
+            if self.tx.use_getwave:
                 try:
                     tx_s = getwave_step_resp(tx_model)
                 except RuntimeError as err:
@@ -279,10 +279,10 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
             # - Generate the ideal, post-preemphasis signal.
             # To consider: use 'scipy.interp()'. This is what Mark does, in order to induce jitter in the Tx output.
             ffe_out = convolve(symbols, ffe)[: len(symbols)]
-            if self.use_ch_file:
+            if self.channel.use_ch_file:
                 self.rel_power = mean(ffe_out**2) / self.rs
             else:
-                self.rel_power = mean(ffe_out**2) / self.Z0
+                self.rel_power = mean(ffe_out**2) / self.channel.Z0
             tx_out = repeat(ffe_out, nspui)  # oversampled output
 
             # - Calculate the responses.
@@ -341,8 +341,8 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
 
     # Generate the output from, and the incremental/cumulative impulse/step/frequency responses of, the CTLE.
     try:
-        if self.rx_use_ami:
-            rx_cfg = self._rx_cfg  # Grab the 'AMIParamConfigurator' instance for this model.
+        if self.rx.use_ami:
+            rx_cfg = self.rx.ami_config  # Grab the 'AMIParamConfigurator' instance for this model.
             # Get the model invoked and initialized, except for 'channel_response', which
             # we need to do several different ways, in order to gather all the data we need.
             rx_param_dict = rx_cfg.input_ami_params
@@ -350,7 +350,7 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
             rx_model_init.sample_interval = ts  # Must be set, before 'channel_response'!
             rx_model_init.channel_response = tx_out_h / ts
             rx_model_init.bit_time = ui
-            rx_model = AMIModel(self.rx_dll_file)
+            rx_model = self.rx.ami_model
             rx_model.initialize(rx_model_init)
             self.log(
                 "Rx IBIS-AMI model initialization results:\nInput parameters: {}\nMessage: {}\nOutput parameters: {}".format(
@@ -369,7 +369,7 @@ I cannot continue.\nYou will have to select a different model.",
                     alert=True,
                 )
                 return
-            elif not self.rx_use_getwave:
+            elif not self.rx.use_getwave:
                 self.status = "Simulation Error."
                 self.log(
                     "ERROR: You have elected not to use GetWave for a model, which does not return an impulse response!\n \
@@ -377,7 +377,7 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
                     alert=True,
                 )
                 return
-            if self.rx_use_getwave:
+            if self.rx.use_getwave:
                 try:
                     ctle_s = getwave_step_resp(rx_model)
                 except RuntimeError as err:

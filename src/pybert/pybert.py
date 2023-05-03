@@ -16,15 +16,13 @@ Copyright (c) 2014 by David Banas; All rights reserved World wide.
 import platform
 import time
 from datetime import datetime
-from os.path import dirname, join
+from os.path import join
 from pathlib import Path
-from threading import Event, Thread
-from time import sleep
 
 import numpy as np
 import skrf as rf
 from chaco.api import ArrayPlotData, GridPlotContainer
-from numpy import array, convolve, cos, exp, ones, pad, pi, sinc, where, zeros
+from numpy import array, convolve, cos, ones, pad, pi, sinc, where, zeros
 from numpy.fft import fft, irfft
 from numpy.random import randint
 from traits.api import (
@@ -46,20 +44,16 @@ from traits.api import (
 )
 from traitsui.message import message
 
-from pybert import __authors__ as AUTHORS
-from pybert import __copy__ as COPY
-from pybert import __date__ as DATE
 from pybert import __version__ as VERSION
 from pybert.configuration import InvalidFileType, PyBertCfg
 from pybert.gui.help import help_str
 from pybert.gui.plot import make_plots
+from pybert.models import Channel, Receiver, Transmitter, Optimizer
 from pybert.models.bert import my_run_simulation
 from pybert.models.tx_tap import TxTapTuner
 from pybert.results import PyBertData
-from pybert.threads.optimization import CoOptThread, RxOptThread, TxOptThread
+
 from pybert.utility import (
-    calc_gamma,
-    import_channel,
     interp_s2p,
     lfsr_bits,
     make_ctle,
@@ -69,9 +63,6 @@ from pybert.utility import (
     trim_impulse,
 )
 from pyibisami import __version__ as PyAMI_VERSION
-from pyibisami.ami.model import AMIModel
-from pyibisami.ami.parser import AMIParamConfigurator
-from pyibisami.ibis.file import IBISModel
 
 gDebugStatus = False
 gMaxCTLEPeak = 20.0  # max. allowed CTLE peaking (dB) (when optimizing, only)
@@ -84,30 +75,16 @@ gNbits = 8000  # number of bits to run
 gPatLen = 127  # repeating bit pattern length
 gNspb = 32  # samples per bit
 gNumAve = 1  # Number of bit error samples to average, when sweeping.
-# - Channel Control
-#     - parameters for Howard Johnson's "Metallic Transmission Model"
-#     - (See "High Speed Signal Propagation", Sec. 3.1.)
-#     - ToDo: These are the values for 24 guage twisted copper pair; need to add other options.
-gRdc = 0.1876  # Ohms/m
-gw0 = 10.0e6  # 10 MHz is recommended in Ch. 8 of his second book, in which UTP is described in detail.
-gR0 = 1.452  # skin-effect resistance (Ohms/m)log
-gTheta0 = 0.02  # loss tangent
-gZ0 = 100.0  # characteristic impedance in LC region (Ohms)
-gv0 = 0.67  # relative propagation velocity (c)
-gl_ch = 1.0  # cable length (m)
+
+# - Tx
 gRn = (
     0.001  # standard deviation of Gaussian random noise (V) (Applied at end of channel, so as to appear white to Rx.)
 )
-# - Tx
 gVod = 1.0  # output drive strength (Vp)
-gRs = 100  # differential source impedance (Ohms)
-gCout = 0.50  # parasitic output capacitance (pF) (Assumed to exist at both 'P' and 'N' nodes.)
+
 gPnMag = 0.001  # magnitude of periodic noise (V)
 gPnFreq = 0.437  # frequency of periodic noise (MHz)
-# - Rx
-gRin = 100  # differential input resistance
-gCin = 0.50  # parasitic input capacitance (pF) (Assumed to exist at both 'P' and 'N' nodes.)
-gCac = 1.0  # a.c. coupling capacitance (uF) (Assumed to exist at both 'P' and 'N' nodes.)
+
 gBW = 12.0  # Rx signal path bandwidth, assuming no CTLE action. (GHz)
 gUseDfe = True  # Include DFE when running simulation.
 gDfeIdeal = True  # DFE ideal summing node selector
@@ -160,51 +137,20 @@ class PyBERT(HasTraits):
     sweep_aves = Int(gNumAve)
     do_sweep = Bool(False)  #: Run sweeps? (Default = False)
     debug = Bool(False)  #: Send log messages to terminal, as well as console, when True. (Default = False)
-
-    # - Channel Control
-    ch_file = File(
-        "", entries=5, filter=["*.s4p", "*.S4P", "*.csv", "*.CSV", "*.txt", "*.TXT", "*.*"]
-    )  #: Channel file name.
-    use_ch_file = Bool(False)  #: Import channel description from file? (Default = False)
-    f_step = Float(10)  #: Frequency step to use when constructing H(f). (Default = 10 MHz)
     impulse_length = Float(0.0)  #: Impulse response length. (Determined automatically, when 0.)
-    Rdc = Float(gRdc)  #: Channel d.c. resistance (Ohms/m).
-    w0 = Float(gw0)  #: Channel transition frequency (rads./s).
-    R0 = Float(gR0)  #: Channel skin effect resistance (Ohms/m).
-    Theta0 = Float(gTheta0)  #: Channel loss tangent (unitless).
-    Z0 = Float(gZ0)  #: Channel characteristic impedance, in LC region (Ohms).
-    v0 = Float(gv0)  #: Channel relative propagation velocity (c).
-    l_ch = Float(gl_ch)  #: Channel length (m).
 
-    # - EQ Tune
-    tx_tap_tuners = List(
-        [
-            TxTapTuner(name="Pre-tap", enabled=True, min_val=-0.2, max_val=0.2, value=0.0),
-            TxTapTuner(name="Post-tap1", enabled=False, min_val=-0.4, max_val=0.4, value=0.0),
-            TxTapTuner(name="Post-tap2", enabled=False, min_val=-0.3, max_val=0.3, value=0.0),
-            TxTapTuner(name="Post-tap3", enabled=False, min_val=-0.2, max_val=0.2, value=0.0),
-        ]
-    )  #: EQ optimizer list of TxTapTuner objects.
-    rx_bw_tune = Float(gBW)  #: EQ optimizer CTLE bandwidth (GHz).
-    peak_freq_tune = Float(gPeakFreq)  #: EQ optimizer CTLE peaking freq. (GHz).
-    peak_mag_tune = Float(gPeakMag)  #: EQ optimizer CTLE peaking mag. (dB).
-    max_mag_tune = Float(20)  #: EQ optimizer CTLE peaking mag. (dB).
-    ctle_offset_tune = Float(gCTLEOffset)  #: EQ optimizer CTLE d.c. offset (dB).
-    ctle_mode_tune = Enum("Off", "Passive", "AGC", "Manual")  #: EQ optimizer CTLE mode
-    use_dfe_tune = Bool(gUseDfe)  #: EQ optimizer DFE select (Bool).
-    n_taps_tune = Int(gNtaps)  #: EQ optimizer # DFE taps.
-    max_iter = Int(50)  #: EQ optimizer max. # of optimization iterations.
-    tx_opt_thread = Instance(TxOptThread)  #: Tx EQ optimization thread.
-    rx_opt_thread = Instance(RxOptThread)  #: Rx EQ optimization thread.
-    coopt_thread = Instance(CoOptThread)  #: EQ co-optimization thread.
+    channel = Instance(Channel, ())
+    tx = Instance(Transmitter, ())
+    rx = Instance(Receiver, ())
+    optimizer = Instance(Optimizer, ())
+
 
     # - Tx
     vod = Float(gVod)  #: Tx differential output voltage (V)
-    rs = Float(gRs)  #: Tx source impedance (Ohms)
-    cout = Range(low=0.001, high=1000, value=gCout)  #: Tx parasitic output capacitance (pF)
     pn_mag = Float(gPnMag)  #: Periodic noise magnitude (V).
     pn_freq = Float(gPnFreq)  #: Periodic noise frequency (MHz).
     rn = Float(gRn)  #: Standard deviation of Gaussian random noise (V).
+
     tx_taps = List(
         [
             TxTapTuner(name="Pre-tap", enabled=True, min_val=-0.2, max_val=0.2, value=-0.066),
@@ -214,29 +160,8 @@ class PyBERT(HasTraits):
         ]
     )  #: List of TxTapTuner objects.
     rel_power = Float(1.0)  #: Tx power dissipation (W).
-    tx_use_ami = Bool(False)  #: (Bool)
-    tx_has_ts4 = Bool(False)  #: (Bool)
-    tx_use_ts4 = Bool(False)  #: (Bool)
-    tx_use_getwave = Bool(False)  #: (Bool)
-    tx_has_getwave = Bool(False)  #: (Bool)
-    tx_ami_file = File("", entries=5, filter=["*.ami"])  #: (File)
-    tx_ami_valid = Bool(False)  #: (Bool)
-    tx_dll_file = File("", entries=5, filter=["*.dll", "*.so"])  #: (File)
-    tx_dll_valid = Bool(False)  #: (Bool)
-    tx_ibis_file = File(
-        "",
-        entries=5,
-        filter=[
-            "IBIS Models (*.ibs)|*.ibs",
-        ],
-    )  #: (File)
-    tx_ibis_valid = Bool(False)  #: (Bool)
-    tx_use_ibis = Bool(False)  #: (Bool)
 
-    # - Rx
-    rin = Float(gRin)  #: Rx input impedance (Ohm)
-    cin = Float(gCin)  #: Rx parasitic input capacitance (pF)
-    cac = Float(gCac)  #: Rx a.c. coupling capacitance (uF)
+    # - CTLE
     use_ctle_file = Bool(False)  #: For importing CTLE impulse/step response directly.
     ctle_file = File("", entries=5, filter=["*.csv"])  #: CTLE response file (when use_ctle_file = True).
     rx_bw = Float(gBW)  #: CTLE bandwidth (GHz).
@@ -245,18 +170,6 @@ class PyBERT(HasTraits):
     ctle_offset = Float(gCTLEOffset)  #: CTLE d.c. offset (dB)
     ctle_mode = Enum("Off", "Passive", "AGC", "Manual")  #: CTLE mode ('Off', 'Passive', 'AGC', 'Manual').
     ctle_mode = "Passive"
-    rx_use_ami = Bool(False)  #: (Bool)
-    rx_has_ts4 = Bool(False)  #: (Bool)
-    rx_use_ts4 = Bool(False)  #: (Bool)
-    rx_use_getwave = Bool(False)  #: (Bool)
-    rx_has_getwave = Bool(False)  #: (Bool)
-    rx_ami_file = File("", entries=5, filter=["*.ami"])  #: (File)
-    rx_ami_valid = Bool(False)  #: (Bool)
-    rx_dll_file = File("", entries=5, filter=["*.dll", "*.so"])  #: (File)
-    rx_dll_valid = Bool(False)  #: (Bool)
-    rx_ibis_file = File("", entries=5, filter=["*.ibs"])  #: (File)
-    rx_ibis_valid = Bool(False)  #: (Bool)
-    rx_use_ibis = Bool(False)  #: (Bool)
 
     # - DFE
     use_dfe = Bool(gUseDfe)  #: True = use a DFE (Bool).
@@ -353,20 +266,6 @@ class PyBERT(HasTraits):
     dfe_out_p = Array()
     przf_err = Property(Float, depends_on=["dfe_out_p"])
 
-    # Custom buttons, which we'll use in particular tabs.
-    # (Globally applicable buttons, such as "Run" and "Ok", are handled more simply, in the View.)
-    btn_rst_eq = Button(label="ResetEq")
-    btn_save_eq = Button(label="SaveEq")
-    btn_opt_tx = Button(label="OptTx")
-    btn_opt_rx = Button(label="OptRx")
-    btn_coopt = Button(label="CoOpt")
-    btn_abort = Button(label="Abort")
-    btn_cfg_tx = Button(label="Configure")  # Configure AMI parameters.
-    btn_cfg_rx = Button(label="Configure")
-    btn_sel_tx = Button(label="Select")  # Select IBIS model.
-    btn_sel_rx = Button(label="Select")
-    btn_view_tx = Button(label="View")  # View IBIS model.
-    btn_view_rx = Button(label="View")
 
     # Logger & Pop-up
     def log(self, msg, alert=False, exception=None):
@@ -414,106 +313,6 @@ class PyBERT(HasTraits):
             self.simulate(initial_run=True)
         else:
             self.calc_chnl_h()  # Prevents missing attribute error in _get_ctle_out_h_tune().
-
-    # Custom button handlers
-    def _btn_rst_eq_fired(self):
-        """Reset the equalization."""
-        for i in range(4):
-            self.tx_tap_tuners[i].value = self.tx_taps[i].value
-            self.tx_tap_tuners[i].enabled = self.tx_taps[i].enabled
-        self.peak_freq_tune = self.peak_freq
-        self.peak_mag_tune = self.peak_mag
-        self.rx_bw_tune = self.rx_bw
-        self.ctle_mode_tune = self.ctle_mode
-        self.ctle_offset_tune = self.ctle_offset
-        self.use_dfe_tune = self.use_dfe
-        self.n_taps_tune = self.n_taps
-
-    def _btn_save_eq_fired(self):
-        """Save the equalization."""
-        for i in range(4):
-            self.tx_taps[i].value = self.tx_tap_tuners[i].value
-            self.tx_taps[i].enabled = self.tx_tap_tuners[i].enabled
-        self.peak_freq = self.peak_freq_tune
-        self.peak_mag = self.peak_mag_tune
-        self.rx_bw = self.rx_bw_tune
-        self.ctle_mode = self.ctle_mode_tune
-        self.ctle_offset = self.ctle_offset_tune
-        self.use_dfe = self.use_dfe_tune
-        self.n_taps = self.n_taps_tune
-
-    def _btn_opt_tx_fired(self):
-        if (
-            self.tx_opt_thread
-            and self.tx_opt_thread.is_alive()
-            or not any([self.tx_tap_tuners[i].enabled for i in range(len(self.tx_tap_tuners))])
-        ):
-            pass
-        else:
-            self._do_opt_tx()
-
-    def _do_opt_tx(self, update_status=True):
-        self.tx_opt_thread = TxOptThread()
-        self.tx_opt_thread.pybert = self
-        self.tx_opt_thread.update_status = update_status
-        self.tx_opt_thread.start()
-
-    def _btn_opt_rx_fired(self):
-        if self.rx_opt_thread and self.rx_opt_thread.is_alive() or self.ctle_mode_tune == "Off":
-            pass
-        else:
-            self.rx_opt_thread = RxOptThread()
-            self.rx_opt_thread.pybert = self
-            self.rx_opt_thread.start()
-
-    def _btn_coopt_fired(self):
-        if self.coopt_thread and self.coopt_thread.is_alive():
-            pass
-        else:
-            self.coopt_thread = CoOptThread()
-            self.coopt_thread.pybert = self
-            self.coopt_thread.start()
-
-    def _btn_abort_fired(self):
-        if self.coopt_thread and self.coopt_thread.is_alive():
-            self.coopt_thread.stop()
-            self.coopt_thread.join(10)
-        if self.tx_opt_thread and self.tx_opt_thread.is_alive():
-            self.tx_opt_thread.stop()
-            self.tx_opt_thread.join(10)
-        if self.rx_opt_thread and self.rx_opt_thread.is_alive():
-            self.rx_opt_thread.stop()
-            self.rx_opt_thread.join(10)
-
-    def _btn_cfg_tx_fired(self):
-        self._tx_cfg()
-
-    def _btn_cfg_rx_fired(self):
-        self._rx_cfg()
-
-    def _btn_sel_tx_fired(self):
-        self._tx_ibis()
-        if self._tx_ibis.dll_file and self._tx_ibis.ami_file:
-            self.tx_dll_file = join(self._tx_ibis_dir, self._tx_ibis.dll_file)
-            self.tx_ami_file = join(self._tx_ibis_dir, self._tx_ibis.ami_file)
-        else:
-            self.tx_dll_file = ""
-            self.tx_ami_file = ""
-
-    def _btn_sel_rx_fired(self):
-        self._rx_ibis()
-        if self._rx_ibis.dll_file and self._rx_ibis.ami_file:
-            self.rx_dll_file = join(self._rx_ibis_dir, self._rx_ibis.dll_file)
-            self.rx_ami_file = join(self._rx_ibis_dir, self._rx_ibis.ami_file)
-        else:
-            self.rx_dll_file = ""
-            self.rx_ami_file = ""
-
-    def _btn_view_tx_fired(self):
-        self._tx_ibis.model()
-
-    def _btn_view_rx_fired(self):
-        self._rx_ibis.model()
 
     # Independent variable setting intercepts
     # (Primarily, for debugging.)
@@ -1132,137 +931,7 @@ class PyBERT(HasTraits):
             for i in range(1, 4):
                 self.tx_taps[i].enabled = False
 
-    def _use_dfe_tune_changed(self, new_value):
-        if not new_value:
-            for i in range(1, 4):
-                self.tx_tap_tuners[i].enabled = True
-        else:
-            for i in range(1, 4):
-                self.tx_tap_tuners[i].enabled = False
 
-    def _tx_ibis_file_changed(self, new_value):
-        self.status = f"Parsing IBIS file: {new_value}"
-        dName = ""
-        try:
-            self.tx_ibis_valid = False
-            self.tx_use_ami = False
-            self.log(f"Parsing Tx IBIS file, '{new_value}'...")
-            ibis = IBISModel(new_value, True, debug=self.debug, gui=self.GUI)
-            self.log(f"  Result:\n{ibis.ibis_parsing_errors}")
-            self._tx_ibis = ibis
-            self.tx_ibis_valid = True
-            dName = dirname(new_value)
-            if self._tx_ibis.dll_file and self._tx_ibis.ami_file:
-                self.tx_dll_file = join(dName, self._tx_ibis.dll_file)
-                self.tx_ami_file = join(dName, self._tx_ibis.ami_file)
-            else:
-                self.tx_dll_file = ""
-                self.tx_ami_file = ""
-        except Exception as err:
-            self.status = "IBIS file parsing error!"
-            error_message = f"Failed to open and/or parse IBIS file!\n{err}"
-            self.log(error_message, alert=True, exception=err)
-        self._tx_ibis_dir = dName
-        self.status = "Done."
-
-    def _tx_ami_file_changed(self, new_value):
-        try:
-            self.tx_ami_valid = False
-            if new_value:
-                self.log(f"Parsing Tx AMI file, '{new_value}'...")
-                with open(new_value, mode="r", encoding="utf-8") as pfile:
-                    pcfg = AMIParamConfigurator(pfile.read())
-                if pcfg.ami_parsing_errors:
-                    self.log(f"Non-fatal parsing errors:\n{pcfg.ami_parsing_errors}")
-                else:
-                    self.log("Success.")
-                self.tx_has_getwave = pcfg.fetch_param_val(["Reserved_Parameters", "GetWave_Exists"])
-                _tx_returns_impulse = pcfg.fetch_param_val(["Reserved_Parameters", "Init_Returns_Impulse"])
-                if not _tx_returns_impulse:
-                    self.tx_use_getwave = True
-                if pcfg.fetch_param_val(["Reserved_Parameters", "Ts4file"]):
-                    self.tx_has_ts4 = True
-                else:
-                    self.tx_has_ts4 = False
-                self._tx_cfg = pcfg
-                self.tx_ami_valid = True
-        except Exception as err:
-            raise
-            error_message = f"Failed to open and/or parse AMI file!\n{err}"
-            self.log(error_message, alert=True)
-
-    def _tx_dll_file_changed(self, new_value):
-        try:
-            self.tx_dll_valid = False
-            if new_value:
-                model = AMIModel(str(new_value))
-                self._tx_model = model
-                self.tx_dll_valid = True
-        except Exception as err:
-            error_message = f"Failed to open DLL/SO file!\n{err}"
-            self.log(error_message, alert=True)
-
-    def _rx_ibis_file_changed(self, new_value):
-        self.status = f"Parsing IBIS file: {new_value}"
-        dName = ""
-        try:
-            self.rx_ibis_valid = False
-            self.rx_use_ami = False
-            self.log(f"Parsing Rx IBIS file, '{new_value}'...")
-            ibis = IBISModel(new_value, False, self.debug, gui=self.GUI)
-            self.log(f"  Result:\n{ibis.ibis_parsing_errors}")
-            self._rx_ibis = ibis
-            self.rx_ibis_valid = True
-            dName = dirname(new_value)
-            if self._rx_ibis.dll_file and self._rx_ibis.ami_file:
-                self.rx_dll_file = join(dName, self._rx_ibis.dll_file)
-                self.rx_ami_file = join(dName, self._rx_ibis.ami_file)
-            else:
-                self.rx_dll_file = ""
-                self.rx_ami_file = ""
-        except Exception as err:
-            self.status = "IBIS file parsing error!"
-            error_message = f"Failed to open and/or parse IBIS file!\n{err}"
-            self.log(error_message, alert=True)
-            raise
-        self._rx_ibis_dir = dName
-        self.status = "Done."
-
-    def _rx_ami_file_changed(self, new_value):
-        try:
-            self.rx_ami_valid = False
-            if new_value:
-                with open(new_value, mode="r", encoding="utf-8") as pfile:
-                    pcfg = AMIParamConfigurator(pfile.read())
-                self.log(f"Parsing Rx AMI file, '{new_value}'...\n{pcfg.ami_parsing_errors}")
-                self.rx_has_getwave = pcfg.fetch_param_val(["Reserved_Parameters", "GetWave_Exists"])
-                _rx_returns_impulse = pcfg.fetch_param_val(["Reserved_Parameters", "Init_Returns_Impulse"])
-                if not _rx_returns_impulse:
-                    self.rx_use_getwave = True
-                if pcfg.fetch_param_val(["Reserved_Parameters", "Ts4file"]):
-                    self.rx_has_ts4 = True
-                else:
-                    self.rx_has_ts4 = False
-                self._rx_cfg = pcfg
-                self.rx_ami_valid = True
-        except Exception as err:
-            error_message = f"Failed to open and/or parse AMI file!\n{err}"
-            self.log(error_message, alert=True)
-
-    def _rx_dll_file_changed(self, new_value):
-        try:
-            self.rx_dll_valid = False
-            if new_value:
-                model = AMIModel(str(new_value))
-                self._rx_model = model
-                self.rx_dll_valid = True
-        except Exception as err:
-            error_message = f"Failed to open DLL/SO file!\n{err}"
-            self.log(error_message, alert=True)
-
-    def _rx_use_ami_changed(self, new_value):
-        if new_value:
-            self.use_dfe = False
 
     def check_pat_len(self):
         taps = self.pattern_
@@ -1306,39 +975,22 @@ Try to keep Nbits & EyeBits > 10 * 2^n, where `n` comes from `PRBS-n`.",
         w = self.w
         nspui = self.nspui
         impulse_length = self.impulse_length * 1.0e-9
-        Rs = self.rs
-        Cs = self.cout * 1.0e-12
-        RL = self.rin
-        Cp = self.cin * 1.0e-12
-        CL = self.cac * 1.0e-6
+        Rs = self.tx.impedance
+        Cs = self.tx.capacitance * 1.0e-12
+        RL = self.rx.resistance
+        Cp = self.rx.capacitance * 1.0e-12
+        CL = self.rx.coupling_capacitance * 1.0e-6
 
         ts = t[1]
         len_t = len(t)
         len_f = len(f)
 
         # Form the pre-on-die S-parameter 2-port network for the channel.
-        if self.use_ch_file:
-            ch_s2p_pre = import_channel(self.ch_file, ts, self.f)
+        if self.channel.use_ch_file:
+            ch_s2p_pre = self.channel.network_from_file(t[1], self.f)
         else:
-            # Construct PyBERT default channel model (i.e. - Howard Johnson's UTP model).
-            # - Grab model parameters from PyBERT instance.
-            l_ch = self.l_ch
-            v0 = self.v0 * 3.0e8
-            R0 = self.R0
-            w0 = self.w0
-            Rdc = self.Rdc
-            Z0 = self.Z0
-            Theta0 = self.Theta0
-            # - Calculate propagation constant, characteristic impedance, and transfer function.
-            gamma, Zc = calc_gamma(R0, w0, Rdc, Z0, v0, Theta0, w)
-            self.Zc = Zc
-            H = exp(-l_ch * gamma)
-            self.H = H
-            # - Use the transfer function and characteristic impedance to form "perfectly matched" network.
-            tmp = np.array(list(zip(zip(zeros(len_f), H), zip(H, zeros(len_f)))))
-            ch_s2p_pre = rf.Network(s=tmp, f=f / 1e9, z0=Zc)
-            # - And, finally, renormalize to driver impedance.
-            ch_s2p_pre.renormalize(Rs)
+            ch_s2p_pre = self.channel.network_from_native_model(self.f, self.w, self.tx.impedance)
+
         ch_s2p_pre.name = "ch_s2p_pre"
         self.ch_s2p_pre = ch_s2p_pre
         ch_s2p = ch_s2p_pre  # In case neither set of on-die S-parameters is being invoked, below.
@@ -1366,18 +1018,18 @@ Try to keep Nbits & EyeBits > 10 * 2^n, where `n` comes from `PRBS-n`.",
                 res = ntwk2**s2p
             return (res, ts4N, ntwk2)
 
-        if self.tx_use_ibis:
+        if self.tx.use_ibis:
             model = self._tx_ibis.model
             Rs = model.zout * 2
             Cs = model.ccomp[0] / 2  # They're in series.
             self.Rs = Rs  # Primarily for debugging.
             self.Cs = Cs
-            if self.tx_use_ts4:
+            if self.tx.use_ondie_sparameters:
                 fname = join(self._tx_ibis_dir, self._tx_cfg.fetch_param_val(["Reserved_Parameters", "Ts4file"])[0])
                 ch_s2p, ts4N, ntwk = add_ondie_s(ch_s2p, fname)
                 self.ts4N = ts4N
                 self.ntwk = ntwk
-        if self.rx_use_ibis:
+        if self.rx.use_ibis:
             model = self._rx_ibis.model
             RL = model.zin * 2
             Cp = model.ccomp[0] / 2
@@ -1385,7 +1037,7 @@ Try to keep Nbits & EyeBits > 10 * 2^n, where `n` comes from `PRBS-n`.",
             self.Cp = Cp
             if self.debug:
                 self.log(f"RL: {RL}, Cp: {Cp}")
-            if self.rx_use_ts4:
+            if self.rx.use_ondie_sparameters:
                 fname = join(self._rx_ibis_dir, self._rx_cfg.fetch_param_val(["Reserved_Parameters", "Ts4file"])[0])
                 ch_s2p, ts4N, ntwk = add_ondie_s(ch_s2p, fname, isRx=True)
                 self.ts4N = ts4N
