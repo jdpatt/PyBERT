@@ -14,14 +14,11 @@ can be used to explore the concepts of serial communication link design.
 Copyright (c) 2014 by David Banas; All rights reserved World wide.
 """
 import logging
-
+import platform
 import time
 from datetime import datetime
 from os.path import join
 from pathlib import Path
-import platform
-from pybert import __version__ as VERSION
-from pyibisami import __version__ as PyAMI_VERSION
 
 import numpy as np
 import skrf as rf
@@ -47,7 +44,6 @@ from traits.api import (
     cached_property,
 )
 
-
 from pybert import __version__ as VERSION
 from pybert.configuration import InvalidFileType, PyBertCfg
 from pybert.gui.help import help_str
@@ -67,7 +63,7 @@ from pybert.utility import (
     sdd_21,
     trim_impulse,
 )
-
+from pyibisami import __version__ as PyAMI_VERSION
 
 gDebugStatus = False
 gMaxCTLEPeak = 20.0  # max. allowed CTLE peaking (dB) (when optimizing, only)
@@ -115,6 +111,7 @@ gThresh = 6  # threshold for identifying periodic jitter spectral elements (sigm
 
 logger = logging.getLogger(__name__)
 
+
 class PyBERT(HasTraits):
     """A serial communication link bit error rate tester (BERT) simulator with
     a GUI interface.
@@ -152,7 +149,6 @@ class PyBERT(HasTraits):
     rx = Instance(Receiver, args=())
     # optimizer = Instance(Optimizer, ())
 
-
     # - Tx
     vod = Float(gVod)  #: Tx differential output voltage (V)
     pn_mag = Float(gPnMag)  #: Periodic noise magnitude (V).
@@ -180,7 +176,7 @@ class PyBERT(HasTraits):
             TxTapTuner(name="Post-tap3", enabled=False, min_val=-0.2, max_val=0.2, value=0.0),
         ]
     )
-     #: EQ optimizer list of TxTapTuner objects.
+    #: EQ optimizer list of TxTapTuner objects.
     rx_bw_tune = Float(gBW)  #: EQ optimizer CTLE bandwidth (GHz).
     peak_freq_tune = Float(gPeakFreq)  #: EQ optimizer CTLE peaking freq. (GHz).
     peak_mag_tune = Float(gPeakMag)  #: EQ optimizer CTLE peaking mag. (dB).
@@ -199,7 +195,6 @@ class PyBERT(HasTraits):
     btn_opt_rx = Button(label="OptRx")
     btn_coopt = Button(label="CoOpt")
     btn_abort = Button(label="Abort")
-
 
     # - CTLE
     use_ctle_file = Bool(False)  #: For importing CTLE impulse/step response directly.
@@ -306,7 +301,6 @@ class PyBERT(HasTraits):
     dfe_out_p = Array()
     przf_err = Property(Float, depends_on=["dfe_out_p"])
 
-
     # Logger & Pop-up
     def log(self, msg, alert=False, exception=None):
         """Log a message to the console and, optionally, to terminal and/or
@@ -314,8 +308,6 @@ class PyBERT(HasTraits):
         _msg = msg.strip()
         txt = f"[{datetime.now()}]: PyBERT: {_msg}"
         self.console_log += txt + "\n"
-
-
 
     # Default initialization
     def __init__(self, run_simulation=True, gui=True):
@@ -971,7 +963,6 @@ class PyBERT(HasTraits):
             self._log_console_handler.setLevel(logging.DEBUG)
         else:
             self._log_console_handler.setLevel(logging.INFO)
-
 
     def check_pat_len(self):
         taps = self.pattern_

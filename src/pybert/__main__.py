@@ -4,6 +4,5 @@ Redirects to the command line interface to either open the application with a GU
 """
 from pybert.cli import cli
 
-
 if __name__ == "__main__":
     cli()

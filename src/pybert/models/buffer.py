@@ -3,12 +3,14 @@ from typing import Optional
 
 from traits.api import Bool, Button, File, Float, HasTraits, Range
 
+from pybert.gui.alert import error_popup
 from pybert.gui.reciever import RX_VIEW
 from pybert.gui.transmitter import TX_VIEW
-from pybert.gui.alert import error_popup
 from pyibisami import AMIModel, AMIParamConfigurator, IBISModel
 
 logger = logging.getLogger(__name__)
+
+
 class Buffer(HasTraits):
     ibis_filepath = File("", entries=5, filter=["*.ibs"])
     dll_filepath = File("", entries=5, filter=["*.dll", "*.so"])
@@ -23,7 +25,7 @@ class Buffer(HasTraits):
     btn_view_model = Button(label="View")
     btn_ami_config = Button(label="Configure AMI")
 
-    def __init__(self ):
+    def __init__(self):
         super().__init__()
 
         self.ibis_model: Optional[IBISModel] = None

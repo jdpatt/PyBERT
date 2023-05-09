@@ -1,13 +1,14 @@
 import logging
 
-def setup_logger(filename: str, console_debug:bool = False):
+
+def setup_logger(filename: str, console_debug: bool = False):
     logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)
 
     # Create a file logger to log all debug messages
     fh = logging.FileHandler(filename)
     fh.setLevel(logging.DEBUG)
-    file_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    file_formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
     fh.setFormatter(file_formatter)
     logger.addHandler(fh)
 
@@ -15,7 +16,7 @@ def setup_logger(filename: str, console_debug:bool = False):
     ch = logging.StreamHandler()
     log_level = logging.DEBUG if console_debug else logging.ERROR
     ch.setLevel(log_level)
-    console_formatter = logging.Formatter('%(levelname)s - %(message)s')
+    console_formatter = logging.Formatter("%(levelname)s - %(message)s")
     ch.setFormatter(console_formatter)
     logger.addHandler(ch)
 
@@ -31,4 +32,4 @@ class TraitsUiConsoleHandler(logging.Handler):
 
     def emit(self, record):
         """Append the record to the console."""
-        self.app.console_log  += self.format(record) + "\n"
+        self.app.console_log += self.format(record) + "\n"

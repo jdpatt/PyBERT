@@ -1,5 +1,6 @@
-from dataclasses import dataclass
 import logging
+from dataclasses import dataclass
+
 import numpy as np
 import skrf as rf
 from traits.api import Bool, File, Float, HasTraits, Map
@@ -8,6 +9,8 @@ from pybert.gui.channel import CHANNEL_VIEW
 from pybert.utility import calc_gamma, import_channel
 
 logger = logging.getLogger(__name__)
+
+
 @dataclass
 class NativeChannelModel:
     """THe default channel model uses Howard Johnson's "Metallic Transmission Model" for 24 gauge twisted copper pair.
