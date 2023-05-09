@@ -6,12 +6,14 @@ Original date:   August 24, 2014 (Copied from pybert.py, as part of a major code
 
 Copyright (c) 2014 David Banas; all rights reserved World wide.
 """
+import itertools
 import logging
 from time import perf_counter
 from typing import Callable, Optional
 
 clock = perf_counter
 
+import numpy as np
 import scipy.signal as sig
 from chaco.api import Plot
 from chaco.tools.api import PanTool, ZoomTool
@@ -69,40 +71,29 @@ def my_run_sweeps(self, is_thread_stopped: Optional[Callable[[], bool]] = None):
           has requested to stop/abort the simulation by setting the thread stop event.
     """
 
-    sweep_aves = self.control.sweep_aves
-    do_sweep = self.control.do_sweep
-    tx_taps = self.tx.taps
+    if self.control.do_sweep:
+        # Assemble the list of desired values for each Tx Pre-Emphasis sweepable parameter.
+        tap_sweep_values = [tap.sweep_values() for tap in self.tx.taps]
+        sweeps = list(itertools.product(*tap_sweep_values))
 
-    if do_sweep:
-        # Assemble the list of desired values for each sweepable parameter.
-        sweep_vals = []
-        for tap in tx_taps:
-            if tap.enabled:
-                if tap.steps:
-                    sweep_vals.append(list(arange(tap.min_val, tap.max_val, (tap.max_val - tap.min_val) / tap.steps)))
-                else:
-                    sweep_vals.append([tap.value])
-            else:
-                sweep_vals.append([0.0])
         # Run the sweep, using the lists assembled, above.
-        sweeps = [
-            [w, x, y, z] for w in sweep_vals[0] for x in sweep_vals[1] for y in sweep_vals[2] for z in sweep_vals[3]
-        ]
-        num_sweeps = sweep_aves * len(sweeps)
-        self.control.num_sweeps = num_sweeps
+        self.control.num_sweeps = self.control.sweep_aves * len(sweeps)
         sweep_results = []
-        sweep_num = 1
-        for sweep in sweeps:
-            for i in range(4):
-                self.tx.taps[i].value = sweep[i]
+        for sweep_run_number, settings in enumerate(sweeps, start=1):
+            # Update the tap settings for this sweep
+            for index, tap in enumerate(self.tx.taps):
+                tap.value = settings[index]
+
             bit_errs = []
-            for i in range(sweep_aves):
-                self.sweep_num = sweep_num
+            # Run the current settings for the number of sweeps to average
+            for sweep_average_number in range(self.control.sweep_aves):
+                self.sweep_num = sweep_run_number + sweep_average_number
                 my_run_simulation(self, update_plots=False, aborted_sim=is_thread_stopped)
                 bit_errs.append(self.bit_errs)
-                sweep_num += 1
-            sweep_results.append((sweep, mean(bit_errs), std(bit_errs)))
-        self.sweep_results = sweep_results
+
+            # Append the averaged results
+            sweep_results.append((settings, np.mean(bit_errs), np.std(bit_errs)))
+
     else:
         my_run_simulation(self, aborted_sim=is_thread_stopped)
 

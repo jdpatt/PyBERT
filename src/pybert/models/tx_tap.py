@@ -1,3 +1,4 @@
+import numpy as np
 from traits.api import Bool, Float, HasTraits, Int, String
 
 
@@ -24,3 +25,18 @@ class TxTapTuner(HasTraits):
         self.max_val = max_val
         self.value = value
         self.steps = steps
+
+    def sweep_values(self):
+        """Return what values should be integrated through if sweeping in the main simulation.
+
+        If its enabled either create a list of equally spaced steps or just append the value if
+        steps is zero.  If the tap isn't enabled period, append zero.
+        """
+        values = [0.0]
+        if self.enabled:
+            if self.steps:
+                values = list(np.arange(self.min_val, self.max_val, self.steps))
+                values.append(self.max_val)  # We want the max value to be inclusive.
+            else:
+                values = [self.value]
+        return values
