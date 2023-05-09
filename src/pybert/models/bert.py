@@ -38,10 +38,10 @@ from numpy.fft import fft, irfft
 from numpy.random import normal
 from scipy.signal import iirfilter, lfilter
 
+from pybert.jitter import calc_jitter
 from pybert.models.dfe import DFE
 from pybert.utility import (
     calc_eye,
-    calc_jitter,
     find_crossings,
     getwave_step_resp,
     import_channel,
@@ -555,19 +555,10 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
     # Analyze the jitter.
     self.thresh_tx = array([])
     self.jitter_ext_tx = array([])
-    self.jitter_tx = array([])
-    self.jitter_spectrum_tx = array([])
-    self.jitter_ind_spectrum_tx = array([])
     self.thresh_ctle = array([])
     self.jitter_ext_ctle = array([])
-    self.jitter_ctle = array([])
-    self.jitter_spectrum_ctle = array([])
-    self.jitter_ind_spectrum_ctle = array([])
     self.thresh_dfe = array([])
     self.jitter_ext_dfe = array([])
-    self.jitter_dfe = array([])
-    self.jitter_spectrum_dfe = array([])
-    self.jitter_ind_spectrum_dfe = array([])
     self.f_MHz_dfe = array([])
     self.jitter_rejection_ratio = array([])
 
@@ -583,94 +574,22 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
         actual_xings = find_crossings(t, chnl_out, decision_scaler, mod_type=mod_type)
         ofst = (argmax(sig.correlate(chnl_out, x)) - len_x_m1) * Ts
         actual_xings -= ofst
-        (
-            _,
-            t_jitter,
-            isi,
-            dcd,
-            pj,
-            rj,
-            _,
-            thresh,
-            jitter_spectrum,
-            jitter_ind_spectrum,
-            spectrum_freqs,
-            hist,
-            hist_synth,
-            bin_centers,
-        ) = calc_jitter(ui, nui, pattern_len, ideal_xings, actual_xings, rel_thresh)
-        self.t_jitter = t_jitter
-        self.isi_chnl = isi
-        self.dcd_chnl = dcd
-        self.pj_chnl = pj
-        self.rj_chnl = rj
-        self.thresh_chnl = thresh
-        self.jitter_chnl = hist
-        self.jitter_ext_chnl = hist_synth
-        self.jitter_bins = bin_centers
-        self.jitter_spectrum_chnl = jitter_spectrum
-        self.jitter_ind_spectrum_chnl = jitter_ind_spectrum
-        self.f_MHz = array(spectrum_freqs) * 1.0e-6
+
+        self.jitter_channel = calc_jitter(ui, nui, pattern_len, ideal_xings, actual_xings, rel_thresh)
+        self.f_MHz = array(self.jitter_channel.spectrum_freqs) * 1.0e-6
 
         # - Tx output
         actual_xings = find_crossings(t, rx_in, decision_scaler, mod_type=mod_type)
         ofst = (argmax(sig.correlate(rx_in, x)) - len_x_m1) * Ts
         actual_xings -= ofst
-        (
-            _,
-            t_jitter,
-            isi,
-            dcd,
-            pj,
-            rj,
-            _,
-            thresh,
-            jitter_spectrum,
-            jitter_ind_spectrum,
-            spectrum_freqs,
-            hist,
-            hist_synth,
-            bin_centers,
-        ) = calc_jitter(ui, nui, pattern_len, ideal_xings, actual_xings, rel_thresh)
-        self.isi_tx = isi
-        self.dcd_tx = dcd
-        self.pj_tx = pj
-        self.rj_tx = rj
-        self.thresh_tx = thresh
-        self.jitter_tx = hist
-        self.jitter_ext_tx = hist_synth
-        self.jitter_spectrum_tx = jitter_spectrum
-        self.jitter_ind_spectrum_tx = jitter_ind_spectrum
+
+        self.jitter_tx = calc_jitter(ui, nui, pattern_len, ideal_xings, actual_xings, rel_thresh)
 
         # - CTLE output
         actual_xings = find_crossings(t, ctle_out, decision_scaler, mod_type=mod_type)
         ofst = (argmax(sig.correlate(ctle_out, x)) - len_x_m1) * Ts
         actual_xings -= ofst
-        (
-            jitter,
-            t_jitter,
-            isi,
-            dcd,
-            pj,
-            rj,
-            jitter_ext,
-            thresh,
-            jitter_spectrum,
-            jitter_ind_spectrum,
-            spectrum_freqs,
-            hist,
-            hist_synth,
-            bin_centers,
-        ) = calc_jitter(ui, nui, pattern_len, ideal_xings, actual_xings, rel_thresh)
-        self.isi_ctle = isi
-        self.dcd_ctle = dcd
-        self.pj_ctle = pj
-        self.rj_ctle = rj
-        self.thresh_ctle = thresh
-        self.jitter_ctle = hist
-        self.jitter_ext_ctle = hist_synth
-        self.jitter_spectrum_ctle = jitter_spectrum
-        self.jitter_ind_spectrum_ctle = jitter_ind_spectrum
+        self.jitter_ctle = calc_jitter(ui, nui, pattern_len, ideal_xings, actual_xings, rel_thresh)
 
         # - DFE output
         ignore_until = (nui - eye_uis) * ui
@@ -681,36 +600,12 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
         actual_xings -= ofst
         actual_xings = array(list(filter(lambda x: x >= ignore_until, actual_xings)))
         actual_xings -= ignore_until
-        (
-            jitter,
-            t_jitter,
-            isi,
-            dcd,
-            pj,
-            rj,
-            jitter_ext,
-            thresh,
-            jitter_spectrum,
-            jitter_ind_spectrum,
-            spectrum_freqs,
-            hist,
-            hist_synth,
-            bin_centers,
-        ) = calc_jitter(ui, eye_uis, pattern_len, ideal_xings, actual_xings, rel_thresh)
-        self.isi_dfe = isi
-        self.dcd_dfe = dcd
-        self.pj_dfe = pj
-        self.rj_dfe = rj
-        self.thresh_dfe = thresh
-        self.jitter_dfe = hist
-        self.jitter_ext_dfe = hist_synth
-        self.jitter_spectrum_dfe = jitter_spectrum
-        self.jitter_ind_spectrum_dfe = jitter_ind_spectrum
-        self.f_MHz_dfe = array(spectrum_freqs) * 1.0e-6
-        dfe_spec = self.jitter_spectrum_dfe
-        self.jitter_rejection_ratio = zeros(len(dfe_spec))
 
+        self.jitter_dfe = calc_jitter(ui, eye_uis, pattern_len, ideal_xings, actual_xings, rel_thresh)
+        self.f_MHz_dfe = array(self.jitter_dfe.spectrum_freqs) * 1.0e-6
+        self.jitter_rejection_ratio = zeros(len(self.jitter_dfe.jitter_spectrum))
         self.jitter_perf = nbits * nspb / (clock() - split_time)
+
         self.total_perf = nbits * nspb / (clock() - start_time)
         split_time = clock()
         self.status = "Updating plots...(sweep %d of %d)" % (sweep_num, num_sweeps)
@@ -860,48 +755,52 @@ def update_results(self):
     self.plotdata.set_data("dfe_out_H", 20.0 * safe_log10(abs(self.dfe_out_H[1:len_f_GHz])))
 
     # Jitter distributions
-    jitter_ext_chnl = self.jitter_ext_chnl  # These are used, again, in bathtub curve generation, below.
-    jitter_ext_tx = self.jitter_ext_tx
-    jitter_ext_ctle = self.jitter_ext_ctle
-    jitter_ext_dfe = self.jitter_ext_dfe
-    self.plotdata.set_data("jitter_bins", array(self.jitter_bins) * 1.0e12)
-    self.plotdata.set_data("jitter_chnl", self.jitter_chnl)
-    self.plotdata.set_data("jitter_ext_chnl", jitter_ext_chnl)
-    self.plotdata.set_data("jitter_tx", self.jitter_tx)
-    self.plotdata.set_data("jitter_ext_tx", jitter_ext_tx)
-    self.plotdata.set_data("jitter_ctle", self.jitter_ctle)
-    self.plotdata.set_data("jitter_ext_ctle", jitter_ext_ctle)
-    self.plotdata.set_data("jitter_dfe", self.jitter_dfe)
-    self.plotdata.set_data("jitter_ext_dfe", jitter_ext_dfe)
+    self.plotdata.set_data("jitter_bins", array(self.jitter_channel.bin_centers) * 1.0e12)
+    self.plotdata.set_data("jitter_chnl", self.jitter_channel.hist)
+    self.plotdata.set_data("jitter_ext_chnl", self.jitter_channel.hist_synth)
+    self.plotdata.set_data("jitter_tx", self.jitter_tx.hist)
+    self.plotdata.set_data("jitter_ext_tx", self.jitter_tx.hist_synth)
+    self.plotdata.set_data("jitter_ctle", self.jitter_ctle.hist)
+    self.plotdata.set_data("jitter_ext_ctle", self.jitter_ctle.hist_synth)
+    self.plotdata.set_data("jitter_dfe", self.jitter_dfe.hist)
+    self.plotdata.set_data("jitter_ext_dfe", self.jitter_dfe.hist_synth)
 
     # Jitter spectrums
     log10_ui = safe_log10(ui)
     self.plotdata.set_data("f_MHz", self.f_MHz[1:])
     self.plotdata.set_data("f_MHz_dfe", self.f_MHz_dfe[1:])
-    self.plotdata.set_data("jitter_spectrum_chnl", 10.0 * (safe_log10(self.jitter_spectrum_chnl[1:]) - log10_ui))
     self.plotdata.set_data(
-        "jitter_ind_spectrum_chnl", 10.0 * (safe_log10(self.jitter_ind_spectrum_chnl[1:]) - log10_ui)
+        "jitter_spectrum_chnl", 10.0 * (safe_log10(self.jitter_channel.jitter_spectrum[1:]) - log10_ui)
     )
-    self.plotdata.set_data("thresh_chnl", 10.0 * (safe_log10(self.thresh_chnl[1:]) - log10_ui))
-    self.plotdata.set_data("jitter_spectrum_tx", 10.0 * (safe_log10(self.jitter_spectrum_tx[1:]) - log10_ui))
-    self.plotdata.set_data("jitter_ind_spectrum_tx", 10.0 * (safe_log10(self.jitter_ind_spectrum_tx[1:]) - log10_ui))
-    self.plotdata.set_data("thresh_tx", 10.0 * (safe_log10(self.thresh_tx[1:]) - log10_ui))
-    self.plotdata.set_data("jitter_spectrum_ctle", 10.0 * (safe_log10(self.jitter_spectrum_ctle[1:]) - log10_ui))
     self.plotdata.set_data(
-        "jitter_ind_spectrum_ctle", 10.0 * (safe_log10(self.jitter_ind_spectrum_ctle[1:]) - log10_ui)
+        "jitter_ind_spectrum_chnl", 10.0 * (safe_log10(self.jitter_channel.tie_ind_spectrum[1:]) - log10_ui)
     )
-    self.plotdata.set_data("thresh_ctle", 10.0 * (safe_log10(self.thresh_ctle[1:]) - log10_ui))
-    self.plotdata.set_data("jitter_spectrum_dfe", 10.0 * (safe_log10(self.jitter_spectrum_dfe[1:]) - log10_ui))
-    self.plotdata.set_data("jitter_ind_spectrum_dfe", 10.0 * (safe_log10(self.jitter_ind_spectrum_dfe[1:]) - log10_ui))
-    self.plotdata.set_data("thresh_dfe", 10.0 * (safe_log10(self.thresh_dfe[1:]) - log10_ui))
+    self.plotdata.set_data("thresh_chnl", 10.0 * (safe_log10(self.jitter_channel.thresh[1:]) - log10_ui))
+    self.plotdata.set_data("jitter_spectrum_tx", 10.0 * (safe_log10(self.jitter_tx.jitter_spectrum[1:]) - log10_ui))
+    self.plotdata.set_data(
+        "jitter_ind_spectrum_tx", 10.0 * (safe_log10(self.jitter_tx.tie_ind_spectrum[1:]) - log10_ui)
+    )
+    self.plotdata.set_data("thresh_tx", 10.0 * (safe_log10(self.jitter_tx.thresh[1:]) - log10_ui))
+    self.plotdata.set_data(
+        "jitter_spectrum_ctle", 10.0 * (safe_log10(self.jitter_ctle.jitter_spectrum[1:]) - log10_ui)
+    )
+    self.plotdata.set_data(
+        "jitter_ind_spectrum_ctle", 10.0 * (safe_log10(self.jitter_ctle.tie_ind_spectrum[1:]) - log10_ui)
+    )
+    self.plotdata.set_data("thresh_ctle", 10.0 * (safe_log10(self.jitter_ctle.thresh[1:]) - log10_ui))
+    self.plotdata.set_data("jitter_spectrum_dfe", 10.0 * (safe_log10(self.jitter_dfe.jitter_spectrum[1:]) - log10_ui))
+    self.plotdata.set_data(
+        "jitter_ind_spectrum_dfe", 10.0 * (safe_log10(self.jitter_dfe.tie_ind_spectrum[1:]) - log10_ui)
+    )
+    self.plotdata.set_data("thresh_dfe", 10.0 * (safe_log10(self.jitter_dfe.thresh[1:]) - log10_ui))
     self.plotdata.set_data("jitter_rejection_ratio", self.jitter_rejection_ratio[1:])
 
     # Bathtubs
-    half_len = len(jitter_ext_chnl) // 2
+    half_len = len(self.jitter_channel.hist_synth) // 2
     #  - Channel
-    bathtub_chnl = list(cumsum(jitter_ext_chnl[-1 : -(half_len + 1) : -1]))
+    bathtub_chnl = list(cumsum(self.jitter_channel.hist_synth[-1 : -(half_len + 1) : -1]))
     bathtub_chnl.reverse()
-    bathtub_chnl = array(bathtub_chnl + list(cumsum(jitter_ext_chnl[: half_len + 1])))
+    bathtub_chnl = array(bathtub_chnl + list(cumsum(self.jitter_channel.hist_synth[: half_len + 1])))
     bathtub_chnl = where(
         bathtub_chnl < MIN_BATHTUB_VAL,
         0.1 * MIN_BATHTUB_VAL * ones(len(bathtub_chnl)),
@@ -909,17 +808,17 @@ def update_results(self):
     )  # To avoid Chaco log scale plot wierdness.
     self.plotdata.set_data("bathtub_chnl", safe_log10(bathtub_chnl))
     #  - Tx
-    bathtub_tx = list(cumsum(jitter_ext_tx[-1 : -(half_len + 1) : -1]))
+    bathtub_tx = list(cumsum(self.jitter_tx.hist_synth[-1 : -(half_len + 1) : -1]))
     bathtub_tx.reverse()
-    bathtub_tx = array(bathtub_tx + list(cumsum(jitter_ext_tx[: half_len + 1])))
+    bathtub_tx = array(bathtub_tx + list(cumsum(self.jitter_tx.hist_synth[: half_len + 1])))
     bathtub_tx = where(
         bathtub_tx < MIN_BATHTUB_VAL, 0.1 * MIN_BATHTUB_VAL * ones(len(bathtub_tx)), bathtub_tx
     )  # To avoid Chaco log scale plot wierdness.
     self.plotdata.set_data("bathtub_tx", safe_log10(bathtub_tx))
     #  - CTLE
-    bathtub_ctle = list(cumsum(jitter_ext_ctle[-1 : -(half_len + 1) : -1]))
+    bathtub_ctle = list(cumsum(self.jitter_ctle.hist_synth[-1 : -(half_len + 1) : -1]))
     bathtub_ctle.reverse()
-    bathtub_ctle = array(bathtub_ctle + list(cumsum(jitter_ext_ctle[: half_len + 1])))
+    bathtub_ctle = array(bathtub_ctle + list(cumsum(self.jitter_ctle.hist_synth[: half_len + 1])))
     bathtub_ctle = where(
         bathtub_ctle < MIN_BATHTUB_VAL,
         0.1 * MIN_BATHTUB_VAL * ones(len(bathtub_ctle)),
@@ -927,9 +826,9 @@ def update_results(self):
     )  # To avoid Chaco log scale plot wierdness.
     self.plotdata.set_data("bathtub_ctle", safe_log10(bathtub_ctle))
     #  - DFE
-    bathtub_dfe = list(cumsum(jitter_ext_dfe[-1 : -(half_len + 1) : -1]))
+    bathtub_dfe = list(cumsum(self.jitter_dfe.hist_synth[-1 : -(half_len + 1) : -1]))
     bathtub_dfe.reverse()
-    bathtub_dfe = array(bathtub_dfe + list(cumsum(jitter_ext_dfe[: half_len + 1])))
+    bathtub_dfe = array(bathtub_dfe + list(cumsum(self.jitter_dfe.hist_synth[: half_len + 1])))
     bathtub_dfe = where(
         bathtub_dfe < MIN_BATHTUB_VAL, 0.1 * MIN_BATHTUB_VAL * ones(len(bathtub_dfe)), bathtub_dfe
     )  # To avoid Chaco log scale plot wierdness.
