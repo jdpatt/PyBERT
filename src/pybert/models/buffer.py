@@ -4,8 +4,6 @@ from typing import Optional
 from traits.api import Bool, Button, File, Float, HasTraits, Range
 
 from pybert.gui.alert import error_popup
-from pybert.gui.reciever import RX_VIEW
-from pybert.gui.transmitter import TX_VIEW
 from pyibisami import AMIModel, AMIParamConfigurator, IBISModel
 
 logger = logging.getLogger(__name__)
@@ -76,27 +74,3 @@ class Buffer(HasTraits):
 
     def _btn_ami_config_fired(self):
         self.ami_config.open_gui()
-
-
-class Receiver(Buffer):
-    resistance = Float(100)  # differential input resistance(Ohm)
-    capacitance = Float(0.5)  # parasitic input capacitance (pF) (Assumed to exist at both 'P' and 'N' nodes.)
-    coupling_capacitance = Float(1.0)  # a.c. coupling capacitance (uF) (Assumed to exist at both 'P' and 'N' nodes.)
-    use_dfe = Bool(False)
-
-    def default_traits_view(self):
-        return RX_VIEW
-
-    def _use_ami_changed(self, new_value):
-        if new_value:
-            self.use_dfe = False
-
-
-class Transmitter(Buffer):
-    impedance = Float(100)  # differential source impedance (Ohms)
-    capacitance = Range(
-        low=0.001, high=1000, value=0.50
-    )  # parasitic output capacitance (pF) (Assumed to exist at both 'P' and 'N' nodes.)
-
-    def default_traits_view(self):
-        return TX_VIEW

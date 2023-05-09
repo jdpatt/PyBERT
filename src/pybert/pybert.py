@@ -81,31 +81,21 @@ gNumAve = 1  # Number of bit error samples to average, when sweeping.
 gRn = (
     0.001  # standard deviation of Gaussian random noise (V) (Applied at end of channel, so as to appear white to Rx.)
 )
-gVod = 1.0  # output drive strength (Vp)
 
+gVod = 1.0  # output drive strength (Vp)
+gPnMag = 0.001  # magnitude of periodic noise (V)
+gPnFreq = 0.437  # frequency of periodic noise (MHz)
 gPnMag = 0.001  # magnitude of periodic noise (V)
 gPnFreq = 0.437  # frequency of periodic noise (MHz)
 
-gBW = 12.0  # Rx signal path bandwidth, assuming no CTLE action. (GHz)
-gUseDfe = True  # Include DFE when running simulation.
-gDfeIdeal = True  # DFE ideal summing node selector
 gPeakFreq = 5.0  # CTLE peaking frequency (GHz)
 gPeakMag = 1.7  # CTLE peaking magnitude (dB)
+
+gBW = 12.0  # Rx signal path bandwidth, assuming no CTLE action. (GHz)
+gUseDfe = True  # Include DFE when running simulation.
 gCTLEOffset = 0.0  # CTLE d.c. offset (dB)
-
-
-# - DFE
-gDecisionScaler = 0.5
 gNtaps = 5
-gGain = 0.5
-gNave = 100
-gDfeBW = 12.0  # DFE summing node bandwidth (GHz)
-# - CDR
-gDeltaT = 0.1  # (ps)
-gAlpha = 0.01
-gNLockAve = 500  # number of UI used to average CDR locked status.
-gRelLockTol = 0.1  # relative lock tolerance of CDR.
-gLockSustain = 500
+
 # - Analysis
 gThresh = 6  # threshold for identifying periodic jitter spectral elements (sigma)
 
@@ -155,14 +145,6 @@ class PyBERT(HasTraits):
     pn_freq = Float(gPnFreq)  #: Periodic noise frequency (MHz).
     rn = Float(gRn)  #: Standard deviation of Gaussian random noise (V).
 
-    tx_taps = List(
-        [
-            TxTapTuner(name="Pre-tap", enabled=True, min_val=-0.2, max_val=0.2, value=-0.066),
-            TxTapTuner(name="Post-tap1", enabled=False, min_val=-0.4, max_val=0.4, value=0.0),
-            TxTapTuner(name="Post-tap2", enabled=False, min_val=-0.3, max_val=0.3, value=0.0),
-            TxTapTuner(name="Post-tap3", enabled=False, min_val=-0.2, max_val=0.2, value=0.0),
-        ]
-    )  #: List of TxTapTuner objects.
     rel_power = Float(1.0)  #: Tx power dissipation (W).
     tx_opt_thread = Instance(TxOptThread)  #: Tx EQ optimization thread.
     rx_opt_thread = Instance(RxOptThread)  #: Rx EQ optimization thread.
@@ -176,6 +158,7 @@ class PyBERT(HasTraits):
             TxTapTuner(name="Post-tap3", enabled=False, min_val=-0.2, max_val=0.2, value=0.0),
         ]
     )
+
     #: EQ optimizer list of TxTapTuner objects.
     rx_bw_tune = Float(gBW)  #: EQ optimizer CTLE bandwidth (GHz).
     peak_freq_tune = Float(gPeakFreq)  #: EQ optimizer CTLE peaking freq. (GHz).
@@ -195,33 +178,6 @@ class PyBERT(HasTraits):
     btn_opt_rx = Button(label="OptRx")
     btn_coopt = Button(label="CoOpt")
     btn_abort = Button(label="Abort")
-
-    # - CTLE
-    use_ctle_file = Bool(False)  #: For importing CTLE impulse/step response directly.
-    ctle_file = File("", entries=5, filter=["*.csv"])  #: CTLE response file (when use_ctle_file = True).
-    rx_bw = Float(gBW)  #: CTLE bandwidth (GHz).
-    peak_freq = Float(gPeakFreq)  #: CTLE peaking frequency (GHz)
-    peak_mag = Float(gPeakMag)  #: CTLE peaking magnitude (dB)
-    ctle_offset = Float(gCTLEOffset)  #: CTLE d.c. offset (dB)
-    ctle_mode = Enum("Off", "Passive", "AGC", "Manual")  #: CTLE mode ('Off', 'Passive', 'AGC', 'Manual').
-    ctle_mode = "Passive"
-
-    # - DFE
-    use_dfe = Bool(gUseDfe)  #: True = use a DFE (Bool).
-    sum_ideal = Bool(gDfeIdeal)  #: True = use an ideal (i.e. - infinite bandwidth) summing node (Bool).
-    decision_scaler = Float(gDecisionScaler)  #: DFE slicer output voltage (V).
-    gain = Float(gGain)  #: DFE error gain (unitless).
-    n_ave = Float(gNave)  #: DFE # of averages to take, before making tap corrections.
-    n_taps = Int(gNtaps)  #: DFE # of taps.
-    _old_n_taps = n_taps
-    sum_bw = Float(gDfeBW)  #: DFE summing node bandwidth (Used when sum_ideal=False.) (GHz).
-
-    # - CDR
-    delta_t = Float(gDeltaT)  #: CDR proportional branch magnitude (ps).
-    alpha = Float(gAlpha)  #: CDR integral branch magnitude (unitless).
-    n_lock_ave = Int(gNLockAve)  #: CDR # of averages to take in determining lock.
-    rel_lock_tol = Float(gRelLockTol)  #: CDR relative tolerance to use in determining lock.
-    lock_sustain = Int(gLockSustain)  #: CDR hysteresis to use in determining lock.
 
     # - Analysis
     thresh = Int(gThresh)  #: Threshold for identifying periodic jitter components (sigma).
@@ -293,7 +249,7 @@ class PyBERT(HasTraits):
     w = Property(Array, depends_on=["f"])
     bits = Property(Array, depends_on=["pattern", "nbits", "mod_type", "run_count"])
     symbols = Property(Array, depends_on=["bits", "mod_type", "vod"])
-    ffe = Property(Array, depends_on=["tx_taps.value", "tx_taps.enabled"])
+    ffe = Property(Array, depends_on=["tx.taps.value", "tx.taps.enabled"])
     ui = Property(Float, depends_on=["bit_rate", "mod_type"])
     nui = Property(Int, depends_on=["nbits", "mod_type"])
     nspui = Property(Int, depends_on=["nspb", "mod_type"])
@@ -521,7 +477,7 @@ class PyBERT(HasTraits):
     def _get_ffe(self):
         """Generate the Tx pre-emphasis FIR numerator."""
 
-        tap_tuners = self.tx_taps
+        tap_tuners = self.tx.taps
 
         taps = []
         for tuner in tap_tuners:
@@ -933,7 +889,7 @@ class PyBERT(HasTraits):
     def _get_przf_err(self):
         p = self.dfe_out_p
         nspui = self.nspui
-        n_taps = self.n_taps
+        n_taps = self.rx.n_taps
 
         (clock_pos, _) = pulse_center(p, nspui)
         err = 0
@@ -952,10 +908,10 @@ class PyBERT(HasTraits):
     def _use_dfe_changed(self, new_value):
         if not new_value:
             for i in range(1, 4):
-                self.tx_taps[i].enabled = True
+                self.tx.taps[i].enabled = True
         else:
             for i in range(1, 4):
-                self.tx_taps[i].enabled = False
+                self.tx.taps[i].enabled = False
 
     def _debug_changed(self, enable_debug):
         """If the user enables debug, turn up the verbosity of the logger in the gui console."""
@@ -984,8 +940,8 @@ Try to keep Nbits & EyeBits > 10 * 2^n, where `n` comes from `PRBS-n`.",
     def _btn_rst_eq_fired(self):
         """Reset the equalization."""
         for i in range(4):
-            self.tx_tap_tuners[i].value = self.tx_taps[i].value
-            self.tx_tap_tuners[i].enabled = self.tx_taps[i].enabled
+            self.tx_tap_tuners[i].value = self.tx.taps[i].value
+            self.tx_tap_tuners[i].enabled = self.tx.taps[i].enabled
         self.peak_freq_tune = self.peak_freq
         self.peak_mag_tune = self.peak_mag
         self.rx_bw_tune = self.rx_bw
@@ -997,8 +953,8 @@ Try to keep Nbits & EyeBits > 10 * 2^n, where `n` comes from `PRBS-n`.",
     def _btn_save_eq_fired(self):
         """Save the equalization."""
         for i in range(4):
-            self.tx_taps[i].value = self.tx_tap_tuners[i].value
-            self.tx_taps[i].enabled = self.tx_tap_tuners[i].enabled
+            self.tx.taps[i].value = self.tx_tap_tuners[i].value
+            self.tx.taps[i].enabled = self.tx_tap_tuners[i].enabled
         self.peak_freq = self.peak_freq_tune
         self.peak_mag = self.peak_mag_tune
         self.rx_bw = self.rx_bw_tune
@@ -1098,7 +1054,10 @@ Try to keep Nbits & EyeBits > 10 * 2^n, where `n` comes from `PRBS-n`.",
         if self.channel.use_ch_file:
             ch_s2p_pre = self.channel.network_from_file(t[1], self.f)
         else:
-            ch_s2p_pre = self.channel.network_from_native_model(self.f, self.w, self.tx.impedance)
+            ch_s2p_pre = self.channel.network_from_native_model(self.f, self.w)
+
+            # Renormalize to driver impedance.
+            ch_s2p_pre.renormalize(self.tx.impedance)
 
         ch_s2p_pre.name = "ch_s2p_pre"
         self.ch_s2p_pre = ch_s2p_pre

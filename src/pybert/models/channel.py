@@ -57,7 +57,7 @@ class Channel(HasTraits):
                 raise RuntimeError("Unable to import channel file.  Verify format and data.")
         raise ValueError("Filepath is not set or is empty.")
 
-    def network_from_native_model(self, f, w, driver_impedance):
+    def network_from_native_model(self, f, w):
         """Create a 2 port network from the builtin channel model."""
         len_f = len(f)
 
@@ -71,6 +71,4 @@ class Channel(HasTraits):
         tmp = np.array(list(zip(zip(np.zeros(len_f), H), zip(H, np.zeros(len_f)))))
         ch_s2p_pre = rf.Network(s=tmp, f=f / 1e9, z0=Zc)
 
-        # - And, finally, renormalize to driver impedance.
-        ch_s2p_pre.renormalize(driver_impedance)
         return ch_s2p_pre

@@ -97,125 +97,123 @@ RX_VIEW = View(
         enabled_when="use_ibis == False",
     ),
     VGroup(
-        # VGroup(
-        #     VGroup(
-        #         VGroup(
-        #             HGroup(
-        #                 Item(
-        #                     name="use_ctle_file",
-        #                     label="fromFile",
-        #                     tooltip="Select CTLE impulse/step response from file.",
-        #                 ),
-        #                 Item(
-        #                     name="ctle_file",
-        #                     label="Filename",
-        #                     enabled_when="use_ctle_file == True",
-        #                     editor=FileEditor(dialog_style="open"),
-        #                 ),
-        #             ),
-        #             HGroup(
-        #                 Item(
-        #                     name="peak_freq",
-        #                     label="CTLE fp (GHz)",
-        #                     tooltip="CTLE peaking frequency (GHz)",
-        #                     enabled_when="use_ctle_file == False",
-        #                 ),
-        #                 Item(
-        #                     name="rx_bw",
-        #                     label="Bandwidth (GHz)",
-        #                     tooltip="unequalized signal path bandwidth (GHz).",
-        #                     enabled_when="use_ctle_file == False",
-        #                 ),
-        #             ),
-        #             HGroup(
-        #                 Item(
-        #                     name="peak_mag",
-        #                     label="CTLE boost (dB)",
-        #                     tooltip="CTLE peaking magnitude (dB)",
-        #                     format_str="%4.1f",
-        #                     enabled_when="use_ctle_file == False",
-        #                 ),
-        #                 Item(
-        #                     name="ctle_mode",
-        #                     label="CTLE mode",
-        #                     tooltip="CTLE Operating Mode",
-        #                     enabled_when="use_ctle_file == False",
-        #                 ),
-        #                 Item(
-        #                     name="ctle_offset",
-        #                     tooltip="CTLE d.c. offset (dB)",
-        #                     show_label=False,
-        #                     enabled_when='ctle_mode == "Manual"',
-        #                 ),
-        #             ),
-        #             label="CTLE",
-        #             show_border=True,
-        #             enabled_when="rx_use_ami == False",
-        #         ),
-        #     ),
-        #     HGroup(
-        #         VGroup(
-        #             Item(
-        #                 name="delta_t",
-        #                 label="Delta-t (ps)",
-        #                 tooltip="magnitude of CDR proportional branch",
-        #             ),
-        #             Item(name="alpha", label="Alpha", tooltip="relative magnitude of CDR integral branch"),
-        #             Item(
-        #                 name="n_lock_ave",
-        #                 label="Lock Nave.",
-        #                 tooltip="# of UI estimates to average, when determining lock",
-        #             ),
-        #             Item(
-        #                 name="rel_lock_tol",
-        #                 label="Lock Tol.",
-        #                 tooltip="relative tolerance for determining lock",
-        #             ),
-        #             Item(
-        #                 name="lock_sustain",
-        #                 label="Lock Sus.",
-        #                 tooltip="length of lock determining hysteresis vector",
-        #             ),
-        #             label="CDR",
-        #             show_border=True,
-        #         ),
-        #         VGroup(
-        #             HGroup(
-        #                 Item(
-        #                     name="use_dfe",
-        #                     label="Use DFE",
-        #                     tooltip="Include DFE in simulation.",
-        #                 ),
-        #                 Item(
-        #                     name="sum_ideal",
-        #                     label="Ideal",
-        #                     tooltip="Use ideal DFE. (performance boost)",
-        #                     enabled_when="use_dfe == True",
-        #                 ),
-        #             ),
-        #             VGroup(
-        #                 Item(name="n_taps", label="Taps", tooltip="# of taps"),
-        #                 Item(name="gain", label="Gain", tooltip="error feedback gain"),
-        #                 Item(name="decision_scaler", label="Level", tooltip="target output magnitude"),
-        #                 Item(
-        #                     name="n_ave", label="Nave.", tooltip="# of CDR adaptations per DFE adaptation"
-        #                 ),
-        #                 Item(
-        #                     name="sum_bw",
-        #                     label="BW (GHz)",
-        #                     tooltip="summing node bandwidth",
-        #                     enabled_when="sum_ideal == False",
-        #                 ),
-        #                 enabled_when="use_dfe == True",
-        #             ),
-        #             label="DFE",
-        #             show_border=True,
-        #         ),
-        #     ),
-        #     label="Native",
-        #     show_border=True,
-        #     enabled_when="rx_use_ami == False",
-        # ),
+        VGroup(
+            VGroup(
+                VGroup(
+                    HGroup(
+                        Item(
+                            name="use_ctle_file",
+                            label="fromFile",
+                            tooltip="Select CTLE impulse/step response from file.",
+                        ),
+                        Item(
+                            name="ctle_file",
+                            label="Filename",
+                            enabled_when="use_ctle_file == True",
+                            editor=FileEditor(dialog_style="open"),
+                        ),
+                    ),
+                    HGroup(
+                        Item(
+                            name="peak_freq",
+                            label="CTLE fp (GHz)",
+                            tooltip="CTLE peaking frequency (GHz)",
+                            enabled_when="use_ctle_file == False",
+                        ),
+                        Item(
+                            name="bandwidth",
+                            label="Bandwidth (GHz)",
+                            tooltip="unequalized signal path bandwidth (GHz).",
+                            enabled_when="use_ctle_file == False",
+                        ),
+                    ),
+                    HGroup(
+                        Item(
+                            name="peak_mag",
+                            label="CTLE boost (dB)",
+                            tooltip="CTLE peaking magnitude (dB)",
+                            format_str="%4.1f",
+                            enabled_when="use_ctle_file == False",
+                        ),
+                        Item(
+                            name="ctle_mode",
+                            label="CTLE mode",
+                            tooltip="CTLE Operating Mode",
+                            enabled_when="use_ctle_file == False",
+                        ),
+                        Item(
+                            name="ctle_offset",
+                            tooltip="CTLE d.c. offset (dB)",
+                            show_label=False,
+                            enabled_when='ctle_mode == "Manual"',
+                        ),
+                    ),
+                    label="CTLE",
+                    show_border=True,
+                    enabled_when="rx_use_ami == False",
+                ),
+            ),
+            HGroup(
+                VGroup(
+                    Item(
+                        name="delta_t",
+                        label="Delta-t (ps)",
+                        tooltip="magnitude of CDR proportional branch",
+                    ),
+                    Item(name="alpha", label="Alpha", tooltip="relative magnitude of CDR integral branch"),
+                    Item(
+                        name="n_lock_ave",
+                        label="Lock Nave.",
+                        tooltip="# of UI estimates to average, when determining lock",
+                    ),
+                    Item(
+                        name="rel_lock_tol",
+                        label="Lock Tol.",
+                        tooltip="relative tolerance for determining lock",
+                    ),
+                    Item(
+                        name="lock_sustain",
+                        label="Lock Sus.",
+                        tooltip="length of lock determining hysteresis vector",
+                    ),
+                    label="CDR",
+                    show_border=True,
+                ),
+                VGroup(
+                    HGroup(
+                        Item(
+                            name="use_dfe",
+                            label="Use DFE",
+                            tooltip="Include DFE in simulation.",
+                        ),
+                        Item(
+                            name="sum_ideal",
+                            label="Ideal",
+                            tooltip="Use ideal DFE. (performance boost)",
+                            enabled_when="use_dfe == True",
+                        ),
+                    ),
+                    VGroup(
+                        Item(name="n_taps", label="Taps", tooltip="# of taps"),
+                        Item(name="gain", label="Gain", tooltip="error feedback gain"),
+                        Item(name="decision_scaler", label="Level", tooltip="target output magnitude"),
+                        Item(name="n_ave", label="Nave.", tooltip="# of CDR adaptations per DFE adaptation"),
+                        Item(
+                            name="sum_bw",
+                            label="BW (GHz)",
+                            tooltip="summing node bandwidth",
+                            enabled_when="sum_ideal == False",
+                        ),
+                        enabled_when="use_dfe == True",
+                    ),
+                    label="DFE",
+                    show_border=True,
+                ),
+            ),
+            label="Native",
+            show_border=True,
+            enabled_when="rx_use_ami == False",
+        ),
         label="Equalization",
         show_border=True,
     ),

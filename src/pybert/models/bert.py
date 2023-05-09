@@ -68,7 +68,7 @@ def my_run_sweeps(self, is_thread_stopped: Optional[Callable[[], bool]] = None):
 
     sweep_aves = self.sweep_aves
     do_sweep = self.do_sweep
-    tx_taps = self.tx_taps
+    tx_taps = self.tx.taps
 
     if do_sweep:
         # Assemble the list of desired values for each sweepable parameter.
@@ -91,7 +91,7 @@ def my_run_sweeps(self, is_thread_stopped: Optional[Callable[[], bool]] = None):
         sweep_num = 1
         for sweep in sweeps:
             for i in range(4):
-                self.tx_taps[i].value = sweep[i]
+                self.tx.taps[i].value = sweep[i]
             bit_errs = []
             for i in range(sweep_aves):
                 self.sweep_num = sweep_num
@@ -153,22 +153,22 @@ def my_run_simulation(self, initial_run=False, update_plots=True, aborted_sim: O
     pn_mag = self.pn_mag
     pn_freq = self.pn_freq * 1.0e6
     pattern = self.pattern_
-    rx_bw = self.rx_bw * 1.0e9
-    peak_freq = self.peak_freq * 1.0e9
-    peak_mag = self.peak_mag
-    ctle_offset = self.ctle_offset
-    ctle_mode = self.ctle_mode
-    delta_t = self.delta_t * 1.0e-12
-    alpha = self.alpha
+    rx_bw = self.rx.bandwidth * 1.0e9
+    peak_freq = self.rx.peak_freq * 1.0e9
+    peak_mag = self.rx.peak_mag
+    ctle_offset = self.rx.ctle_offset
+    ctle_mode = self.rx.ctle_mode
+    delta_t = self.rx.delta_t * 1.0e-12
+    alpha = self.rx.alpha
     ui = self.ui
-    n_taps = self.n_taps
-    gain = self.gain
-    n_ave = self.n_ave
-    decision_scaler = self.decision_scaler
-    n_lock_ave = self.n_lock_ave
-    rel_lock_tol = self.rel_lock_tol
-    lock_sustain = self.lock_sustain
-    bandwidth = self.sum_bw * 1.0e9
+    n_taps = self.rx.n_taps
+    gain = self.rx.gain
+    n_ave = self.rx.n_ave
+    decision_scaler = self.rx.decision_scaler
+    n_lock_ave = self.rx.n_lock_ave
+    rel_lock_tol = self.rx.rel_lock_tol
+    lock_sustain = self.rx.lock_sustain
+    bandwidth = self.rx.sum_bw * 1.0e9
     rel_thresh = self.thresh
     mod_type = self.mod_type[0]
 
@@ -409,9 +409,9 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
             ctle_s = ctle_h.cumsum()
             ctle_out = convolve(rx_in, ctle_h)
         else:
-            if self.use_ctle_file:
+            if self.rx.use_ctle_file:
                 # FIXME: The new import_channel() implementation breaks this:
-                ctle_h = import_channel(self.ctle_file, ts, self.f)
+                ctle_h = import_channel(self.rx.ctle_file, ts, self.f)
                 if max(abs(ctle_h)) < 100.0:  # step response?
                     ctle_h = diff(ctle_h)  # impulse response is derivative of step response.
                 else:
@@ -425,7 +425,7 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
             ctle_h.resize(len(chnl_h), refcheck=False)
             ctle_out = convolve(rx_in, ctle_h)
             ctle_out -= mean(ctle_out)  # Force zero mean.
-            if self.ctle_mode == "AGC":  # Automatic gain control engaged?
+            if self.rx.ctle_mode == "AGC":  # Automatic gain control engaged?
                 ctle_out *= 2.0 * decision_scaler / ctle_out.ptp()
             ctle_s = ctle_h.cumsum()
             ctle_out_h = convolve(tx_out_h, ctle_h)[: len(tx_out_h)]
@@ -464,7 +464,7 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
 
     # Generate the output from, and the incremental/cumulative impulse/step/frequency responses of, the DFE.
     try:
-        if self.use_dfe:
+        if self.rx.use_dfe:
             dfe = DFE(
                 n_taps,
                 gain,
@@ -479,7 +479,7 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
                 rel_lock_tol=rel_lock_tol,
                 lock_sustain=lock_sustain,
                 bandwidth=bandwidth,
-                ideal=self.sum_ideal,
+                ideal=self.rx.sum_ideal,
             )
         else:
             dfe = DFE(
@@ -751,7 +751,7 @@ def update_results(self):
     t = self.t
     t_ns = self.t_ns
     t_ns_chnl = self.t_ns_chnl
-    n_taps = self.n_taps
+    n_taps = self.rx.n_taps
 
     Ts = t[1]
     ignore_until = (num_ui - eye_uis) * ui
@@ -772,7 +772,7 @@ def update_results(self):
         self.plotdata.set_data("tap%d_weights" % i, tap_weight)
         i += 1
     self.plotdata.set_data("tap_weight_index", list(range(len(tap_weight))))
-    if self._old_n_taps != n_taps:
+    if self.rx.old_n_taps != n_taps:
         new_plot = Plot(
             self.plotdata,
             auto_colors=["red", "orange", "yellow", "green", "blue", "purple"],
