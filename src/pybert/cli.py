@@ -1,4 +1,5 @@
-"""Main Entry Point for the PyBERT GUI when using the CLI."""
+"""Main Entry Point for the PyBERT."""
+import logging
 from pathlib import Path
 
 import click
@@ -6,6 +7,7 @@ import click
 from pybert import __version__
 from pybert.gui.view import traits_view
 from pybert.pybert import PyBERT
+from pybert.logger import setup_logger
 
 
 @click.group(invoke_without_command=True, context_settings=dict(help_option_names=["-h", "--help"]))
@@ -13,8 +15,10 @@ from pybert.pybert import PyBERT
 @click.version_option(version=__version__)
 @click.option("--config-file", "-c", type=click.Path(exists=True), help="Load an existing configuration file.")
 @click.option("--results", "-r", type=click.Path(exists=True), help="Load results from a prior run.")
-def cli(ctx, config_file, results):
+@click.option("--verbose", "-v", default=False, is_flag=True, help="Enable debug prints on the terminal console.")
+def cli(ctx, config_file, results, verbose):
     """Serial communication link bit error rate tester."""
+    setup_logger("pybert.log", console_debug=verbose)
 
     if ctx.invoked_subcommand is None:  # No sub-command like `sim` given open the GUI like default.
         pybert = PyBERT()

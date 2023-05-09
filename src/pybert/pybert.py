@@ -13,11 +13,15 @@ can be used to explore the concepts of serial communication link design.
 
 Copyright (c) 2014 by David Banas; All rights reserved World wide.
 """
-import platform
+import logging
+
 import time
 from datetime import datetime
 from os.path import join
 from pathlib import Path
+import platform
+from pybert import __version__ as VERSION
+from pyibisami import __version__ as PyAMI_VERSION
 
 import numpy as np
 import skrf as rf
@@ -42,12 +46,13 @@ from traits.api import (
     String,
     cached_property,
 )
-from traitsui.message import message
+
 
 from pybert import __version__ as VERSION
 from pybert.configuration import InvalidFileType, PyBertCfg
 from pybert.gui.help import help_str
 from pybert.gui.plot import make_plots
+from pybert.logger import TraitsUiConsoleHandler
 from pybert.models import Channel, Receiver, Transmitter
 from pybert.models.bert import my_run_simulation
 from pybert.models.tx_tap import TxTapTuner
@@ -62,7 +67,7 @@ from pybert.utility import (
     sdd_21,
     trim_impulse,
 )
-from pyibisami import __version__ as PyAMI_VERSION
+
 
 gDebugStatus = False
 gMaxCTLEPeak = 20.0  # max. allowed CTLE peaking (dB) (when optimizing, only)
@@ -108,6 +113,7 @@ gLockSustain = 500
 # - Analysis
 gThresh = 6  # threshold for identifying periodic jitter spectral elements (sigma)
 
+logger = logging.getLogger(__name__)
 
 class PyBERT(HasTraits):
     """A serial communication link bit error rate tester (BERT) simulator with
@@ -141,9 +147,9 @@ class PyBERT(HasTraits):
     debug = Bool(False)  #: Send log messages to terminal, as well as console, when True. (Default = False)
     impulse_length = Float(0.0)  #: Impulse response length. (Determined automatically, when 0.)
 
-    channel = Instance(Channel, ())
-    tx = Instance(Transmitter, ())
-    rx = Instance(Receiver, ())
+    channel = Instance(Channel, args=())
+    tx = Instance(Transmitter, args=())
+    rx = Instance(Receiver, args=())
     # optimizer = Instance(Optimizer, ())
 
 
@@ -307,14 +313,9 @@ class PyBERT(HasTraits):
         pop-up dialog."""
         _msg = msg.strip()
         txt = f"[{datetime.now()}]: PyBERT: {_msg}"
-        if self.debug:
-            ## In case PyBERT crashes, before we can read this in its `Console` tab:
-            print(txt, flush=True)
         self.console_log += txt + "\n"
-        if exception:
-            raise exception
-        if alert and self.GUI:
-            message(_msg, "PyBERT Alert")
+
+
 
     # Default initialization
     def __init__(self, run_simulation=True, gui=True):
@@ -337,11 +338,11 @@ class PyBERT(HasTraits):
         # to get all the Traits/UI machinery setup correctly.
         super().__init__()
 
+        self._log_console_handler = TraitsUiConsoleHandler(self)
+        logger.addHandler(self._log_console_handler)
+        log_system_information()
+
         self.GUI = gui
-        self.log("Started.")
-        self.log_information()
-        if self.debug:
-            self.log("Debug Mode Enabled.")
 
         if run_simulation:
             self.simulate(initial_run=True)
@@ -954,8 +955,7 @@ class PyBERT(HasTraits):
 
     # Changed property handlers.
     def _status_str_changed(self):
-        if gDebugStatus:
-            print(self.status_str, flush=True)
+        logger.info(self.status)
 
     def _use_dfe_changed(self, new_value):
         if not new_value:
@@ -965,6 +965,12 @@ class PyBERT(HasTraits):
             for i in range(1, 4):
                 self.tx_taps[i].enabled = False
 
+    def _debug_changed(self, enable_debug):
+        """If the user enables debug, turn up the verbosity of the logger in the gui console."""
+        if enable_debug:
+            self._log_console_handler.setLevel(logging.DEBUG)
+        else:
+            self._log_console_handler.setLevel(logging.INFO)
 
 
     def check_pat_len(self):
@@ -1147,8 +1153,7 @@ Try to keep Nbits & EyeBits > 10 * 2^n, where `n` comes from `PRBS-n`.",
             Cp = model.ccomp[0] / 2
             self.RL = RL  # Primarily for debugging.
             self.Cp = Cp
-            if self.debug:
-                self.log(f"RL: {RL}, Cp: {Cp}")
+            logger.debug(f"RL: {RL}, Cp: {Cp}")
             if self.rx.use_ondie_sparameters:
                 fname = join(self._rx_ibis_dir, self._rx_cfg.fetch_param_val(["Reserved_Parameters", "Ts4file"])[0])
                 ch_s2p, ts4N, ntwk = add_ondie_s(ch_s2p, fname, isRx=True)
@@ -1213,10 +1218,10 @@ Try to keep Nbits & EyeBits > 10 * 2^n, where `n` comes from `PRBS-n`.",
             self.cfg_file = filepath
             self.status = "Loaded configuration."
         except InvalidFileType:
-            self.log("This filetype is not currently supported.")
+            logger.warning("This filetype is not currently supported.")
         except Exception as exp:
-            self.log("Failed to load configuration. See the console for more detail.")
-            self.log(str(exp))
+            logger.error("Failed to load configuration. See the console for more detail.")
+            logger.exception(exp)
 
     def save_configuration(self, filepath: Path):
         """Save out a configuration from pybert.
@@ -1229,10 +1234,10 @@ Try to keep Nbits & EyeBits > 10 * 2^n, where `n` comes from `PRBS-n`.",
             self.cfg_file = filepath
             self.status = "Configuration saved."
         except InvalidFileType:
-            self.log("This filetype is not currently supported. Please try again as a yaml file.")
+            logger.warning("This filetype is not currently supported. Please try again as a yaml file.")
         except Exception as exp:
-            self.log("Failed to save current user configuration. See the console for more detail.")
-            self.log(str(exp))
+            logger.error("Failed to save current user configuration. See the console for more detail.")
+            logger.exception(exp)
 
     def load_results(self, filepath: Path):
         """Load results from a file into pybert.
@@ -1245,8 +1250,8 @@ Try to keep Nbits & EyeBits > 10 * 2^n, where `n` comes from `PRBS-n`.",
             self.data_file = filepath
             self.status = "Loaded results."
         except Exception as exp:
-            self.log("Failed to load results from file. See the console for more detail.")
-            self.log(str(exp))
+            logger.error("Failed to load results from file. See the console for more detail.")
+            logger.exception(exp)
 
     def save_results(self, filepath: Path):
         """Save the existing results to a pickle file.
@@ -1259,8 +1264,8 @@ Try to keep Nbits & EyeBits > 10 * 2^n, where `n` comes from `PRBS-n`.",
             self.data_file = filepath
             self.status = "Saved results."
         except Exception as exp:
-            self.log("Failed to save results to file. See the console for more detail.")
-            self.log(str(exp))
+            logger.error("Failed to save results to file. See the console for more detail.")
+            logger.exception(exp)
 
     def clear_reference_from_plots(self):
         """If any plots have ref in the name, delete them and then regenerate the plots.
@@ -1280,14 +1285,15 @@ Try to keep Nbits & EyeBits > 10 * 2^n, where `n` comes from `PRBS-n`.",
         if atleast_one_reference_removed:
             make_plots(self, n_dfe_taps=gNtaps)
 
-    def log_information(self):
-        """Log the system information."""
-        from traits.etsconfig.api import ETSConfig
 
-        self.log(f"System: {platform.system()} {platform.release()}")
-        self.log(f"Python Version: {platform.python_version()}")
-        self.log(f"PyBERT Version: {VERSION}")
-        self.log(f"PyAMI Version: {PyAMI_VERSION}")
-        self.log(f"GUI Toolkit: {ETSConfig.toolkit}")
-        self.log(f"Kiva Backend: {ETSConfig.kiva_backend}")
-        # self.log(f"Pixel Scale: {self.trait_view().window.base_pixel_scale}")
+def log_system_information():
+    """Log the system information."""
+    from traits.etsconfig.api import ETSConfig
+
+    logger.info(f"System: {platform.system()} {platform.release()}")
+    logger.info(f"Python Version: {platform.python_version()}")
+    logger.info(f"PyBERT Version: {VERSION}")
+    logger.info(f"PyAMI Version: {PyAMI_VERSION}")
+    logger.info(f"GUI Toolkit: {ETSConfig.toolkit}")
+    logger.info(f"Kiva Backend: {ETSConfig.kiva_backend}")
+    # self.log(f"Pixel Scale: {self.trait_view().window.base_pixel_scale}")
