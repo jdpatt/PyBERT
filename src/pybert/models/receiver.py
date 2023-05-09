@@ -1,4 +1,4 @@
-from traits.api import Bool, Button, Enum, File, Float, HasTraits, Int, Range
+from traits.api import Bool, Enum, File, Float, Int
 
 from pybert.gui.reciever import RX_VIEW
 from pybert.models.buffer import Buffer

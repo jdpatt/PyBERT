@@ -6,6 +6,7 @@ Original date:   August 24, 2014 (Copied from pybert.py, as part of a major code
 
 Copyright (c) 2014 David Banas; all rights reserved World wide.
 """
+import logging
 from time import perf_counter
 from typing import Callable, Optional
 
@@ -49,7 +50,9 @@ from pybert.utility import (
     safe_log10,
     trim_impulse,
 )
-from pyibisami.ami.model import AMIModel, AMIModelInitializer
+from pyibisami.ami.model import AMIModelInitializer
+
+logger = logging.getLogger(__name__)
 
 DEBUG = False
 MIN_BATHTUB_VAL = 1.0e-18
@@ -66,8 +69,8 @@ def my_run_sweeps(self, is_thread_stopped: Optional[Callable[[], bool]] = None):
           has requested to stop/abort the simulation by setting the thread stop event.
     """
 
-    sweep_aves = self.sweep_aves
-    do_sweep = self.do_sweep
+    sweep_aves = self.control.sweep_aves
+    do_sweep = self.control.do_sweep
     tx_taps = self.tx.taps
 
     if do_sweep:
@@ -86,7 +89,7 @@ def my_run_sweeps(self, is_thread_stopped: Optional[Callable[[], bool]] = None):
             [w, x, y, z] for w in sweep_vals[0] for x in sweep_vals[1] for y in sweep_vals[2] for z in sweep_vals[3]
         ]
         num_sweeps = sweep_aves * len(sweeps)
-        self.num_sweeps = num_sweeps
+        self.control.num_sweeps = num_sweeps
         sweep_results = []
         sweep_num = 1
         for sweep in sweeps:
@@ -127,13 +130,15 @@ def my_run_simulation(self, initial_run=False, update_plots=True, aborted_sim: O
             self.status = "Aborted Simulation"
             raise RuntimeError("Simulation aborted by User.")
 
-    num_sweeps = self.num_sweeps
-    sweep_num = self.sweep_num
+    num_sweeps = self.control.num_sweeps
+    sweep_num = self.control.sweep_num
 
     start_time = clock()
     self.status = "Running channel...(sweep %d of %d)" % (sweep_num, num_sweeps)
 
-    if not self.seed:  # The user sets `seed` to zero to indicate that she wants new bits generated for each run.
+    if (
+        not self.control.seed
+    ):  # The user sets `seed` to zero to indicate that she wants new bits generated for each run.
         self.run_count += 1  # Force regeneration of bit stream.
 
     # Pull class variables into local storage, performing unit conversion where necessary.
@@ -142,17 +147,17 @@ def my_run_simulation(self, initial_run=False, update_plots=True, aborted_sim: O
     bits = self.bits
     symbols = self.symbols
     ffe = self.ffe
-    nbits = self.nbits
+    nbits = self.control.nbits
     nui = self.nui
-    bit_rate = self.bit_rate * 1.0e9
-    eye_bits = self.eye_bits
+    bit_rate = self.control.bit_rate * 1.0e9
+    eye_bits = self.control.eye_bits
     eye_uis = self.eye_uis
-    nspb = self.nspb
+    nspb = self.control.nspb
     nspui = self.nspui
-    rn = self.rn
-    pn_mag = self.pn_mag
-    pn_freq = self.pn_freq * 1.0e6
-    pattern = self.pattern_
+    rn = self.control.rn
+    pn_mag = self.control.pn_mag
+    pn_freq = self.control.pn_freq * 1.0e6
+    pattern = self.control.pattern_
     rx_bw = self.rx.bandwidth * 1.0e9
     peak_freq = self.rx.peak_freq * 1.0e9
     peak_mag = self.rx.peak_mag
@@ -169,8 +174,8 @@ def my_run_simulation(self, initial_run=False, update_plots=True, aborted_sim: O
     rel_lock_tol = self.rx.rel_lock_tol
     lock_sustain = self.rx.lock_sustain
     bandwidth = self.rx.sum_bw * 1.0e9
-    rel_thresh = self.thresh
-    mod_type = self.mod_type[0]
+    rel_thresh = self.control.thresh
+    mod_type = self.control.mod_type[0]
 
     try:
         # Calculate misc. values.
@@ -204,9 +209,8 @@ def my_run_simulation(self, initial_run=False, update_plots=True, aborted_sim: O
         split_time = clock()
         chnl_out = convolve(self.x, chnl_h)[: len(t)]
         _conv_chnl_time = clock() - split_time
-        if self.debug:
-            self.log(f"Channel calculation time: {_calc_chnl_time}")
-            self.log(f"Channel convolution time: {_conv_chnl_time}")
+        logger.debug(f"Channel calculation time: {_calc_chnl_time}")
+        logger.debug(f"Channel convolution time: {_conv_chnl_time}")
 
         self.channel_perf = nbits * nspb / (clock() - start_time)
         split_time = clock()
@@ -237,7 +241,7 @@ def my_run_simulation(self, initial_run=False, update_plots=True, aborted_sim: O
             tx_model_init.bit_time = ui
             tx_model = self.tx.ami_model
             tx_model.initialize(tx_model_init)
-            self.log(
+            logger.info(
                 "Tx IBIS-AMI model initialization results:\nInput parameters: {}\nOutput parameters: {}\nMessage: {}".format(
                     tx_model.ami_params_in.decode("utf-8"),
                     tx_model.ami_params_out.decode("utf-8"),
@@ -248,18 +252,18 @@ def my_run_simulation(self, initial_run=False, update_plots=True, aborted_sim: O
                 tx_h = array(tx_model.initOut) * ts
             elif not tx_cfg.fetch_param_val(["Reserved_Parameters", "GetWave_Exists"]):
                 self.status = "Simulation Error."
-                self.log(
-                    "ERROR: Both 'Init_Returns_Impulse' and 'GetWave_Exists' are False!\n \
+                logger.error(
+                    "Both 'Init_Returns_Impulse' and 'GetWave_Exists' are False!\n \
 I cannot continue.\nYou will have to select a different model.",
-                    alert=True,
+                    # alert=True,
                 )
                 return
             elif not self.tx.use_getwave:
                 self.status = "Simulation Error."
-                self.log(
-                    "ERROR: You have elected not to use GetWave for a model, which does not return an impulse response!\n \
+                logger.error(
+                    "You have elected not to use GetWave for a model, which does not return an impulse response!\n \
 I cannot continue.\nPlease, select 'Use GetWave' and try again.",
-                    alert=True,
+                    # alert=True,
                 )
                 return
             if self.tx.use_getwave:
@@ -267,7 +271,7 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
                     tx_s = getwave_step_resp(tx_model)
                 except RuntimeError as err:
                     self.status = "Tx GetWave() Error."
-                    self.log("ERROR: Never saw a rising step come out of Tx GetWave()!", alert=True)
+                    logger.error("Never saw a rising step come out of Tx GetWave()!", alert=True)
                     return
                 tx_h, _ = trim_impulse(diff(tx_s))
                 tx_out, _ = tx_model.getWave(self.x)
@@ -352,7 +356,7 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
             rx_model_init.bit_time = ui
             rx_model = self.rx.ami_model
             rx_model.initialize(rx_model_init)
-            self.log(
+            logger.info(
                 "Rx IBIS-AMI model initialization results:\nInput parameters: {}\nMessage: {}\nOutput parameters: {}".format(
                     rx_model.ami_params_in.decode("utf-8"),
                     rx_model.msg.decode("utf-8"),
@@ -363,18 +367,18 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
                 ctle_out_h = array(rx_model.initOut) * ts
             elif not rx_cfg.fetch_param_val(["Reserved_Parameters", "GetWave_Exists"]):
                 self.status = "Simulation Error."
-                self.log(
-                    "ERROR: Both 'Init_Returns_Impulse' and 'GetWave_Exists' are False!\n \
+                logger.error(
+                    "Both 'Init_Returns_Impulse' and 'GetWave_Exists' are False!\n \
 I cannot continue.\nYou will have to select a different model.",
-                    alert=True,
+                    # alert=True,
                 )
                 return
             elif not self.rx.use_getwave:
                 self.status = "Simulation Error."
-                self.log(
-                    "ERROR: You have elected not to use GetWave for a model, which does not return an impulse response!\n \
+                logger.error(
+                    "You have elected not to use GetWave for a model, which does not return an impulse response!\n \
 I cannot continue.\nPlease, select 'Use GetWave' and try again.",
-                    alert=True,
+                    # alert=True,
                 )
                 return
             if self.rx.use_getwave:
@@ -382,7 +386,10 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
                     ctle_s = getwave_step_resp(rx_model)
                 except RuntimeError as err:
                     self.status = "Rx GetWave() Error."
-                    self.log("ERROR: Never saw a rising step come out of Rx GetWave()!", alert=True)
+                    logger.error(
+                        "Never saw a rising step come out of Rx GetWave()!",
+                        #  alert=True
+                    )
                     return
                 ctle_h = diff(ctle_s)
                 temp = ctle_h.copy()

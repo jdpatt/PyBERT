@@ -16,7 +16,6 @@ Copyright (c) 2014 by David Banas; All rights reserved World wide.
 import logging
 import platform
 import time
-from datetime import datetime
 from os.path import join
 from pathlib import Path
 
@@ -37,9 +36,7 @@ from traits.api import (
     Instance,
     Int,
     List,
-    Map,
     Property,
-    Range,
     String,
     cached_property,
 )
@@ -50,7 +47,7 @@ from pybert.gui.help import help_str
 from pybert.gui.plot import make_plots
 from pybert.jitter import jitter_html_table
 from pybert.logger import TraitsUiConsoleHandler
-from pybert.models import Channel, Receiver, Transmitter
+from pybert.models import Channel, Control, Receiver, Transmitter
 from pybert.models.bert import my_run_simulation
 from pybert.models.tx_tap import TxTapTuner
 from pybert.results import PyBertData
@@ -60,7 +57,6 @@ from pybert.utility import (
     lfsr_bits,
     make_ctle,
     pulse_center,
-    safe_log10,
     sdd_21,
     trim_impulse,
 )
@@ -70,20 +66,7 @@ gDebugStatus = False
 gMaxCTLEPeak = 20.0  # max. allowed CTLE peaking (dB) (when optimizing, only)
 gMaxCTLEFreq = 20.0  # max. allowed CTLE peak frequency (GHz) (when optimizing, only)
 
-# Default model parameters - Modify these to customize the default simulation.
-# - Simulation Control
-gBitRate = 10  # (Gbps)
-gNbits = 8000  # number of bits to run
-gPatLen = 127  # repeating bit pattern length
-gNspb = 32  # samples per bit
-gNumAve = 1  # Number of bit error samples to average, when sweeping.
 
-# - Tx
-gRn = (
-    0.001  # standard deviation of Gaussian random noise (V) (Applied at end of channel, so as to appear white to Rx.)
-)
-
-gVod = 1.0  # output drive strength (Vp)
 gPnMag = 0.001  # magnitude of periodic noise (V)
 gPnFreq = 0.437  # frequency of periodic noise (MHz)
 gPnMag = 0.001  # magnitude of periodic noise (V)
@@ -97,8 +80,6 @@ gUseDfe = True  # Include DFE when running simulation.
 gCTLEOffset = 0.0  # CTLE d.c. offset (dB)
 gNtaps = 5
 
-# - Analysis
-gThresh = 6  # threshold for identifying periodic jitter spectral elements (sigma)
 
 logger = logging.getLogger(__name__)
 
@@ -111,40 +92,12 @@ class PyBERT(HasTraits):
     design.
     """
 
-    # Independent variables
-
-    # - Simulation Control
-    bit_rate = Range(low=0.1, high=120.0, value=gBitRate)  #: (Gbps)
-    nbits = Range(low=1000, high=10000000, value=gNbits)  #: Number of bits to simulate.
-    pattern = Map(
-        {
-            "PRBS-7": [7, 6],
-            "PRBS-15": [15, 14],
-            "PRBS-23": [23, 18],
-        },
-        default_value="PRBS-7",
-    )
-    seed = Int(1)  # LFSR seed. 0 means regenerate bits, using a new random seed, each run.
-    nspb = Range(low=2, high=256, value=gNspb)  #: Signal vector samples per bit.
-    eye_bits = Int(gNbits // 5)  #: # of bits used to form eye. (Default = last 20%)
-    mod_type = List([0])  #: 0 = NRZ; 1 = Duo-binary; 2 = PAM-4
-    num_sweeps = Int(1)  #: Number of sweeps to run.
-    sweep_num = Int(1)
-    sweep_aves = Int(gNumAve)
-    do_sweep = Bool(False)  #: Run sweeps? (Default = False)
-    debug = Bool(False)  #: Send log messages to terminal, as well as console, when True. (Default = False)
-    impulse_length = Float(0.0)  #: Impulse response length. (Determined automatically, when 0.)
-
+    control = Instance(Control, args=())
     channel = Instance(Channel, args=())
     tx = Instance(Transmitter, args=())
     rx = Instance(Receiver, args=())
-    # optimizer = Instance(Optimizer, ())
 
-    # - Tx
-    vod = Float(gVod)  #: Tx differential output voltage (V)
-    pn_mag = Float(gPnMag)  #: Periodic noise magnitude (V).
-    pn_freq = Float(gPnFreq)  #: Periodic noise frequency (MHz).
-    rn = Float(gRn)  #: Standard deviation of Gaussian random noise (V).
+    # optimizer = Instance(Optimizer, ())
 
     rel_power = Float(1.0)  #: Tx power dissipation (W).
     tx_opt_thread = Instance(TxOptThread)  #: Tx EQ optimization thread.
@@ -179,9 +132,6 @@ class PyBERT(HasTraits):
     btn_opt_rx = Button(label="OptRx")
     btn_coopt = Button(label="CoOpt")
     btn_abort = Button(label="Abort")
-
-    # - Analysis
-    thresh = Int(gThresh)  #: Threshold for identifying periodic jitter components (sigma).
 
     # Misc.
     cfg_file = File("", entries=5, filter=["*.pybert_cfg"])  #: PyBERT configuration data storage file (File).
@@ -257,14 +207,6 @@ class PyBERT(HasTraits):
     eye_uis = Property(Int, depends_on=["eye_bits", "mod_type"])
     dfe_out_p = Array()
     przf_err = Property(Float, depends_on=["dfe_out_p"])
-
-    # Logger & Pop-up
-    def log(self, msg, alert=False, exception=None):
-        """Log a message to the console and, optionally, to terminal and/or
-        pop-up dialog."""
-        _msg = msg.strip()
-        txt = f"[{datetime.now()}]: PyBERT: {_msg}"
-        self.console_log += txt + "\n"
 
     # Default initialization
     def __init__(self, run_simulation=True, gui=True):
@@ -348,9 +290,9 @@ class PyBERT(HasTraits):
     @cached_property
     def _get_bits(self):
         "Generate the bit stream."
-        pattern = self.pattern_
-        seed = self.seed
-        nbits = self.nbits
+        pattern = self.control.pattern_
+        seed = self.control.seed
+        nbits = self.control.nbits
 
         if not seed:  # The user sets `seed` to zero when she wants a new random seed generated for each run.
             seed = randint(128)
@@ -366,8 +308,8 @@ class PyBERT(HasTraits):
         Returns the "unit interval" (i.e. - the nominal time span of each symbol moving through the channel).
         """
 
-        mod_type = self.mod_type[0]
-        bit_rate = self.bit_rate * 1.0e9
+        mod_type = self.control.mod_type[0]
+        bit_rate = self.control.bit_rate * 1.0e9
 
         ui = 1.0 / bit_rate
         if mod_type == 2:  # PAM-4
@@ -379,8 +321,8 @@ class PyBERT(HasTraits):
     def _get_nui(self):
         """Returns the number of unit intervals in the test vectors."""
 
-        mod_type = self.mod_type[0]
-        nbits = self.nbits
+        mod_type = self.control.mod_type[0]
+        nbits = self.control.nbits
 
         nui = nbits
         if mod_type == 2:  # PAM-4
@@ -392,8 +334,8 @@ class PyBERT(HasTraits):
     def _get_nspui(self):
         """Returns the number of samples per unit interval."""
 
-        mod_type = self.mod_type[0]
-        nspb = self.nspb
+        mod_type = self.control.mod_type[0]
+        nspb = self.control.nspb
 
         nspui = nspb
         if mod_type == 2:  # PAM-4
@@ -405,8 +347,8 @@ class PyBERT(HasTraits):
     def _get_eye_uis(self):
         """Returns the number of unit intervals to use for eye construction."""
 
-        mod_type = self.mod_type[0]
-        eye_bits = self.eye_bits
+        mod_type = self.control.mod_type[0]
+        eye_bits = self.control.eye_bits
 
         eye_uis = eye_bits
         if mod_type == 2:  # PAM-4
@@ -421,7 +363,7 @@ class PyBERT(HasTraits):
         ui = self.ui
         nspui = self.nspui
         t = self.t
-        mod_type = self.mod_type[0]
+        mod_type = self.control.mod_type[0]
         ideal_type = self.ideal_type[0]
 
         t = array(t) - t[-1] / 2.0
@@ -447,8 +389,8 @@ class PyBERT(HasTraits):
     def _get_symbols(self):
         """Generate the symbol stream."""
 
-        mod_type = self.mod_type[0]
-        vod = self.vod
+        mod_type = self.control.mod_type[0]
+        vod = self.control.vod
         bits = self.bits
 
         if mod_type == 0:  # NRZ
@@ -623,7 +565,7 @@ class PyBERT(HasTraits):
     def _get_cost(self):
         nspui = self.nspui
         h = self.ctle_out_h_tune
-        mod_type = self.mod_type[0]
+        mod_type = self.control.mod_type[0]
 
         s = h.cumsum()
         p = s - pad(s[:-nspui], (nspui, 0), "constant", constant_values=(0, 0))
@@ -698,21 +640,14 @@ class PyBERT(HasTraits):
             for i in range(1, 4):
                 self.tx.taps[i].enabled = False
 
-    def _debug_changed(self, enable_debug):
-        """If the user enables debug, turn up the verbosity of the logger in the gui console."""
-        if enable_debug:
-            self._log_console_handler.setLevel(logging.DEBUG)
-        else:
-            self._log_console_handler.setLevel(logging.INFO)
-
     def check_pat_len(self):
         taps = self.pattern_
         pat_len = 2 * pow(2, max(taps))
         if pat_len > 5 * self.nbits:
-            self.log(
+            logger.error(
                 "Accurate jitter decomposition may not be possible with the current configuration!\n \
 Try to keep Nbits & EyeBits > 10 * 2^n, where `n` comes from `PRBS-n`.",
-                alert=True,
+                # alert=True,
             )
 
     def _pattern_changed(self, new_value):
@@ -824,7 +759,7 @@ Try to keep Nbits & EyeBits > 10 * 2^n, where `n` comes from `PRBS-n`.",
         f = self.f
         w = self.w
         nspui = self.nspui
-        impulse_length = self.impulse_length * 1.0e-9
+        impulse_length = self.control.impulse_length * 1.0e-9
         Rs = self.tx.impedance
         Cs = self.tx.capacitance * 1.0e-12
         RL = self.rx.resistance
@@ -1031,4 +966,4 @@ def log_system_information():
     logger.info(f"PyAMI Version: {PyAMI_VERSION}")
     logger.info(f"GUI Toolkit: {ETSConfig.toolkit}")
     logger.info(f"Kiva Backend: {ETSConfig.kiva_backend}")
-    # self.log(f"Pixel Scale: {self.trait_view().window.base_pixel_scale}")
+    # logger.info(f"Pixel Scale: {self.trait_view().window.base_pixel_scale}")

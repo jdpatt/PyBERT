@@ -1,9 +1,8 @@
 import logging
 from typing import Optional
 
-from traits.api import Bool, Button, File, Float, HasTraits, Range
+from traits.api import Bool, Button, File, HasTraits
 
-from pybert.gui.alert import error_popup
 from pyibisami import AMIModel, AMIParamConfigurator, IBISModel
 
 logger = logging.getLogger(__name__)

@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 import numpy as np
 import skrf as rf
-from traits.api import Bool, File, Float, HasTraits, Map
+from traits.api import Bool, File, Float, HasTraits
 
 from pybert.gui.channel import CHANNEL_VIEW
 from pybert.utility import calc_gamma, import_channel

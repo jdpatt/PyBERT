@@ -72,7 +72,6 @@ class PyBertCfg:
         self.sweep_num = the_PyBERT.sweep_num
         self.sweep_aves = the_PyBERT.sweep_aves
         self.do_sweep = the_PyBERT.do_sweep
-        self.debug = the_PyBERT.debug
 
         # Channel Control
         self.use_ch_file = the_PyBERT.use_ch_file

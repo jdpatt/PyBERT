@@ -1,4 +1,4 @@
-from traits.api import Bool, Button, File, Float, HasTraits, List, Range
+from traits.api import Float, List, Range
 
 from pybert.gui.transmitter import TX_VIEW
 from pybert.models.buffer import Buffer
