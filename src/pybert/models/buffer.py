@@ -1,8 +1,10 @@
 import logging
 from typing import Optional
 
+import skrf as rf
 from traits.api import Bool, Button, File, HasTraits
 
+from pybert.utility import interp_s2p, sdd_21
 from pyibisami import AMIModel, AMIParamConfigurator, IBISModel
 
 logger = logging.getLogger(__name__)
@@ -73,3 +75,27 @@ class Buffer(HasTraits):
 
     def _btn_ami_config_fired(self):
         self.ami_config.open_gui()
+
+
+# Augment w/ IBIS-AMI on-die S-parameters, if appropriate.
+def add_ondie_s(s2p, ts4f, is_rx=False):
+    """Add the effect of on-die S-parameters to channel network.
+
+    Args:
+        s2p(skrf.Network): initial 2-port network.
+        ts4f(string): on-die S-parameter file name.
+
+    KeywordArgs:
+        is_rx(bool): True when Rx on-die S-params. are being added. (Default = False).
+
+    Returns:
+        skrf.Network: Resultant 2-port network.
+    """
+    ts4N = rf.Network(ts4f)  # Grab the 4-port single-ended on-die network.
+    ntwk = sdd_21(ts4N)  # Convert it to a differential, 2-port network.
+    ntwk2 = interp_s2p(ntwk, s2p.f)  # Interpolate to system freqs.
+    if is_rx:
+        res = s2p**ntwk2
+    else:  # Tx
+        res = ntwk2**s2p
+    return (res, ts4N, ntwk2)

@@ -125,11 +125,6 @@ class MyHandler(Handler):
         pybert = info.object
         pybert.clear_reference_from_plots()
 
-    def toggle_debug_clicked(self, info):
-        """Toggle whether debug mode is enabled or not."""
-        # pylint: disable=no-self-use
-        info.object.debug = not info.object.debug
-
     def getting_started_clicked(self, info):
         """Open up Pybert's wiki."""
         # pylint: disable=no-self-use,unused-argument

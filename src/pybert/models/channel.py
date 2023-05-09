@@ -6,7 +6,7 @@ import skrf as rf
 from traits.api import Bool, File, Float, HasTraits
 
 from pybert.gui.channel import CHANNEL_VIEW
-from pybert.utility import calc_gamma, import_channel
+from pybert.utility import calc_gamma, import_channel, interp_s2p, sdd_21
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +52,9 @@ class Channel(HasTraits):
         """Create a 2 port network from an external file that should be a s-parameter or similar file."""
         if self.filepath:
             try:
-                return import_channel(self.filepath, ts, fs)
+                channel_s2p = import_channel(self.filepath, ts, fs)
+                channel_s2p.name = "channel_s2p"
+                return channel_s2p
             except Exception:
                 raise RuntimeError("Unable to import channel file.  Verify format and data.")
         raise ValueError("Filepath is not set or is empty.")
@@ -70,5 +72,5 @@ class Channel(HasTraits):
         # - Use the transfer function and characteristic impedance to form "perfectly matched" network.
         tmp = np.array(list(zip(zip(np.zeros(len_f), H), zip(H, np.zeros(len_f)))))
         ch_s2p_pre = rf.Network(s=tmp, f=f / 1e9, z0=Zc)
-
+        ch_s2p_pre.name = "ch_s2p_pre"
         return ch_s2p_pre

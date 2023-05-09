@@ -1,6 +1,10 @@
+import logging
+
 from traits.api import Bool, Float, HasTraits, Int, List, Map, Range
 
 from pybert.gui.control import CONTROL_VIEW
+
+logger = logging.getLogger(__name__)
 
 gDebugStatus = False
 gMaxCTLEPeak = 20.0  # max. allowed CTLE peaking (dB) (when optimizing, only)
@@ -66,3 +70,19 @@ class Control(HasTraits):
 
     def default_traits_view(self):
         return CONTROL_VIEW
+
+    def check_pat_len(self):
+        taps = self.pattern_
+        pat_len = 2 * pow(2, max(taps))
+        if pat_len > 5 * self.nbits:
+            logger.error(
+                "Accurate jitter decomposition may not be possible with the current configuration!\n \
+Try to keep Nbits & EyeBits > 10 * 2^n, where `n` comes from `PRBS-n`.",
+                # alert=True,
+            )
+
+    def _pattern_changed(self, new_value):
+        self.check_pat_len()
+
+    def _nbits_changed(self, new_value):
+        self.check_pat_len()

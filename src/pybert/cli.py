@@ -4,7 +4,7 @@ from pathlib import Path
 import click
 
 from pybert import __version__
-from pybert.gui.view import traits_view
+from pybert.gui.pybert import TRAITS_VIEW
 from pybert.logger import setup_logger
 from pybert.pybert import PyBERT
 
@@ -29,7 +29,7 @@ def cli(ctx, config_file, results, verbose):
             pybert.load_results(results)
 
         # Show the GUI.
-        pybert.configure_traits(view=traits_view)
+        pybert.configure_traits(view=TRAITS_VIEW)
 
 
 @cli.command(context_settings=dict(help_option_names=["-h", "--help"]))

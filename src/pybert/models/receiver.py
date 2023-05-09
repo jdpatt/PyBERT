@@ -1,7 +1,7 @@
 from traits.api import Bool, Enum, File, Float, Int
 
 from pybert.gui.reciever import RX_VIEW
-from pybert.models.buffer import Buffer
+from pybert.models.buffer import Buffer, add_ondie_s
 
 gPnMag = 0.001  # magnitude of periodic noise (V)
 gPnFreq = 0.437  # frequency of periodic noise (MHz)
@@ -67,3 +67,43 @@ class Receiver(Buffer):
     def _use_ami_changed(self, new_value):
         if new_value:
             self.use_dfe = False
+
+    def _use_dfe_changed(self, new_value):
+        if not new_value:
+            for i in range(1, 4):
+                self.tx.taps[i].enabled = True
+        else:
+            for i in range(1, 4):
+                self.tx.taps[i].enabled = False
+
+    def add_characteristics_to_channel(self, channel):
+        """Optionally, add the driver characteristics to the channel."""
+        if self.use_ibis and self.use_ondie_sparameters:
+            merged_channel, _, _ = add_ondie_s(channel, self.ami_config.get_touchstone_file(), is_rx=True)
+            return merged_channel
+        else:
+            return channel  # Un-modified.
+
+    def get_impedance(self) -> float:
+        """Return the receiver impedance.
+
+        If an ibis is set and enabled, will return the value from it otherwise the native value.
+        """
+        if self.use_ibis:
+            return self.ibis_model.zin * 2
+        else:
+            return self.resistance
+
+    def get_capacitance(self) -> float:
+        """Return the receiver capacitance.
+
+        If an ibis is set and enabled, will return the value from it otherwise the native value.
+        """
+        if self.use_ibis:
+            return self.ibis_model.ccomp[0] / 2  # They're in series.
+        else:
+            return self.capacitance * 1.0e-12
+
+    def get_ac_capacitance(self) -> float:
+        """Return the receiver's ac coupling capacitance."""
+        return self.coupling_capacitance * 1.0e-6

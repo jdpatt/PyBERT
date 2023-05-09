@@ -47,11 +47,10 @@ from pybert.gui.help import help_str
 from pybert.gui.plot import make_plots
 from pybert.jitter import jitter_html_table
 from pybert.logger import TraitsUiConsoleHandler
-from pybert.models import Channel, Control, Receiver, Transmitter
+from pybert.models import Channel, Control, Optimizer, Receiver, Transmitter
 from pybert.models.bert import my_run_simulation
 from pybert.models.tx_tap import TxTapTuner
 from pybert.results import PyBertData
-from pybert.threads.optimization import CoOptThread, RxOptThread, TxOptThread
 from pybert.utility import (
     interp_s2p,
     lfsr_bits,
@@ -61,25 +60,6 @@ from pybert.utility import (
     trim_impulse,
 )
 from pyibisami import __version__ as PyAMI_VERSION
-
-gDebugStatus = False
-gMaxCTLEPeak = 20.0  # max. allowed CTLE peaking (dB) (when optimizing, only)
-gMaxCTLEFreq = 20.0  # max. allowed CTLE peak frequency (GHz) (when optimizing, only)
-
-
-gPnMag = 0.001  # magnitude of periodic noise (V)
-gPnFreq = 0.437  # frequency of periodic noise (MHz)
-gPnMag = 0.001  # magnitude of periodic noise (V)
-gPnFreq = 0.437  # frequency of periodic noise (MHz)
-
-gPeakFreq = 5.0  # CTLE peaking frequency (GHz)
-gPeakMag = 1.7  # CTLE peaking magnitude (dB)
-
-gBW = 12.0  # Rx signal path bandwidth, assuming no CTLE action. (GHz)
-gUseDfe = True  # Include DFE when running simulation.
-gCTLEOffset = 0.0  # CTLE d.c. offset (dB)
-gNtaps = 5
-
 
 logger = logging.getLogger(__name__)
 
@@ -92,46 +72,13 @@ class PyBERT(HasTraits):
     design.
     """
 
-    control = Instance(Control, args=())
-    channel = Instance(Channel, args=())
-    tx = Instance(Transmitter, args=())
-    rx = Instance(Receiver, args=())
-
-    # optimizer = Instance(Optimizer, ())
+    control: Control = Instance(Control, args=())
+    channel: Channel = Instance(Channel, args=())
+    tx: Transmitter = Instance(Transmitter, args=())
+    rx: Receiver = Instance(Receiver, args=())
+    optimizer: Optimizer = Instance(Optimizer, args=())
 
     rel_power = Float(1.0)  #: Tx power dissipation (W).
-    tx_opt_thread = Instance(TxOptThread)  #: Tx EQ optimization thread.
-    rx_opt_thread = Instance(RxOptThread)  #: Rx EQ optimization thread.
-    coopt_thread = Instance(CoOptThread)  #: EQ co-optimization thread.
-
-    tx_tap_tuners = List(
-        [
-            TxTapTuner(name="Pre-tap", enabled=True, min_val=-0.2, max_val=0.2, value=0.0),
-            TxTapTuner(name="Post-tap1", enabled=False, min_val=-0.4, max_val=0.4, value=0.0),
-            TxTapTuner(name="Post-tap2", enabled=False, min_val=-0.3, max_val=0.3, value=0.0),
-            TxTapTuner(name="Post-tap3", enabled=False, min_val=-0.2, max_val=0.2, value=0.0),
-        ]
-    )
-
-    #: EQ optimizer list of TxTapTuner objects.
-    rx_bw_tune = Float(gBW)  #: EQ optimizer CTLE bandwidth (GHz).
-    peak_freq_tune = Float(gPeakFreq)  #: EQ optimizer CTLE peaking freq. (GHz).
-    peak_mag_tune = Float(gPeakMag)  #: EQ optimizer CTLE peaking mag. (dB).
-    max_mag_tune = Float(20)  #: EQ optimizer CTLE peaking mag. (dB).
-    ctle_offset_tune = Float(gCTLEOffset)  #: EQ optimizer CTLE d.c. offset (dB).
-    ctle_mode_tune = Enum("Off", "Passive", "AGC", "Manual")  #: EQ optimizer CTLE mode
-    use_dfe_tune = Bool(gUseDfe)  #: EQ optimizer DFE select (Bool).
-    n_taps_tune = Int(gNtaps)  #: EQ optimizer # DFE taps.
-    max_iter = Int(50)  #: EQ optimizer max. # of optimization iterations.
-
-    # Custom buttons, which we'll use in particular tabs.
-    # (Globally applicable buttons, such as "Run" and "Ok", are handled more simply, in the View.)
-    btn_rst_eq = Button(label="ResetEq")
-    btn_save_eq = Button(label="SaveEq")
-    btn_opt_tx = Button(label="OptTx")
-    btn_opt_rx = Button(label="OptRx")
-    btn_coopt = Button(label="CoOpt")
-    btn_abort = Button(label="Abort")
 
     # Misc.
     cfg_file = File("", entries=5, filter=["*.pybert_cfg"])  #: PyBERT configuration data storage file (File).
@@ -176,7 +123,17 @@ class PyBERT(HasTraits):
     jitter_info = Property(String, depends_on=["jitter_perf"])
     status_str = Property(String, depends_on=["status"])
     sweep_info = Property(String, depends_on=["sweep_results"])
-    tx_h_tune = Property(Array, depends_on=["tx_tap_tuners.value", "nspui"])
+
+    cost = Property(Float, depends_on=["ctle_out_h_tune", "nspui"])
+    rel_opt = Property(Float, depends_on=["cost"])
+    t = Property(Array, depends_on=["ui", "nspb", "nbits"])
+    t_ns = Property(Array, depends_on=["t"])
+    f = Property(Array, depends_on=["t"])
+    w = Property(Array, depends_on=["f"])
+
+    bits = Property(Array, depends_on=["pattern", "nbits", "mod_type", "run_count"])
+    symbols = Property(Array, depends_on=["bits", "mod_type", "vod"])
+    tx_h_tune = Property(Array, depends_on=["optimizer.tx_tap_tuners.value", "nspui"])
     ctle_h_tune = Property(
         Array,
         depends_on=[
@@ -191,15 +148,8 @@ class PyBERT(HasTraits):
             "n_taps_tune",
         ],
     )
-    ctle_out_h_tune = Property(Array, depends_on=["tx_h_tune", "ctle_h_tune", "chnl_h"])
-    cost = Property(Float, depends_on=["ctle_out_h_tune", "nspui"])
-    rel_opt = Property(Float, depends_on=["cost"])
-    t = Property(Array, depends_on=["ui", "nspb", "nbits"])
-    t_ns = Property(Array, depends_on=["t"])
-    f = Property(Array, depends_on=["t"])
-    w = Property(Array, depends_on=["f"])
-    bits = Property(Array, depends_on=["pattern", "nbits", "mod_type", "run_count"])
-    symbols = Property(Array, depends_on=["bits", "mod_type", "vod"])
+
+    ctle_out_h_tune = Property(Array, depends_on=["optimizer.tx_h_tune", "optimizer.ctle_h_tune", "chnl_h"])
     ffe = Property(Array, depends_on=["tx.taps.value", "tx.taps.enabled"])
     ui = Property(Float, depends_on=["bit_rate", "mod_type"])
     nui = Property(Int, depends_on=["nbits", "mod_type"])
@@ -240,12 +190,46 @@ class PyBERT(HasTraits):
         else:
             self.calc_chnl_h()  # Prevents missing attribute error in _get_ctle_out_h_tune().
 
-    # Independent variable setting intercepts
-    # (Primarily, for debugging.)
-    def _set_ctle_peak_mag_tune(self, val):
-        if val > gMaxCTLEPeak or val < 0.0:
-            raise RuntimeError("CTLE peak magnitude out of range!")
-        self.peak_mag_tune = val
+    @cached_property
+    def _get_tx_h_tune(self):
+        nspui = self.nspui
+        tap_tuners = self.optimizer.tx_tap_tuners
+
+        taps = []
+        for tuner in tap_tuners:
+            if tuner.enabled:
+                taps.append(tuner.value)
+            else:
+                taps.append(0.0)
+        taps.insert(1, 1.0 - sum(map(abs, taps)))  # Assume one pre-tap.
+
+        h = sum([[x] + list(np.zeros(nspui - 1)) for x in taps], [])
+
+        return h
+
+    @cached_property
+    def _get_ctle_h_tune(self):
+        w = self.w
+        len_h = self.len_h
+        rx_bw = self.optimizer.rx_bw_tune * 1.0e9
+        peak_freq = self.optimizer.peak_freq_tune * 1.0e9
+        peak_mag = self.optimizer.peak_mag_tune
+        offset = self.optimizer.ctle_offset_tune
+        mode = self.optimizer.ctle_mode_tune
+
+        _, H = make_ctle(rx_bw, peak_freq, peak_mag, w, mode, offset)
+        h = irfft(H)
+
+        return h
+
+    @cached_property
+    def _get_ctle_out_h_tune(self):
+        chnl_h = self.chnl_h
+        tx_h = self.optimizer.tx_h_tune
+        ctle_h = self.optimizer.ctle_h_tune
+
+        tx_out_h = np.convolve(tx_h, chnl_h)
+        return np.convolve(ctle_h, tx_out_h)
 
     # Dependent variable definitions
     @cached_property
@@ -521,47 +505,6 @@ class PyBERT(HasTraits):
         return status_str
 
     @cached_property
-    def _get_tx_h_tune(self):
-        nspui = self.nspui
-        tap_tuners = self.tx_tap_tuners
-
-        taps = []
-        for tuner in tap_tuners:
-            if tuner.enabled:
-                taps.append(tuner.value)
-            else:
-                taps.append(0.0)
-        taps.insert(1, 1.0 - sum(map(abs, taps)))  # Assume one pre-tap.
-
-        h = sum([[x] + list(zeros(nspui - 1)) for x in taps], [])
-
-        return h
-
-    @cached_property
-    def _get_ctle_h_tune(self):
-        w = self.w
-        len_h = self.len_h
-        rx_bw = self.rx_bw_tune * 1.0e9
-        peak_freq = self.peak_freq_tune * 1.0e9
-        peak_mag = self.peak_mag_tune
-        offset = self.ctle_offset_tune
-        mode = self.ctle_mode_tune
-
-        _, H = make_ctle(rx_bw, peak_freq, peak_mag, w, mode, offset)
-        h = irfft(H)
-
-        return h
-
-    @cached_property
-    def _get_ctle_out_h_tune(self):
-        chnl_h = self.chnl_h
-        tx_h = self.tx_h_tune
-        ctle_h = self.ctle_h_tune
-
-        tx_out_h = convolve(tx_h, chnl_h)
-        return convolve(ctle_h, tx_out_h)
-
-    @cached_property
     def _get_cost(self):
         nspui = self.nspui
         h = self.ctle_out_h_tune
@@ -632,108 +575,6 @@ class PyBERT(HasTraits):
     def _status_str_changed(self):
         logger.info(self.status)
 
-    def _use_dfe_changed(self, new_value):
-        if not new_value:
-            for i in range(1, 4):
-                self.tx.taps[i].enabled = True
-        else:
-            for i in range(1, 4):
-                self.tx.taps[i].enabled = False
-
-    def check_pat_len(self):
-        taps = self.pattern_
-        pat_len = 2 * pow(2, max(taps))
-        if pat_len > 5 * self.nbits:
-            logger.error(
-                "Accurate jitter decomposition may not be possible with the current configuration!\n \
-Try to keep Nbits & EyeBits > 10 * 2^n, where `n` comes from `PRBS-n`.",
-                # alert=True,
-            )
-
-    def _pattern_changed(self, new_value):
-        self.check_pat_len()
-
-    def _nbits_changed(self, new_value):
-        self.check_pat_len()
-
-    # Custom button handlers
-    def _btn_rst_eq_fired(self):
-        """Reset the equalization."""
-        for i in range(4):
-            self.tx_tap_tuners[i].value = self.tx.taps[i].value
-            self.tx_tap_tuners[i].enabled = self.tx.taps[i].enabled
-        self.peak_freq_tune = self.peak_freq
-        self.peak_mag_tune = self.peak_mag
-        self.rx_bw_tune = self.rx_bw
-        self.ctle_mode_tune = self.ctle_mode
-        self.ctle_offset_tune = self.ctle_offset
-        self.use_dfe_tune = self.use_dfe
-        self.n_taps_tune = self.n_taps
-
-    def _btn_save_eq_fired(self):
-        """Save the equalization."""
-        for i in range(4):
-            self.tx.taps[i].value = self.tx_tap_tuners[i].value
-            self.tx.taps[i].enabled = self.tx_tap_tuners[i].enabled
-        self.peak_freq = self.peak_freq_tune
-        self.peak_mag = self.peak_mag_tune
-        self.rx_bw = self.rx_bw_tune
-        self.ctle_mode = self.ctle_mode_tune
-        self.ctle_offset = self.ctle_offset_tune
-        self.use_dfe = self.use_dfe_tune
-        self.n_taps = self.n_taps_tune
-
-    def _btn_opt_tx_fired(self):
-        if (
-            self.tx_opt_thread
-            and self.tx_opt_thread.is_alive()
-            or not any([self.tx_tap_tuners[i].enabled for i in range(len(self.tx_tap_tuners))])
-        ):
-            pass
-        else:
-            self._do_opt_tx()
-
-    def _do_opt_tx(self, update_status=True):
-        self.tx_opt_thread = TxOptThread()
-        self.tx_opt_thread.pybert = self
-        self.tx_opt_thread.update_status = update_status
-        self.tx_opt_thread.start()
-
-    def _btn_opt_rx_fired(self):
-        if self.rx_opt_thread and self.rx_opt_thread.is_alive() or self.ctle_mode_tune == "Off":
-            pass
-        else:
-            self.rx_opt_thread = RxOptThread()
-            self.rx_opt_thread.pybert = self
-            self.rx_opt_thread.start()
-
-    def _btn_coopt_fired(self):
-        if self.coopt_thread and self.coopt_thread.is_alive():
-            pass
-        else:
-            self.coopt_thread = CoOptThread()
-            self.coopt_thread.pybert = self
-            self.coopt_thread.start()
-
-    def _btn_abort_fired(self):
-        if self.coopt_thread and self.coopt_thread.is_alive():
-            self.coopt_thread.stop()
-            self.coopt_thread.join(10)
-        if self.tx_opt_thread and self.tx_opt_thread.is_alive():
-            self.tx_opt_thread.stop()
-            self.tx_opt_thread.join(10)
-        if self.rx_opt_thread and self.rx_opt_thread.is_alive():
-            self.rx_opt_thread.stop()
-            self.rx_opt_thread.join(10)
-
-    def _use_dfe_tune_changed(self, new_value):
-        if not new_value:
-            for i in range(1, 4):
-                self.tx_tap_tuners[i].enabled = True
-        else:
-            for i in range(1, 4):
-                self.tx_tap_tuners[i].enabled = False
-
     # This function has been pulled outside of the standard Traits/UI "depends_on / @cached_property" mechanism,
     # in order to more tightly control when it executes. I wasn't able to get truly lazy evaluation, and
     # this was causing noticeable GUI slowdown.
@@ -760,11 +601,11 @@ Try to keep Nbits & EyeBits > 10 * 2^n, where `n` comes from `PRBS-n`.",
         w = self.w
         nspui = self.nspui
         impulse_length = self.control.impulse_length * 1.0e-9
-        Rs = self.tx.impedance
-        Cs = self.tx.capacitance * 1.0e-12
-        RL = self.rx.resistance
-        Cp = self.rx.capacitance * 1.0e-12
-        CL = self.rx.coupling_capacitance * 1.0e-6
+        Rs = self.tx.get_impedance()
+        Cs = self.tx.get_capacitance()
+        RL = self.rx.get_impedance()
+        Cp = self.rx.get_capacitance()
+        CL = self.rx.get_ac_capacitance()
 
         ts = t[1]
         len_t = len(t)
@@ -772,65 +613,14 @@ Try to keep Nbits & EyeBits > 10 * 2^n, where `n` comes from `PRBS-n`.",
 
         # Form the pre-on-die S-parameter 2-port network for the channel.
         if self.channel.use_ch_file:
-            ch_s2p_pre = self.channel.network_from_file(t[1], self.f)
+            raw_channel_network = self.channel.network_from_file(t[1], self.f)
         else:
-            ch_s2p_pre = self.channel.network_from_native_model(self.f, self.w)
+            raw_channel_network = self.channel.network_from_native_model(self.f, self.w)
+            raw_channel_network.renormalize(self.tx.impedance)  # Renormalize to driver impedance.
 
-            # Renormalize to driver impedance.
-            ch_s2p_pre.renormalize(self.tx.impedance)
-
-        ch_s2p_pre.name = "ch_s2p_pre"
-        self.ch_s2p_pre = ch_s2p_pre
-        ch_s2p = ch_s2p_pre  # In case neither set of on-die S-parameters is being invoked, below.
-
-        # Augment w/ IBIS-AMI on-die S-parameters, if appropriate.
-        def add_ondie_s(s2p, ts4f, isRx=False):
-            """Add the effect of on-die S-parameters to channel network.
-
-            Args:
-                s2p(skrf.Network): initial 2-port network.
-                ts4f(string): on-die S-parameter file name.
-
-            KeywordArgs:
-                isRx(bool): True when Rx on-die S-params. are being added. (Default = False).
-
-            Returns:
-                skrf.Network: Resultant 2-port network.
-            """
-            ts4N = rf.Network(ts4f)  # Grab the 4-port single-ended on-die network.
-            ntwk = sdd_21(ts4N)  # Convert it to a differential, 2-port network.
-            ntwk2 = interp_s2p(ntwk, s2p.f)  # Interpolate to system freqs.
-            if isRx:
-                res = s2p**ntwk2
-            else:  # Tx
-                res = ntwk2**s2p
-            return (res, ts4N, ntwk2)
-
-        if self.tx.use_ibis:
-            model = self._tx_ibis.model
-            Rs = model.zout * 2
-            Cs = model.ccomp[0] / 2  # They're in series.
-            self.Rs = Rs  # Primarily for debugging.
-            self.Cs = Cs
-            if self.tx.use_ondie_sparameters:
-                fname = join(self._tx_ibis_dir, self._tx_cfg.fetch_param_val(["Reserved_Parameters", "Ts4file"])[0])
-                ch_s2p, ts4N, ntwk = add_ondie_s(ch_s2p, fname)
-                self.ts4N = ts4N
-                self.ntwk = ntwk
-        if self.rx.use_ibis:
-            model = self._rx_ibis.model
-            RL = model.zin * 2
-            Cp = model.ccomp[0] / 2
-            self.RL = RL  # Primarily for debugging.
-            self.Cp = Cp
-            logger.debug(f"RL: {RL}, Cp: {Cp}")
-            if self.rx.use_ondie_sparameters:
-                fname = join(self._rx_ibis_dir, self._rx_cfg.fetch_param_val(["Reserved_Parameters", "Ts4file"])[0])
-                ch_s2p, ts4N, ntwk = add_ondie_s(ch_s2p, fname, isRx=True)
-                self.ts4N = ts4N
-                self.ntwk = ntwk
+        ch_s2p = self.tx.add_characteristics_to_channel(raw_channel_network)
+        ch_s2p = self.rx.add_characteristics_to_channel(ch_s2p)
         ch_s2p.name = "ch_s2p"
-        self.ch_s2p = ch_s2p
 
         # Calculate channel impulse response.
         Zt = RL / (1 + 1j * w * RL * Cp)  # Rx termination impedance
@@ -841,6 +631,7 @@ Try to keep Nbits & EyeBits > 10 * 2^n, where `n` comes from `PRBS-n`.",
         ch_s2p_term.name = "ch_s2p_term"
         self.ch_s2p_term = ch_s2p_term
         # We take the transfer function, H, to be a ratio of voltages.
+
         # So, we must normalize our (now generalized) S-parameters.
         chnl_H = ch_s2p_term.s21.s.flatten() * np.sqrt(ch_s2p_term.z0[:, 1] / ch_s2p_term.z0[:, 0])
         chnl_h = irfft(chnl_H)
@@ -875,7 +666,7 @@ Try to keep Nbits & EyeBits > 10 * 2^n, where `n` comes from `PRBS-n`.",
         # Running the simulation will fill in the required data structure.
         my_run_simulation(self, initial_run=initial_run, update_plots=update_plots)
         # Once the required data structure is filled in, we can create the plots.
-        make_plots(self, n_dfe_taps=gNtaps)
+        make_plots(self, n_dfe_taps=self.rx.n_taps)
 
     def load_configuration(self, filepath: Path):
         """Load in a configuration into pybert.
@@ -953,7 +744,7 @@ Try to keep Nbits & EyeBits > 10 * 2^n, where `n` comes from `PRBS-n`.",
                     pass
 
         if atleast_one_reference_removed:
-            make_plots(self, n_dfe_taps=gNtaps)
+            make_plots(self, n_dfe_taps=self.rx.n_taps)
 
 
 def log_system_information():
