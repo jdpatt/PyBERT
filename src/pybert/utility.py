@@ -10,33 +10,26 @@ import importlib
 import os.path
 import pkgutil
 import re
-from cmath import phase, rect
-from functools import reduce
-
 import numpy as np
-import skrf as rf
-from numpy import (
-    array,
-    concatenate,
-    diff,
-    log10,
-    mean,
-    ones,
-    pi,
-    power,
-    sign,
-    sort,
-    sqrt,
-    where,
-    zeros,
+import skrf  as rf
+from cmath     import phase, rect
+from functools import reduce
+from numpy     import (
+    append,    argmax, array,  concatenate, convolve, cumsum, diff,
+    histogram, insert, log,    log10,       maximum,  mean,   ones,
+    pi,        power,  real,        reshape,  resize, sign,
+    sort,      sqrt,   where,       zeros,
 )
-from numpy.fft import fft
-from scipy.linalg import inv
-from scipy.signal import freqs, invres
+from numpy.fft         import fft, ifft, fftshift
+from scipy.interpolate import UnivariateSpline, interp1d
+from scipy.linalg      import inv
+from scipy.optimize    import curve_fit
+from scipy.signal      import freqs, invres
+from scipy.stats       import norm
 
-debug = False
+debug          = False
 gDebugOptimize = False
-gMaxCTLEPeak = 20  # max. allowed CTLE peaking (dB) (when optimizing, only)
+gMaxCTLEPeak   = 20  # max. allowed CTLE peaking (dB) (when optimizing, only)
 
 
 def find_crossing_times(
@@ -208,6 +201,339 @@ def find_crossings(
         raise ValueError(f"Unknown modulation type: {mod_type}")
 
     return sort(concatenate(xings))
+
+
+def gaus_pdf(x, mu, sigma):
+    """
+    Gaussian probability density function.
+    """
+    sqrt_2pi = np.sqrt(2 * np.pi)
+    return np.exp(-0.5 * ((x - mu) / sigma) ** 2) / (sigma * sqrt_2pi)
+
+
+def calc_jitter(
+    ui, nui, pattern_len, ideal_xings, actual_xings,
+    rel_thresh=3.0, num_bins=100, zero_mean=True, dbg_obj=None, smooth_width=5
+):
+    """
+    Calculate the jitter in a set of actual zero crossings,
+    given the ideal crossings and unit interval.
+
+    Args:
+        ui(float): The nominal unit interval.
+        nui(int): The number of unit intervals spanned by the input signal.
+        pattern_len(int): The number of unit intervals, before input symbol stream repeats.
+        ideal_xings([float]): The ideal zero crossing locations of the edges.
+        actual_xings([float]): The actual zero crossing locations of the edges.
+
+    KeywordArgs:
+        rel_thresh(float): The threshold for determining periodic jitter spectral components (sigma).
+            (Default: 3.0)
+        num_bins(int): The number of bins to use, when forming histograms.
+            (Default: 99)
+        zero_mean(bool): Force the mean jitter to zero, when True.
+            (Default: True)
+        dbg_obj(object): Object for stashing debugging info.
+            (Default: None)
+        smooth_width(int): Width of smoothing window to use when calculating moving averages.
+            (Default: 5)
+
+    Returns:
+        ( [real]: The total jitter.
+        , [real]: The times (taken from 'ideal_xings') corresponding to the returned jitter values.
+        , real: The peak to peak jitter due to intersymbol interference (ISI).
+        , real: The peak to peak jitter due to duty cycle distortion (DCD).
+        , real: The peak to peak jitter due to uncorrelated periodic sources (Pj).
+        , real: The standard deviation of the jitter due to uncorrelated unbounded random sources (Rj).
+        , [real]: The data independent jitter.
+        , [real]: Threshold for determining periodic components.
+        , [real]: The spectral magnitude of the total jitter.
+        , [real]: The spectral magnitude of the data independent jitter.
+        , [real]: The frequencies corresponding to the spectrum components.
+        , [real]: The smoothed histogram of the total jitter.
+        , [real]: The smoothed histogram of the data-independent jitter.
+        , [real]: The bin center values for both histograms.
+        )
+
+    Raises:
+        ValueError: If input checking fails, or curve fitting goes awry.
+        AssertionError: If less than one full pattern given as input, or an odd number of crossings per pattern was detected.
+
+    Notes:
+        1. The actual crossings should arrive pre-aligned to the ideal crossings.
+        And both should start near zero time.
+    """
+    # Check inputs.
+    if not ideal_xings.all():
+        raise ValueError("calc_jitter(): zero length ideal crossings vector received!")
+    if not actual_xings.all():
+        raise ValueError("calc_jitter(): zero length actual crossings vector received!")
+
+    num_patterns = nui // pattern_len
+    assert num_patterns, f"Need at least one full pattern repetition! (pattern_len: {pattern_len}; nui: {nui})"
+    xings_per_pattern = where(ideal_xings > (pattern_len * ui))[0][0]
+    if xings_per_pattern % 2 or not xings_per_pattern:
+        print("xings_per_pattern:", xings_per_pattern)
+        print("min(ideal_xings):", min(ideal_xings))
+        raise AssertionError("pybert_util.calc_jitter(): Odd number of (or, no) crossings per pattern detected!")
+
+    # Assemble the TIE track.
+    i = 0
+    jitter = []
+    t_jitter = []
+    skip_next_ideal_xing = False
+    for ideal_xing in ideal_xings:
+        if skip_next_ideal_xing:
+            t_jitter.append(ideal_xing)
+            skip_next_ideal_xing = False
+            continue
+        # Confine our attention to those actual crossings occuring
+        # within the interval [-UI/2, +UI/2] centered around the
+        # ideal crossing.
+        min_t = ideal_xing - ui / 2.0
+        max_t = ideal_xing + ui / 2.0
+        while i < len(actual_xings) and actual_xings[i] < min_t:
+            i += 1
+        if i == len(actual_xings):  # We've exhausted the list of actual crossings; we're done.
+            break
+        if actual_xings[i] > max_t:  # Means the xing we're looking for didn't occur, in the actual signal.
+            jitter.append( 3.0 * ui / 4.0)  # Pad the jitter w/ alternating +/- 3UI/4.
+            jitter.append(-3.0 * ui / 4.0)  # (Will get pulled into [-UI/2, UI/2], later.
+            skip_next_ideal_xing = True  # If we missed one, we missed two.
+        else:  # Noise may produce several crossings.
+            xings = []  # We find all those within the interval [-UI/2, +UI/2]
+            j = i  # centered around the ideal crossing, and take the average.
+            while j < len(actual_xings) and actual_xings[j] <= max_t:
+                xings.append(actual_xings[j])
+                j += 1
+            tie = mean(xings) - ideal_xing
+            jitter.append(tie)
+        t_jitter.append(ideal_xing)
+    jitter = array(jitter)
+
+    if debug:
+        print("mean(jitter):", mean(jitter))
+        print("len(jitter):", len(jitter))
+
+    if zero_mean:
+        jitter -= mean(jitter)
+
+    # Do the jitter decomposition.
+    # - Separate the rising and falling edges, shaped appropriately for averaging over the pattern period.
+    tie_risings  = jitter.take(list(range(0, len(jitter), 2)))
+    tie_fallings = jitter.take(list(range(1, len(jitter), 2)))
+    tie_risings.resize(num_patterns * xings_per_pattern // 2, refcheck=False)
+    tie_fallings.resize(num_patterns * xings_per_pattern // 2, refcheck=False)
+    tie_risings  = reshape(tie_risings, (num_patterns, xings_per_pattern // 2))
+    tie_fallings = reshape(tie_fallings, (num_patterns, xings_per_pattern // 2))
+
+    # - Use averaging to remove the uncorrelated components, before calculating data dependent components.
+    tie_risings_ave  = tie_risings.mean(axis=0)
+    tie_fallings_ave = tie_fallings.mean(axis=0)
+    isi = max(tie_risings_ave.ptp(), tie_fallings_ave.ptp())
+    isi = min(isi, ui)  # Cap the ISI at the unit interval.
+    dcd = abs(mean(tie_risings_ave) - mean(tie_fallings_ave))
+
+    # - Subtract the data dependent jitter from the original TIE track, in order to yield the data independent jitter.
+    _jitter = jitter.copy()
+    _jitter.resize(num_patterns * xings_per_pattern)
+    tie_ave = resize(reshape(_jitter, (num_patterns, xings_per_pattern)).mean(axis=0), len(jitter))
+    tie_ind = jitter - tie_ave
+    if zero_mean:
+        tie_ind -= mean(tie_ind)
+
+    # - Calculate the total and data-independent jitter spectrums, for display purposes only.
+    # -- Calculate the relevant time/frequency vectors.
+    osf = 1                                             # jitter oversampling factor
+    t0  = ui / osf                                      # jitter sampling period
+    t   = np.array([n * t0 for n in range(nui * osf)])  # jitter samples time vector
+    f0  = 1.0 / (ui * nui)                              # jitter samples fundamental frequency
+    f   = [n * f0 for n in range(len(t) // 2)]          # [0:f0:fNyquist)
+    f   = np.array(f + [1 / (2 * t0)] + list(-1 * np.flip(np.array(f[1:]))))  # [0:f0:fN) ++ [fN:-f0:0)
+    half_len = len(f) // 2                              # for spectrum plotting convenience
+
+    # -- Make TIE vector uniformly sampled in time, via interpolation, for use as input to `fft()`.
+    # spl = UnivariateSpline(t_jitter, jitter)  # Way of the future, but does funny things. :(
+    spl = interp1d(t_jitter, jitter, bounds_error=False, fill_value="extrapolate")
+    tie_interp = spl(t)
+    y = fft(tie_interp)
+    jitter_spectrum = abs(y[:half_len])
+    jitter_freqs    = f[:half_len]
+
+    # -- Repeat for data-independent jitter.
+    spl = interp1d(t_jitter, tie_ind, bounds_error=False, fill_value="extrapolate")
+    tie_ind_interp = spl(t)
+    y = fft(tie_ind_interp)
+    y_mag = abs(y)
+    tie_ind_spectrum = y_mag[:half_len]
+
+    # -- Perform spectral extraction of Pj from the data independent jitter,
+    # -- using a threshold based on a moving average to identify the periodic components.
+    win_width = 100
+    y_mean    = moving_average(y_mag,                 n=win_width)
+    y_var     = moving_average((y_mag - y_mean) ** 2, n=win_width)
+    y_sigma   = sqrt(y_var)
+    thresh    = y_mean + rel_thresh * y_sigma
+    y_per     = where(y_mag > thresh, y, zeros(len(y)))  # Periodic components are those lying above the threshold.
+    y_rnd     = where(y_mag > thresh, zeros(len(y)), y)  # Random components are those lying below.
+    tie_per   = real(ifft(y_per))
+    pj        = tie_per.ptp()
+    tie_rnd   = real(ifft(y_rnd))
+    rj        = np.sqrt(np.mean((tie_rnd - tie_rnd.mean())**2))
+
+    # -- Do dual Dirac fitting of the data-independent jitter histogram, to determine Pj/Rj.
+    # --- Generate a smoothed version of the TIE histogram, for better peak identification.
+    # --- (Have to work in ps when curve fitting, or `curve_fit()` blows up.)
+    use_my_hist = True  # False will yield misleading jitter distribution plots!
+
+    def my_hist(x, density=False):
+        """
+        Calculates the probability *mass* function (PMF) of the input vector
+        (or, the probability *density* function (PDF) if so directed),
+        enforcing an output range of [-UI/2, +UI/2], sweeping everything in
+        [-UI, -UI/2] into the first bin, and everything in [UI/2, UI]
+        into the last bin.
+        """
+        bin_edges   = array([-ui] + [-ui / 2.0 + i * ui / (num_bins - 2) for i in range(num_bins - 1)] + [ui])
+        bin_centers = [-ui/2] + list((bin_edges[1:-2] + bin_edges[2:-1]) / 2) + [ui/2]
+        hist, _     = histogram(x, bin_edges)
+        hist        = hist / hist.sum()  # PMF
+        if density:
+            hist /= diff(bin_edges)
+        return (hist, bin_centers)
+
+    if use_my_hist:
+        hist_ind, centers = my_hist(tie_ind, density=True)
+        hist_tot, _       = my_hist(jitter,  density=True)
+        centers           = array(centers)
+    else:
+        hist_ind, edges = histogram(tie_ind, bins=num_bins, density=True)
+        hist_tot, _     = histogram(jitter,  bins=num_bins, density=True)
+        centers         = (edges[:-1] + edges[1:]) / 2
+    hist_ind_smooth = array(moving_average(hist_ind, n=smooth_width))
+    hist_tot_smooth = array(moving_average(hist_tot, n=smooth_width))
+    hist_dd = hist_tot_smooth
+    # Trying to avoid any residual peak at zero, which can confuse the algorithm:
+    center_ix = (num_bins-1)/2  # May be fractional.
+    peak_ixs  = array(list(filter( lambda x: abs(x - center_ix) > 1
+                                , where(diff(sign(diff(hist_dd))) < 0)[0] + 1 )))
+    neg_peak_ixs = list(filter(lambda x: x < center_ix, peak_ixs))
+    if len(neg_peak_ixs):
+        neg_peak_loc = neg_peak_ixs[argmax(hist_dd[neg_peak_ixs])]
+    else:
+        neg_peak_loc = int(center_ix)
+    pos_peak_ixs = list(filter(lambda x: x > center_ix, peak_ixs))
+    if len(pos_peak_ixs):
+        pos_peak_loc = pos_peak_ixs[argmax(hist_dd[pos_peak_ixs])]
+    else:
+        pos_peak_loc = int(center_ix)
+    pjDD = (centers[pos_peak_loc] - centers[neg_peak_loc])
+
+    # --- Stash debugging info if an object was provided.
+    if dbg_obj:
+        dbg_obj.hist_ind_smooth = hist_ind_smooth
+        dbg_obj.centers         = centers
+        dbg_obj.hist_ind        = hist_ind
+        dbg_obj.peak_ixs        = peak_ixs
+        dbg_obj.neg_peak_ixs    = neg_peak_ixs
+        dbg_obj.pos_peak_ixs    = pos_peak_ixs
+
+    # --- Fit the tails and average the results, to determine Rj.
+    pos_max     = hist_dd[pos_peak_loc]
+    neg_max     = hist_dd[neg_peak_loc]
+    pos_tail_ix = where(hist_dd[pos_peak_loc:] < pos_max / 2)[0] + pos_peak_loc
+    neg_tail_ix = where(hist_dd[:neg_peak_loc] < neg_max / 2)[0]
+    dd_soltn    = []
+    try:
+        popt, pcov = curve_fit(gaus_pdf, centers[pos_tail_ix]*1e12, hist_dd[pos_tail_ix]*1e-12)
+        mu_pos, sigma_pos = popt
+        mu_pos    *= 1e-12  # back to (s)
+        sigma_pos *= 1e-12
+        err_pos    = np.sqrt(np.diag(pcov)) * 1e-12
+        dd_soltn   = [mu_pos, sigma_pos, err_pos]
+    except:
+        sigma_pos = 0
+    try:
+        popt, pcov = curve_fit(gaus_pdf, centers[neg_tail_ix]*1e12, hist_dd[neg_tail_ix]*1e-12)
+        mu_neg, sigma_neg = popt
+        mu_neg    *= 1e-12  # back to (s)
+        sigma_neg *= 1e-12
+        err_neg    = np.sqrt(np.diag(pcov)) * 1e-12
+        dd_soltn  += [mu_neg, sigma_neg, err_neg]
+    except:
+        sigma_neg = 0
+    rjDD = (sigma_pos + sigma_neg) / 2
+    if dbg_obj:
+        dbg_obj.dd_soltn = dd_soltn
+
+    return (
+        jitter,
+        t_jitter,
+        isi,
+        dcd,
+        pj,
+        rj,
+        pjDD,
+        rjDD,
+        tie_ind,
+        thresh[:half_len],
+        jitter_spectrum,
+        tie_ind_spectrum,
+        jitter_freqs,
+        # hist_tot,
+        hist_tot_smooth,
+        # hist_ind,
+        hist_ind_smooth,
+        centers,  # Returning just one requires `use_my_hist` True.
+    )
+
+
+def make_uniform(t, jitter, ui, nbits):
+    """Make the jitter vector uniformly sampled in time, by zero-filling where
+    necessary.
+
+    The trick, here, is creating a uniformly sampled input vector for the FFT operation,
+    since the jitter samples are almost certainly not uniformly sampled.
+    We do this by simply zero padding the missing samples.
+
+    Inputs:
+
+    - t      : The sample times for the 'jitter' vector.
+
+    - jitter : The input jitter samples.
+
+    - ui     : The nominal unit interval.
+
+    - nbits  : The desired number of unit intervals, in the time domain.
+
+    Output:
+
+    - y      : The uniformly sampled, zero padded jitter vector.
+
+    - y_ix   : The indices where y is valid (i.e. - not zero padded).
+    """
+
+    if len(t) < len(jitter):
+        jitter = jitter[: len(t)]
+
+    run_lengths = list(map(int, diff(t) / ui + 0.5))
+    valid_ix = [0] + list(cumsum(run_lengths))
+    valid_ix = [x for x in valid_ix if x < nbits]
+    missing = where(array(run_lengths) > 1)[0]
+    num_insertions = 0
+    jitter = list(jitter)  # Because we use 'insert'.
+
+    for i in missing:
+        for _ in range(run_lengths[i] - 1):
+            jitter.insert(i + 1 + num_insertions, 0.0)
+            num_insertions += 1
+
+    if len(jitter) < nbits:
+        jitter.extend([0.0] * (nbits - len(jitter)))
+    if len(jitter) > nbits:
+        jitter = jitter[:nbits]
+
+    return jitter, valid_ix
 
 
 def calc_gamma(R0, w0, Rdc, Z0, v0, Theta0, ws):
@@ -866,19 +1192,15 @@ def interp_s2p(ntwk, f):
     assert rs == cs, "Non-square Touchstone file S-matrix!"
     assert rs == 2, "Touchstone file must have 2 ports!"
 
-    extrap = ntwk.interpolate(f / 1e9, fill_value="extrapolate", coords="polar", assume_sorted=True)
+    extrap = ntwk.interpolate(f, fill_value="extrapolate", coords="polar", assume_sorted=True)
     s11 = cap_mag(extrap.s[:, 0, 0])
     s22 = cap_mag(extrap.s[:, 1, 1])
-    s12 = ntwk.s12.interpolate(
-        f / 1e9, fill_value=0, bounds_error=False, coords="polar", assume_sorted=True
-    ).s.flatten()
-    s21 = ntwk.s21.interpolate(
-        f / 1e9, fill_value=0, bounds_error=False, coords="polar", assume_sorted=True
-    ).s.flatten()
+    s12 = ntwk.s12.interpolate(f, fill_value=0, bounds_error=False, coords="polar", assume_sorted=True).s.flatten()
+    s21 = ntwk.s21.interpolate(f, fill_value=0, bounds_error=False, coords="polar", assume_sorted=True).s.flatten()
     s = np.array(list(zip(zip(s11, s12), zip(s21, s22))))
     if ntwk.name is None:
         ntwk.name = "s2p"
-    return rf.Network(f=f / 1e9, s=s, z0=extrap.z0, name=(ntwk.name + "_interp"))
+    return rf.Network(f=f, s=s, z0=extrap.z0, name=(ntwk.name + "_interp"))
 
 
 def renorm_s2p(ntwk, zs):
@@ -967,3 +1289,44 @@ def getwave_step_resp(ami_model):
     tmp, _ = ami_model.getWave(tmp)
     tx_s = np.append(tx_s, tmp)
     return tx_s - tx_s[0]
+
+
+def make_bathtub(centers, jit_pdf, min_val=0, rj=0, extrap=False):
+    """Generate the "bathtub" curve associated with a particular jitter PDF.
+
+    Args:
+        centers([real]): List of uniformly spaced bin centers (s).
+        jit_pdf([real]): PDF of jitter.
+
+    KeywordArgs:
+        min_val(real): Minimum value allowed in returned bathtub vector.
+            Default: 0
+        rj(real): Standard deviation of Gaussian PDF characterizing random jitter.
+            Default: 0
+        extrap(bool): Extrapolate bathtub tails, using `rj`, if True.
+            Default: True
+
+    Returns:
+        ([real], (int,int)): A pair consisting of:
+            - the vector of probabilities forming the bathtub curve, and
+            - a pair consisting of the beginning/end indices of the extrapolated region.
+    """
+    half_len  = len(jit_pdf) // 2
+    dt        = centers[1] - centers[0]  # Bins assumed to be uniformly spaced!
+    zero_locs = where(fftshift(jit_pdf) == 0)[0]
+    ext_first = min(zero_locs)
+    ext_last  = max(zero_locs)
+    if extrap:
+        sqrt_2pi = sqrt(2*pi)
+        ix_r = ext_first + half_len - 1
+        mu_r = centers[ix_r] - sqrt(2) * rj * sqrt(-log(rj * sqrt_2pi * jit_pdf[ix_r]))
+        ix_l = ext_last - half_len + 1
+        mu_l = centers[ix_l] + sqrt(2) * rj * sqrt(-log(rj * sqrt_2pi * jit_pdf[ix_l]))
+        jit_pdf = append( append( gaus_pdf(centers[:ix_l], mu_l, rj)
+                                , jit_pdf[ix_l:ix_r+1])
+                        , gaus_pdf(centers[ix_r+1:], mu_r, rj))
+    bathtub  = list(cumsum(jit_pdf[-1 : -(half_len+1) : -1]))
+    bathtub.reverse()
+    bathtub  = array(bathtub + list(cumsum(jit_pdf[: half_len+1]))) * 2*dt
+    bathtub  = where(bathtub < min_val, min_val * ones(len(bathtub)), bathtub)
+    return (bathtub, (ext_first,ext_last))

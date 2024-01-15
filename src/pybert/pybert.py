@@ -467,12 +467,6 @@ class PyBERT(HasTraits):
         for item in sweep_results:
             info_str += '    <TR align="center">\n'
             info_str += str(item)
-            # info_str += "      <TD>%+06.3f</TD><TD>%+06.3f</TD><TD>%d</TD><TD>%d</TD>\n" % (
-            #     item[0],
-            #     item[1],
-            #     item[2],
-            #     item[3],
-            # )
             info_str += "    </TR>\n"
 
         info_str += "  </TABLE>\n"
@@ -481,24 +475,26 @@ class PyBERT(HasTraits):
 
     @cached_property
     def _get_status_str(self):
-        status_str = "%-20s | Perf. (Msmpls./min.):  %4.1f" % (
+        status_str = "%-20s | Perf. (Msmpls./min.): %4.1f" % (
             self.status,
             self.total_perf * 60.0e-6,
         )
-        dly_str = f"         | ChnlDly (ns):    {self.chnl_dly * 1000000000.0:5.3f}"
-        err_str = f"         | BitErrs: {int(self.bit_errs)}"
-        pwr_str = f"         | TxPwr (W): {self.rel_power:4.2f}"
+        dly_str = f"    | ChnlDly (ns): {self.chnl_dly * 1000000000.0:5.3f}"
+        err_str = f"    | BitErrs: {int(self.bit_errs)}"
+        pwr_str = f"    | TxPwr (mW): {self.rel_power * 1e3:3.0f}"
         status_str += dly_str + err_str + pwr_str
 
         try:
-            jit_str = "         | Jitter (ps):    ISI=%6.3f    DCD=%6.3f    Pj=%6.3f    Rj=%6.3f" % (
+            jit_str = "    | Jitter (ps):  ISI=%6.1f  DCD=%6.1f  Pj=%6.1f (%6.1f)  Rj=%6.1f (%6.1f)" % (
                 self.isi_dfe * 1.0e12,
                 self.dcd_dfe * 1.0e12,
                 self.pj_dfe * 1.0e12,
+                self.pjDD_dfe * 1.0e12,
                 self.rj_dfe * 1.0e12,
+                self.rjDD_dfe * 1.0e12,
             )
         except:
-            jit_str = "         | (Jitter not available.)"
+            jit_str = "    | (Jitter not available.)"
 
         status_str += jit_str
 

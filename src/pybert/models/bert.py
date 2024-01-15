@@ -48,6 +48,7 @@ from pybert.utility import (
     find_crossings,
     getwave_step_resp,
     import_channel,
+    make_bathtub,
     make_ctle,
     safe_log10,
     trim_impulse,
@@ -56,10 +57,9 @@ from pyibisami.ami.model import AMIModelInitializer
 
 logger = logging.getLogger(__name__)
 
-DEBUG = False
+DEBUG           = False
 MIN_BATHTUB_VAL = 1.0e-18
-
-gFc = 1.0e6  # Corner frequency of high-pass filter used to model capacitive coupling of periodic noise.
+gFc             = 1.0e6  # Corner frequency of high-pass filter used to model capacitive coupling of periodic noise.
 
 
 def my_run_sweeps(self, is_thread_stopped: Optional[Callable[[], bool]] = None):
@@ -189,6 +189,20 @@ def my_run_simulation(self, initial_run=False, update_plots=True, aborted_sim: O
         ideal_xings = find_crossings(t, x, decision_scaler, mod_type=mod_type)
         self.ideal_xings = ideal_xings
 
+        # - Generate the uncorrelated periodic noise. (Assume capacitive coupling.)
+        #   - Generate the ideal rectangular aggressor waveform.
+        pn_period = 1.0 / pn_freq
+        pn_samps = int(pn_period / Ts + 0.5)
+        pn = zeros(pn_samps)
+        pn[pn_samps // 2 :] = pn_mag
+        self.pn_period = pn_period
+        self.pn_samps = pn_samps
+        pn = resize(pn, len(x))
+        #   - High pass filter it. (Simulating capacitive coupling.)
+        (b, a) = iirfilter(2, gFc / (fs / 2), btype="highpass")
+        pn = lfilter(b, a, pn)[: len(pn)]
+        self.pn = pn
+
         # Calculate the channel output.
         #
         # Note: We're not using 'self.ideal_signal', because we rely on the system response to
@@ -198,7 +212,11 @@ def my_run_simulation(self, initial_run=False, update_plots=True, aborted_sim: O
         chnl_h = self.calc_chnl_h()
         _calc_chnl_time = clock() - split_time
         split_time = clock()
-        chnl_out = convolve(self.x, chnl_h)[: len(t)]
+        # - Add the uncorrelated periodic and random noise to the Tx output.
+        x  = self.x
+        x += pn
+        x += normal(scale=rn, size=(len(x),))
+        chnl_out = convolve(x, chnl_h)[: len(t)]
         _conv_chnl_time = clock() - split_time
         logger.debug(f"Channel calculation time: {_calc_chnl_time}")
         logger.debug(f"Channel convolution time: {_conv_chnl_time}")
@@ -235,7 +253,7 @@ def my_run_simulation(self, initial_run=False, update_plots=True, aborted_sim: O
             logger.info(
                 "Tx IBIS-AMI model initialization results:\nInput parameters: {}\nOutput parameters: {}\nMessage: {}".format(
                     tx_model.ami_params_in.decode("utf-8"),
-                    tx_model.ami_params_out.decode("utf-8"),
+                    _params_out,
                     tx_model.msg.decode("utf-8"),
                 )
             )
@@ -293,17 +311,6 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
         tx_H = fft(temp)
         tx_H *= tx_s[-1] / abs(tx_H[0])
 
-        # - Generate the uncorrelated periodic noise. (Assume capacitive coupling.)
-        #   - Generate the ideal rectangular aggressor waveform.
-        pn_period = 1.0 / pn_freq
-        pn_samps = int(pn_period / Ts + 0.5)
-        pn = zeros(pn_samps)
-        pn[pn_samps // 2 :] = pn_mag
-        pn = resize(pn, len(tx_out))
-        #   - High pass filter it. (Simulating capacitive coupling.)
-        (b, a) = iirfilter(2, gFc / (fs / 2), btype="highpass")
-        pn = lfilter(b, a, pn)[: len(pn)]
-
         # - Add the uncorrelated periodic and random noise to the Tx output.
         tx_out += pn
         tx_out += normal(scale=rn, size=(len(tx_out),))
@@ -351,7 +358,7 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
                 "Rx IBIS-AMI model initialization results:\nInput parameters: {}\nMessage: {}\nOutput parameters: {}".format(
                     rx_model.ami_params_in.decode("utf-8"),
                     rx_model.msg.decode("utf-8"),
-                    rx_model.ami_params_out.decode("utf-8"),
+                    _params_out,
                 )
             )
             if rx_cfg.fetch_param_val(["Reserved_Parameters", "Init_Returns_Impulse"]):
@@ -460,7 +467,7 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
 
     _check_sim_status()
 
-    # Generate the output from, and the incremental/cumulative impulse/step/frequency responses of, the DFE.
+    # DFE output and incremental/cumulative impulse/step/frequency responses.
     try:
         if self.rx.use_dfe:
             dfe = DFE(
@@ -480,22 +487,11 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
                 ideal=self.rx.sum_ideal,
             )
         else:
-            dfe = DFE(
-                n_taps,
-                0.0,
-                delta_t,
-                alpha,
-                ui,
-                nspui,
-                decision_scaler,
-                mod_type,
-                n_ave=n_ave,
-                n_lock_ave=n_lock_ave,
-                rel_lock_tol=rel_lock_tol,
-                lock_sustain=lock_sustain,
-                bandwidth=bandwidth,
-                ideal=True,
-            )
+            _gain = 0.0
+            _ideal=True
+        dfe = DFE( n_taps, _gain, delta_t, alpha, ui, nspui, decision_scaler, mod_type
+                 , n_ave=n_ave, n_lock_ave=n_lock_ave, rel_lock_tol=rel_lock_tol
+                 , lock_sustain=lock_sustain, bandwidth=bandwidth, ideal=_ideal )
         (dfe_out, tap_weights, ui_ests, clocks, lockeds, clock_times, bits_out) = dfe.run(t, ctle_out)
         dfe_out = array(dfe_out)
         dfe_out.resize(len(t))
@@ -564,12 +560,31 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
     #  - in the duo-binary case, the XOR pre-coding can invert every other pattern rep., and
     #  - in the PAM-4 case, the bits are taken in pairs to form the symbols and we start w/ an odd # of bits.
     # So, while it isn't strictly necessary, doubling it in the NRZ case as well provides a certain consistency.
+    pattern_len = (pow(2, max(pattern)) - 1) * 2
+    len_x_m1 = len(x) - 1
+    xing_min_t = (nui - eye_uis) * ui
+
+    def eye_xings(xings, ofst=0):
+        """
+        Return crossings from that portion of the signal used to generate the eye.
+
+        Args:
+            xings([float]): List of crossings.
+
+        KeywordArgs:
+            ofst(float): Time offset to be subtracted from all crossings.
+
+        Returns:
+            [float]: Selected crossings, offset and eye-start corrected.
+        """
+        _xings = array(xings) - ofst
+        return _xings[where(_xings > xing_min_t)] - xing_min_t
+
     try:
-        pattern_len = (pow(2, max(pattern)) - 1) * 2
+        # - ideal
+        ideal_xings_jit = eye_xings(ideal_xings)
 
         # - channel output
-        len_x_m1 = len(x) - 1
-        actual_xings = find_crossings(t, chnl_out, decision_scaler, mod_type=mod_type)
         ofst = (argmax(sig.correlate(chnl_out, x)) - len_x_m1) * Ts
         actual_xings -= ofst
 
@@ -577,23 +592,17 @@ I cannot continue.\nPlease, select 'Use GetWave' and try again.",
         self.f_MHz = array(self.jitter_channel.spectrum_freqs) * 1.0e-6
 
         # - Tx output
-        actual_xings = find_crossings(t, rx_in, decision_scaler, mod_type=mod_type)
         ofst = (argmax(sig.correlate(rx_in, x)) - len_x_m1) * Ts
         actual_xings -= ofst
 
         self.jitter_tx = calc_jitter(ui, nui, pattern_len, ideal_xings, actual_xings, rel_thresh)
 
         # - CTLE output
-        actual_xings = find_crossings(t, ctle_out, decision_scaler, mod_type=mod_type)
         ofst = (argmax(sig.correlate(ctle_out, x)) - len_x_m1) * Ts
         actual_xings -= ofst
         self.jitter_ctle = calc_jitter(ui, nui, pattern_len, ideal_xings, actual_xings, rel_thresh)
 
         # - DFE output
-        ignore_until = (nui - eye_uis) * ui
-        ideal_xings = array(list(filter(lambda x: x >= ignore_until, ideal_xings)))
-        ideal_xings -= ignore_until
-        actual_xings = find_crossings(t, dfe_out, decision_scaler, mod_type=mod_type)
         ofst = (argmax(sig.correlate(dfe_out, x)) - len_x_m1) * Ts
         actual_xings -= ofst
         actual_xings = array(list(filter(lambda x: x >= ignore_until, actual_xings)))
@@ -662,7 +671,7 @@ def update_results(self):
     tap_weights = transpose(array(self.adaptation))
     i = 1
     for tap_weight in tap_weights:
-        self.plotdata.set_data("tap%d_weights" % i, tap_weight)
+        self.plotdata.set_data(f"tap{i}_weights", tap_weight)
         i += 1
     self.plotdata.set_data("tap_weight_index", list(range(len(tap_weight))))
     if self.rx.old_n_taps != n_taps:
