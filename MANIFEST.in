@@ -2,6 +2,7 @@ include README.md
 include LICENSE
 include Makefile
 include src/pybert/gui/images/*.png
+# TODO: These should probably not be included for conda/pip installs and only available when cloned for developer install.
 include docs/Makefile
 include docs/make.bat
 include docs/source/*
@@ -9,6 +10,7 @@ prune docs/build
 include tests/*.py
 prune tests/__pycache__
 include tox.ini
+# --------------------------
 recursive-include type_stubs *
 global-exclude *.swp
 global-exclude *.DS_Store

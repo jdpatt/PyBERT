@@ -1,11 +1,11 @@
 # Makefile for PyBERT project.
 #
-# Original author: David Banas <capn.freako@gmail.com>  
+# Original author: David Banas <capn.freako@gmail.com>
 # Original date:   February 10, 2015
 #
 # Copyright (c) 2015 David Banas; all rights reserved World wide.
 
-.PHONY: dflt help check tox format lint flake8 type-check docs build upload test clean etags conda-build conda-skeleton chaco enable pyibis-ami pyibis-ami-dev pybert pybert-dev etags
+.PHONY: dflt help check tox format lint flake8 type-check docs build upload test clean etags conda-build conda-skeleton pyibis-ami pyibis-ami-dev pybert pybert-dev etags
 
 PROJ_NAME := pipbert
 PROJ_FILE := pyproject.toml
@@ -80,14 +80,6 @@ distclean: clean
 conda-skeleton:
 	rm -rf conda.recipe/pybert/ conda.recipe/pyibis-ami/
 	conda skeleton pypi --noarch-python --output-dir=conda.recipe pybert pyibis-ami
-
-chaco:
-	conda build --numpy=1.16 conda.recipe/chaco
-	conda install --use-local chaco
-
-enable:
-	conda build --numpy=1.16 conda.recipe/enable
-	conda install --use-local enable
 
 pyibis-ami:
 	conda build --numpy=1.16 conda.recipe/pyibis-ami

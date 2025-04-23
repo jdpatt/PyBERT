@@ -51,6 +51,7 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 cover/
+type_stubs.info
 
 # Translations
 *.mo
@@ -110,6 +111,10 @@ cython_debug/
 
 # Debugging output
 *_dbg.txt
+
+# Editor Local Configurations
+*.sublime-project
+*.sublime-workspace
 
 # Project specific stuff
 *.pdf
