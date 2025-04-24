@@ -21,3 +21,6 @@ PI    = np.pi
 TWOPI = 2 * PI
 # PI: float = 3.14159265359
 # TWOPI: float = 2. * PI
+
+
+GETTING_STARTED_URL = "https://github.com/capn-freako/PyBERT/wiki"

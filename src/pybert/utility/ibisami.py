@@ -1,7 +1,7 @@
 """
 General IBIS-AMI utilities for PyBERT.
 
-Original author: David Banas <capn.freako@gmail.com>  
+Original author: David Banas <capn.freako@gmail.com>
 Original date:   June 16, 2024
 
 Copyright (c) 2024 David Banas; all rights reserved World wide.
@@ -14,7 +14,7 @@ from numpy import array, convolve  # type: ignore
 from pyibisami.ami.model import AMIModel, AMIModelInitializer
 from pyibisami.ami.parser import AMIParamConfigurator
 
-from ..common import Rvec
+from ..constants import Rvec
 
 
 # pylint: disable=too-many-arguments,too-many-locals,too-many-positional-arguments

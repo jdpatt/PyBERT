@@ -1,7 +1,7 @@
 """
 Channel math utilities for PyBERT.
 
-Original author: David Banas <capn.freako@gmail.com>  
+Original author: David Banas <capn.freako@gmail.com>
 Original date:   June 16, 2024
 
 Copyright (c) 2024 David Banas; all rights reserved World wide.
@@ -20,7 +20,7 @@ from numpy.fft import fftshift  # type: ignore
 
 from pybert.utility.sigproc import moving_average
 
-from ..common import Rvec
+from ..constants import Rvec
 
 
 def lfsr_bits(taps: list[int], seed: int) -> Iterator[int]:

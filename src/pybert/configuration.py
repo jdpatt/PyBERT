@@ -26,16 +26,16 @@ class InvalidFileType(Exception):
 
 # These are different for now to allow users to "upgrade" their configuration file.
 
-CONFIG_LOAD_WILDCARD = "|".join(
+CONFIG_LOAD_WILDCARD = ";;".join(
     [
         "Yaml Config (*.yaml;*.yml)|*.yaml;*.yml",
-        "Pickle Config (*.pybert_cfg)|*.pybert_cfg",
+        "Pickle Config (*.pybert_cfg)",
         "All files (*)|*",
     ]
 )
 """This sets the supported file types in the GUI's loading dialog."""
 
-CONFIG_SAVE_WILDCARD = "|".join(
+CONFIG_SAVE_WILDCARD = ";;".join(
     [
         "Yaml Config (*.yaml;*.yml)|*.yaml;*.yml",
         "All files (*)|*",

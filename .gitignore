@@ -148,3 +148,4 @@ pybert.log
 *.gcbench
 misc/*
 *_cfg.yaml
+*.log

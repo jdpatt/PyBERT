@@ -1,7 +1,7 @@
 """
 Channel modeling utilities for PyBERT.
 
-Original author: David Banas <capn.freako@gmail.com>  
+Original author: David Banas <capn.freako@gmail.com>
 Original date:   June 16, 2024
 
 Copyright (c) 2024 David Banas; all rights reserved World wide.
@@ -11,7 +11,7 @@ A partial extraction of the old `pybert/utility.py`, as part of a refactoring.
 
 from numpy import array, pi, power, sqrt  # type: ignore
 
-from ..common import Rvec, Cvec
+from ..constants import Rvec, Cvec
 
 
 # pylint: disable=too-many-arguments,too-many-positional-arguments

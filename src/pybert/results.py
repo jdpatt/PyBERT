@@ -17,7 +17,7 @@ from typing import Union
 
 from chaco.api import ArrayPlotData
 
-RESULTS_FILEDIALOG_WILDCARD = "*.pybert_data"
+RESULTS_FILEDIALOG_WILDCARD = "PyBERT Results (*.pybert_data);;All Files (*.*)"
 """This sets the supported file types in the GUI's save-as or loading dialog."""
 
 

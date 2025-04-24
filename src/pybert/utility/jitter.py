@@ -1,7 +1,7 @@
 """
 Jitter utilities for PyBERT.
 
-Original author: David Banas <capn.freako@gmail.com>  
+Original author: David Banas <capn.freako@gmail.com>
 Original date:   June 16, 2024
 
 Copyright (c) 2024 David Banas; all rights reserved World wide.
@@ -21,7 +21,7 @@ from numpy.fft import fft, ifft  # type: ignore
 from scipy.interpolate import interp1d
 from scipy.optimize import curve_fit
 
-from ..common import Rvec
+from ..constants import Rvec
 
 from .math import gaus_pdf
 from .sigproc import moving_average

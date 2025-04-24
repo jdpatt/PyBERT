@@ -1,7 +1,7 @@
 """
 S-parameter manipulation utilities for PyBERT.
 
-Original author: David Banas <capn.freako@gmail.com>  
+Original author: David Banas <capn.freako@gmail.com>
 Original date:   June 16, 2024
 
 Copyright (c) 2024 David Banas; all rights reserved World wide.
@@ -18,7 +18,7 @@ from numpy.fft import fft  # type: ignore
 from skrf import Network
 from skrf.network import one_port_2_two_port
 
-from ..common import Rvec, Cvec
+from ..constants import Rvec, Cvec
 
 from .channel import calc_G
 from .sigproc import import_time

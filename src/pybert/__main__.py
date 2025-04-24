@@ -3,14 +3,22 @@
 This is now largely for debug or if users want to use the python
 -m option since calling `pybert` will instead point to cli.py.
 """
-from pybert.gui.view import traits_view
-from pybert.pybert import PyBERT
-
+import sys
+from pybert.gui import MainWindow
+# from pybert.pybert import PyBERT
+from PySide6.QtWidgets import QApplication
+from pybert.utility.logger import setup_logger
 
 def main():
     "Run the PyBERT GUI."
-    thePyBERT = PyBERT()
-    thePyBERT.configure_traits(view=traits_view)
+    app = QApplication()
+    logger = setup_logger()
+    logger.info("Starting PyBERT...")
+    # pybert = PyBERT()
+    pybert = None
+    main_window = MainWindow(pybert=pybert)
+    main_window.show()
+    sys.exit(app.exec())
 
 
 if __name__ == "__main__":

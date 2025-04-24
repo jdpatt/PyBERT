@@ -33,6 +33,7 @@ from chaco.api import ArrayPlotData, GridPlotContainer
 from numpy import arange, array, cos, exp, pad, pi, sinc, where, zeros
 from numpy.fft import irfft, rfft  # type: ignore
 from numpy.random import randint  # type: ignore
+from pybert.utility.logger import setup_logger
 from traits.api import (
     Array,
     Bool,
@@ -84,6 +85,7 @@ gPeakMag     =     1.7  # CTLE peaking magnitude (dB)
 gCTLEOffset  =     0.0  # CTLE d.c. offset (dB)
 gNtaps       =     5
 
+logger = setup_logger("pybert")
 
 class PyBERT(HasTraits):  # pylint: disable=too-many-instance-attributes
     """A serial communication link bit error rate tester (BERT) simulator with
@@ -362,9 +364,6 @@ class PyBERT(HasTraits):  # pylint: disable=too-many-instance-attributes
             gui(Bool): Set to `False` for script based usage.
         """
 
-        # Super-class initialization is ABSOLUTELY NECESSARY, in order
-        # to get all the Traits/UI machinery setup correctly.
-        super().__init__()
 
         self.GUI = gui
         self.log("Started.")

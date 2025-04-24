@@ -1,7 +1,7 @@
 """
 General signal processing utilities for PyBERT.
 
-Original author: David Banas <capn.freako@gmail.com>  
+Original author: David Banas <capn.freako@gmail.com>
 Original date:   June 16, 2024
 
 Copyright (c) 2024 David Banas; all rights reserved World wide.
@@ -22,7 +22,7 @@ from numpy.typing import NDArray  # type: ignore
 from scipy.interpolate import interp1d
 from scipy.signal      import freqs, invres
 
-from ..common import Rvec, Cvec
+from ..constants import Rvec, Cvec
 
 
 def moving_average(a: Rvec, n: int = 3) -> Rvec:
