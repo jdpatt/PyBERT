@@ -1,10 +1,12 @@
 """Main Entry Point for the PyBERT GUI when using the CLI."""
 from pathlib import Path
+import sys
 
 import click  # type: ignore
 
 from pybert import __version__
-from pybert.gui.view import traits_view
+from pybert.gui.main_window import MainWindow
+from PySide6.QtWidgets import QApplication
 from pybert.pybert import PyBERT
 
 
@@ -15,18 +17,18 @@ from pybert.pybert import PyBERT
 @click.option("--results", "-r", type=click.Path(exists=True), help="Load results from a prior run.")
 def cli(ctx, config_file, results):
     """Serial communication link bit error rate tester."""
+    app = QApplication()
+    pybert = PyBERT()
+    main_window = MainWindow(pybert=pybert)
 
-    if ctx.invoked_subcommand is None:  # No sub-command like `sim` given open the GUI like default.
-        pybert = PyBERT()
+    # Load any user provided files before opening the GUI.
+    if config_file:
+        pybert.load_configuration(config_file)
+    if results:
+        pybert.load_results(results)
 
-        # Load any user provided files before opening the GUI.
-        if config_file:
-            pybert.load_configuration(config_file)
-        if results:
-            pybert.load_results(results)
-
-        # Show the GUI.
-        pybert.configure_traits(view=traits_view)
+    main_window.show()
+    sys.exit(app.exec())
 
 
 @cli.command(context_settings={"help_option_names": ['-h', '--help']})
@@ -39,7 +41,7 @@ def sim(config_file, results):
     simulation and then save the results into a file with the same name
     but a different extension as the configuration file.
     """
-    pybert = PyBERT(run_simulation=False, gui=False)
+    pybert = PyBERT()
     pybert.load_configuration(config_file)
     pybert.simulate(initial_run=True, update_plots=True)
     if not results:

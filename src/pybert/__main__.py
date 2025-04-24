@@ -5,17 +5,15 @@ This is now largely for debug or if users want to use the python
 """
 import sys
 from pybert.gui import MainWindow
-# from pybert.pybert import PyBERT
+
 from PySide6.QtWidgets import QApplication
+from pybert.pybert import PyBERT
 from pybert.utility.logger import setup_logger
 
 def main():
     "Run the PyBERT GUI."
     app = QApplication()
-    logger = setup_logger()
-    logger.info("Starting PyBERT...")
-    # pybert = PyBERT()
-    pybert = None
+    pybert = PyBERT()
     main_window = MainWindow(pybert=pybert)
     main_window.show()
     sys.exit(app.exec())
