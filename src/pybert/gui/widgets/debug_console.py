@@ -4,8 +4,10 @@ This module implements a debug console widget that displays log messages.
 """
 
 import logging
-from PySide6.QtWidgets import QDockWidget, QTextEdit
+
 from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QDockWidget, QTextEdit
+
 from pybert.utility.logger import QTextEditHandler
 
 

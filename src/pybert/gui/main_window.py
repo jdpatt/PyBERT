@@ -5,36 +5,37 @@ This module implements the main window and overall GUI structure for PyBERT.
 
 import logging
 import sys
+import webbrowser
 from pathlib import Path
 from typing import Optional
-import webbrowser
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import (
-    QMainWindow,
-    QTabWidget,
-    QWidget,
-    QVBoxLayout,
+    QFileDialog,
     QHBoxLayout,
     QLabel,
-    QStatusBar,
-    QMenuBar,
+    QMainWindow,
     QMenu,
+    QMenuBar,
     QMessageBox,
-    QFileDialog,
+    QSizePolicy,
+    QStatusBar,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
 )
 
-from pybert import __version__, __authors__, __date__, __copy__
+from pybert import __authors__, __copy__, __date__, __version__
 from pybert.configuration import CONFIG_LOAD_WILDCARD, CONFIG_SAVE_WILDCARD
 from pybert.constants import GETTING_STARTED_URL
-
+from pybert.gui.tabs import ConfigTab, OptimizerTab, ResultsTab
 from pybert.gui.widgets import DebugConsoleWidget
-from pybert.gui.tabs import ConfigTab, EqualizationTab, OptimizerTab, ResponsesTab, ResultsTab, JitterTab
 from pybert.utility.logger import QStatusBarHandler
 
-
 logger = logging.getLogger("pybert")
+
+# TODO: Fix the temporary window pop-up issue with how the widgets are created.
 
 
 class MainWindow(QMainWindow):
@@ -51,7 +52,7 @@ class MainWindow(QMainWindow):
         self.pybert = pybert
 
         self.setWindowTitle("PyBERT")
-        self.resize(1200, 800)
+        self.resize(1920, 1080)
 
         # Set window icon
         icon_path = Path(__file__).parent / "images" / "icon.png"
@@ -71,24 +72,55 @@ class MainWindow(QMainWindow):
         self.config_tab = ConfigTab()
         self.tab_widget.addTab(self.config_tab, "Setup")
 
-        self.equalization_tab = EqualizationTab()
-        self.tab_widget.addTab(self.equalization_tab, "Equalization")
-
         self.optimizer_tab = OptimizerTab()
-        self.tab_widget.addTab(self.optimizer_tab, "Optimizer")
-
-        self.responses_tab = ResponsesTab()
-        self.tab_widget.addTab(self.responses_tab, "Responses")
+        self.tab_widget.addTab(self.optimizer_tab, "Optimization")
 
         self.results_tab = ResultsTab()
         self.tab_widget.addTab(self.results_tab, "Results")
 
-        self.jitter_tab = JitterTab()
-        self.tab_widget.addTab(self.jitter_tab, "Jitter")
-
-        # Create status bar
+        # Create status bar with permanent widgets
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
+
+        # Create permanent status widgets with styling
+        style = "padding: 0px 10px; margin: 2px; border-left: 1px solid #cccccc;"
+
+        self.perf_label = QLabel("Perf: 0.0 Msmpls/min")
+        self.perf_label.setStyleSheet(style)
+
+        self.delay_label = QLabel("Channel Delay: 0.0 ns")
+        self.delay_label.setStyleSheet(style)
+
+        self.errors_label = QLabel("Bit Errors: 0")
+        self.errors_label.setStyleSheet(style)
+
+        self.power_label = QLabel("Tx Power: 0.0 mW")
+        self.power_label.setStyleSheet(style)
+
+        # Jitter metrics
+        self.isi_label = QLabel("ISI: 0.0 ps")
+        self.isi_label.setStyleSheet(style)
+
+        self.dcd_label = QLabel("DCD: 0.0 ps")
+        self.dcd_label.setStyleSheet(style)
+
+        self.pj_label = QLabel("Pj: 0.0 ps")
+        self.pj_label.setStyleSheet(style)
+
+        self.rj_label = QLabel("Rj: 0.0 ps")
+        self.rj_label.setStyleSheet(style)
+
+        # Add permanent widgets to status bar (right-aligned)
+        self.status_bar.addPermanentWidget(self.perf_label)
+        self.status_bar.addPermanentWidget(self.delay_label)
+        self.status_bar.addPermanentWidget(self.errors_label)
+        self.status_bar.addPermanentWidget(self.power_label)
+        self.status_bar.addPermanentWidget(self.isi_label)
+        self.status_bar.addPermanentWidget(self.dcd_label)
+        self.status_bar.addPermanentWidget(self.pj_label)
+        self.status_bar.addPermanentWidget(self.rj_label)
+
+        # Add the status bar handler for logging
         logger.addHandler(QStatusBarHandler(self.status_bar))
 
         # Create the dock widget/debug console
@@ -98,6 +130,14 @@ class MainWindow(QMainWindow):
 
         # Create menus
         self.create_menus()
+
+        # Connect PyBERT signals if available
+        if self.pybert:
+            self.connect_pybert_signals()
+
+    def connect_pybert_signals(self):
+        """Connect PyBERT signals to status bar update slots."""
+        pass
 
     def create_menus(self):
         """Create the application menus."""
@@ -179,6 +219,19 @@ class MainWindow(QMainWindow):
 
         # Tools menu
         tools_menu = self.menuBar().addMenu("&Tools")
+
+        # Presets submenu
+        presets_menu = tools_menu.addMenu("Presets")
+
+        # Add preset actions
+        # TODO: Implement preset actions so the user can easily switch between common configurations
+        pam4_action = QAction("PAM-4 @ 56 Gbps", self)
+        nrz_action = QAction("NRZ @ 28 Gbps", self)
+        duobinary_action = QAction("Duo-binary @ 28 Gbps", self)
+
+        presets_menu.addAction(pam4_action)
+        presets_menu.addAction(nrz_action)
+        presets_menu.addAction(duobinary_action)
 
         # Help menu
         help_menu = self.menuBar().addMenu("&Help")

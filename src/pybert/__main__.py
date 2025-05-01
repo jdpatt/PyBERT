@@ -12,6 +12,7 @@ from pybert.utility.logger import setup_logger
 
 def main():
     "Run the PyBERT GUI."
+    setup_logger()
     app = QApplication()
     pybert = PyBERT()
     main_window = MainWindow(pybert=pybert)

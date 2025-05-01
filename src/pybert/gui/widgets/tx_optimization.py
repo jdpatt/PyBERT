@@ -3,22 +3,22 @@
 This widget contains controls for transmitter equalization including FFE taps.
 """
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
-    QHBoxLayout,
-    QGroupBox,
-    QLabel,
     QCheckBox,
     QDoubleSpinBox,
+    QGroupBox,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
     QTableWidget,
     QTableWidgetItem,
-    QHeaderView,
+    QVBoxLayout,
+    QWidget,
 )
-from PySide6.QtCore import Qt
 
 
-class TxEqualizationWidget(QGroupBox):
+class TxOptimizationWidget(QGroupBox):
     """Widget for configuring transmitter equalization."""
 
     def __init__(self, parent=None):
@@ -39,7 +39,7 @@ class TxEqualizationWidget(QGroupBox):
         self.ffe_table.setHorizontalHeaderLabels(["Name", "Enabled", "Min", "Max", "Step", "Value"])
 
         # Set default number of taps (can be changed later)
-        self.set_tap_count(6)
+        self.set_taps(["Pre-Tap3", "Pre-Tap2", "Pre-Tap1", "Post-Tap1", "Post-Tap2", "Post-Tap3"])
 
         # Configure table appearance
         header = self.ffe_table.horizontalHeader()
@@ -55,17 +55,17 @@ class TxEqualizationWidget(QGroupBox):
 
         layout.addWidget(self.ffe_table)
 
-    def set_tap_count(self, count):
+    def set_taps(self, names: list[str]):
         """Set the number of FFE taps.
 
         Args:
             count: Number of taps to display
         """
-        self.ffe_table.setRowCount(count)
+        self.ffe_table.setRowCount(len(names))
 
-        for i in range(count):
+        for i, name in enumerate(names):
             # Name
-            name_item = QTableWidgetItem(f"Tap {i+1}")
+            name_item = QTableWidgetItem(name)
             name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable)
             self.ffe_table.setItem(i, 0, name_item)
 

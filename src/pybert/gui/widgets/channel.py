@@ -4,20 +4,24 @@ This widget contains controls for channel parameters including file-based
 and native (Howard Johnson) channel models.
 """
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
-    QHBoxLayout,
+    QButtonGroup,
+    QCheckBox,
+    QDoubleSpinBox,
+    QFileDialog,
+    QFormLayout,
     QGroupBox,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
-    QCheckBox,
-    QSpinBox,
-    QDoubleSpinBox,
     QPushButton,
-    QFileDialog,
+    QRadioButton,
+    QSpinBox,
+    QStackedLayout,
+    QVBoxLayout,
+    QWidget,
 )
-from PySide6.QtCore import Qt
 
 
 class ChannelConfigWidget(QGroupBox):
@@ -29,20 +33,36 @@ class ChannelConfigWidget(QGroupBox):
         Args:
             parent: Parent widget
         """
-        super().__init__("Interconnect", parent)
+        super().__init__("Channel", parent)
 
         # Create main layout
         layout = QVBoxLayout()
         self.setLayout(layout)
 
+        # --- Mode selection radio buttons ---
+        mode_layout = QHBoxLayout()
+        self.native_radio = QRadioButton("Native")
+        self.file_radio = QRadioButton("From File")
+        self.native_radio.setChecked(True)  # Default to Native
+        self.mode_group = QButtonGroup(self)
+        self.mode_group.addButton(self.native_radio)
+        self.mode_group.addButton(self.file_radio)
+        mode_layout.addWidget(self.native_radio)
+        mode_layout.addWidget(self.file_radio)
+        mode_layout.addStretch()
+        layout.addLayout(mode_layout)
+
+        # --- Stacked layout for channel config groups ---
+        self.stacked_layout = QStackedLayout()
+
         # From File group
-        file_group = QGroupBox("From File")
+        self.file_group = QWidget()
         file_layout = QVBoxLayout()
-        file_group.setLayout(file_layout)
+        self.file_group.setLayout(file_layout)
 
         # File selection
         file_select_layout = QHBoxLayout()
-        file_select_layout.addWidget(QLabel("File:"))
+        file_select_layout.addWidget(QLabel("File"))
         self.channel_file = QLineEdit()
         self.channel_file.setReadOnly(True)
         file_select_layout.addWidget(self.channel_file)
@@ -53,98 +73,68 @@ class ChannelConfigWidget(QGroupBox):
 
         # File options
         options_layout = QHBoxLayout()
-        self.use_file = QCheckBox("Use file")
-        options_layout.addWidget(self.use_file)
         self.renumber = QCheckBox("Fix port numbering")
         options_layout.addWidget(self.renumber)
         options_layout.addStretch()
         file_layout.addLayout(options_layout)
-
-        layout.addWidget(file_group)
+        file_layout.addStretch()
 
         # Native model group
-        native_group = QGroupBox("Native")
-        native_layout = QVBoxLayout()
-        native_group.setLayout(native_layout)
+        self.native_group = QWidget()
+        native_form = QFormLayout()
+        self.native_group.setLayout(native_form)
 
-        # Length
-        length_layout = QHBoxLayout()
-        length_layout.addWidget(QLabel("Length:"))
         self.length = QDoubleSpinBox()
         self.length.setRange(0.0, 10.0)
-        self.length.setValue(0.1)
+        self.length.setValue(0.5)
         self.length.setSuffix(" m")
-        length_layout.addWidget(self.length)
-        length_layout.addStretch()
-        native_layout.addLayout(length_layout)
+        native_form.addRow(QLabel("Length"), self.length)
 
-        # Loss tangent
-        loss_layout = QHBoxLayout()
-        loss_layout.addWidget(QLabel("Loss Tan.:"))
         self.loss_tan = QDoubleSpinBox()
         self.loss_tan.setRange(0.0, 1.0)
         self.loss_tan.setValue(0.02)
         self.loss_tan.setDecimals(3)
-        loss_layout.addWidget(self.loss_tan)
-        loss_layout.addStretch()
-        native_layout.addLayout(loss_layout)
+        native_form.addRow(
+            QLabel(
+                "Loss Tangent",
+            ),
+            self.loss_tan,
+        )
 
-        # Characteristic impedance
-        z0_layout = QHBoxLayout()
-        z0_layout.addWidget(QLabel("Z0:"))
         self.z0 = QDoubleSpinBox()
         self.z0.setRange(0.0, 200.0)
         self.z0.setValue(100.0)
         self.z0.setSuffix(" Ohms")
-        z0_layout.addWidget(self.z0)
-        z0_layout.addStretch()
-        native_layout.addLayout(z0_layout)
+        native_form.addRow(QLabel("Characteristic Impedance"), self.z0)
 
-        # Relative velocity
-        v0_layout = QHBoxLayout()
-        v0_layout.addWidget(QLabel("v_rel:"))
         self.v0 = QDoubleSpinBox()
         self.v0.setRange(0.0, 1.0)
         self.v0.setValue(0.6)
         self.v0.setSuffix(" c")
-        v0_layout.addWidget(self.v0)
-        v0_layout.addStretch()
-        native_layout.addLayout(v0_layout)
+        native_form.addRow(QLabel("Relative Velocity"), self.v0)
 
-        # DC resistance
-        rdc_layout = QHBoxLayout()
-        rdc_layout.addWidget(QLabel("Rdc:"))
         self.rdc = QDoubleSpinBox()
         self.rdc.setRange(0.0, 100.0)
         self.rdc.setValue(0.0)
         self.rdc.setSuffix(" Ohms")
-        rdc_layout.addWidget(self.rdc)
-        rdc_layout.addStretch()
-        native_layout.addLayout(rdc_layout)
+        native_form.addRow(QLabel("DC Resistance"), self.rdc)
 
-        # Transition frequency
-        w0_layout = QHBoxLayout()
-        w0_layout.addWidget(QLabel("w0:"))
         self.w0 = QDoubleSpinBox()
         self.w0.setRange(0.0, 1e12)
         self.w0.setValue(0.0)
         self.w0.setSuffix(" rads/s")
-        w0_layout.addWidget(self.w0)
-        w0_layout.addStretch()
-        native_layout.addLayout(w0_layout)
+        native_form.addRow(QLabel("Transition Frequency"), self.w0)
 
-        # Skin effect resistance
-        r0_layout = QHBoxLayout()
-        r0_layout.addWidget(QLabel("R0:"))
         self.r0 = QDoubleSpinBox()
         self.r0.setRange(0.0, 100.0)
         self.r0.setValue(0.0)
         self.r0.setSuffix(" Ohms")
-        r0_layout.addWidget(self.r0)
-        r0_layout.addStretch()
-        native_layout.addLayout(r0_layout)
+        native_form.addRow(QLabel("Skin Effect Resistance"), self.r0)
 
-        layout.addWidget(native_group)
+        # Add both groups to stacked layout (after both are constructed)
+        self.stacked_layout.addWidget(self.native_group)
+        self.stacked_layout.addWidget(self.file_group)
+        layout.addLayout(self.stacked_layout, stretch=1)
 
         # Misc group
         misc_group = QGroupBox("Misc.")
@@ -160,17 +150,27 @@ class ChannelConfigWidget(QGroupBox):
         # Add stretch to push everything to the top
         layout.addStretch()
 
-        # Connect signals
-        self.use_file.toggled.connect(self._toggle_native)
+        # Connect signals for radio buttons
+        self.native_radio.toggled.connect(self._update_mode)
+        self.file_radio.toggled.connect(self._update_mode)
+
+        # Set initial visibility
+        self._update_mode()
 
     def _browse_channel(self):
         """Open file dialog to select channel file."""
-        filename, _ = QFileDialog.getOpenFileName(self, "Select Channel File", "", "All Files (*.*)")
+        filename, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select Channel File",
+            "",
+            "S-parameters (*.s*p);;" "CSV files (*.csv);;" "Text files (*.txt);;" "All files (*.*)",
+        )
         if filename:
             self.channel_file.setText(filename)
 
-    def _toggle_native(self, use_file):
-        """Enable/disable native parameters based on file usage."""
-        for widget in self.findChildren((QDoubleSpinBox, QSpinBox)):
-            if widget.parent().title() == "Native":
-                widget.setEnabled(not use_file)
+    def _update_mode(self):
+        """Show only the selected group (Native or From File) using stacked layout."""
+        if self.native_radio.isChecked():
+            self.stacked_layout.setCurrentWidget(self.native_group)
+        else:
+            self.stacked_layout.setCurrentWidget(self.file_group)

@@ -3,11 +3,12 @@
 This tab shows simulation results including DFE adaptation, output waveforms, eye diagrams and bathtub curves.
 """
 
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QTabWidget
-from PySide6.QtCore import Qt
-
 import numpy as np
 import pyqtgraph as pg
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QTableWidget, QTabWidget, QTextEdit, QVBoxLayout, QWidget
+
+from pybert.gui.widgets.stats import StatisticsWidget
 
 
 class ResultsTab(QWidget):
@@ -29,7 +30,18 @@ class ResultsTab(QWidget):
         tab_widget = QTabWidget()
         layout.addWidget(tab_widget)
 
-        # Create tabs for each result type
+        # --- Responses tabs ---
+        self.impulse_tab = self._create_response_tab("Impulses")
+        self.step_tab = self._create_response_tab("Steps")
+        self.pulse_tab = self._create_response_tab("Pulses")
+        self.freq_tab = self._create_response_tab("Frequency Response")
+
+        tab_widget.addTab(self.impulse_tab, "Impulses")
+        tab_widget.addTab(self.step_tab, "Steps")
+        tab_widget.addTab(self.pulse_tab, "Pulses")
+        tab_widget.addTab(self.freq_tab, "Frequency Response")
+
+        # --- Original Results tabs ---
         self.dfe_tab = self._create_dfe_tab()
         self.outputs_tab = self._create_outputs_tab()
         self.eyes_tab = self._create_eyes_tab()
@@ -39,6 +51,17 @@ class ResultsTab(QWidget):
         tab_widget.addTab(self.outputs_tab, "Outputs")
         tab_widget.addTab(self.eyes_tab, "Eyes")
         tab_widget.addTab(self.bathtub_tab, "Bathtubs")
+
+        # --- Jitter tabs ---
+        self.jitter_dist_tab = self._create_jitter_dist_tab()
+        self.jitter_spec_tab = self._create_jitter_spec_tab()
+
+        tab_widget.addTab(self.jitter_dist_tab, "Jitter Dist.")
+        tab_widget.addTab(self.jitter_spec_tab, "Jitter Spec.")
+
+        # --- Performance tab ---
+        self.statistics_tab = StatisticsWidget()
+        tab_widget.addTab(self.statistics_tab, "Statistics")
 
     def _create_dfe_tab(self):
         """Create the DFE adaptation tab.
@@ -296,3 +319,151 @@ class ResultsTab(QWidget):
         """
         for curve, data in zip(self.bathtub_plots, bathtub_data):
             curve.setData(jitter_bins, data)
+
+    # --- ResponsesTab logic ---
+    def _create_response_tab(self, title):
+        """Create a tab with a 2x2 grid of plots."""
+        widget = QWidget()
+        layout = QVBoxLayout()
+        widget.setLayout(layout)
+
+        plot_grid = pg.GraphicsLayoutWidget()
+        layout.addWidget(plot_grid)
+
+        plots = []
+        for i in range(4):
+            row = i // 2
+            col = i % 2
+            plot = plot_grid.addPlot(row=row, col=col)
+            plot.showGrid(x=True, y=True)
+            plot.addLegend()
+            plot.getAxis("left").setLabel("Amplitude")
+            # Set appropriate x-axis label based on plot type
+            if title == "Frequency Response":
+                plot.getAxis("bottom").setLabel("Frequency", units="GHz")
+            else:
+                plot.getAxis("bottom").setLabel("Time", units="ns")
+            plots.append(plot)
+        for plot in plots[1:]:
+            plot.setXLink(plots[0])
+        # Store plots for update methods
+        if title == "Impulses":
+            self.impulse_plots = plots
+        elif title == "Steps":
+            self.step_plots = plots
+        elif title == "Pulses":
+            self.pulse_plots = plots
+        elif title == "Frequency Response":
+            self.freq_plots = plots
+        return widget
+
+    def update_impulse_plots(self, t_ns, chnl_h, tx_out_h, ctle_out_h, dfe_out_h):
+        self.impulse_plots[0].plot(t_ns, chnl_h, pen="b", name="Channel", clear=True)
+        self.impulse_plots[1].plot(t_ns, tx_out_h, pen="r", name="+ Tx", clear=True)
+        self.impulse_plots[2].plot(t_ns, ctle_out_h, pen="r", name="+ CTLE", clear=True)
+        self.impulse_plots[3].plot(t_ns, dfe_out_h, pen="r", name="+ DFE", clear=True)
+
+    def update_step_plots(self, t_ns, chnl_s, tx_s, tx_out_s, ctle_s, ctle_out_s, dfe_s, dfe_out_s):
+        self.step_plots[0].plot(t_ns, chnl_s, pen="b", name="Channel", clear=True)
+        self.step_plots[1].plot(t_ns, tx_s, pen="b", name="Incremental", clear=True)
+        self.step_plots[1].plot(t_ns, tx_out_s, pen="r", name="Cumulative")
+        self.step_plots[2].plot(t_ns, ctle_s, pen="b", name="Incremental", clear=True)
+        self.step_plots[2].plot(t_ns, ctle_out_s, pen="r", name="Cumulative")
+        self.step_plots[3].plot(t_ns, dfe_s, pen="b", name="Incremental", clear=True)
+        self.step_plots[3].plot(t_ns, dfe_out_s, pen="r", name="Cumulative")
+
+    def update_pulse_plots(self, t_ns, chnl_p, tx_out_p, ctle_out_p, dfe_out_p):
+        self.pulse_plots[0].plot(t_ns, chnl_p, pen="b", name="Channel", clear=True)
+        self.pulse_plots[1].plot(t_ns, tx_out_p, pen="r", name="+ Tx", clear=True)
+        self.pulse_plots[2].plot(t_ns, ctle_out_p, pen="r", name="+ CTLE", clear=True)
+        self.pulse_plots[3].plot(t_ns, dfe_out_p, pen="r", name="+ DFE", clear=True)
+
+    def update_freq_plots(
+        self, f_GHz, chnl_H, chnl_H_raw, chnl_trimmed_H, tx_H, tx_out_H, ctle_H, ctle_out_H, dfe_H, dfe_out_H
+    ):
+        self.freq_plots[0].plot(f_GHz, chnl_H_raw, pen="k", name="Perfect Term.", clear=True)
+        self.freq_plots[0].plot(f_GHz, chnl_H, pen="b", name="Actual Term.")
+        self.freq_plots[0].plot(f_GHz, chnl_trimmed_H, pen="r", name="Trimmed")
+        self.freq_plots[0].setLogMode(x=True, y=False)
+        self.freq_plots[1].plot(f_GHz, tx_H, pen="b", name="Incremental", clear=True)
+        self.freq_plots[1].plot(f_GHz, tx_out_H, pen="r", name="Cumulative")
+        self.freq_plots[1].setLogMode(x=True, y=False)
+        self.freq_plots[2].plot(f_GHz, ctle_H, pen="b", name="Incremental", clear=True)
+        self.freq_plots[2].plot(f_GHz, ctle_out_H, pen="r", name="Cumulative")
+        self.freq_plots[2].setLogMode(x=True, y=False)
+        self.freq_plots[3].plot(f_GHz, dfe_H, pen="b", name="Incremental", clear=True)
+        self.freq_plots[3].plot(f_GHz, dfe_out_H, pen="r", name="Cumulative")
+        self.freq_plots[3].setLogMode(x=True, y=False)
+        for plot in self.freq_plots:
+            plot.getAxis("bottom").setLabel("Frequency", units="GHz")
+            plot.getAxis("left").setLabel("Response", units="dB")
+
+    # --- JitterTab logic ---
+    def _create_jitter_dist_tab(self):
+        widget = QWidget()
+        layout = QVBoxLayout()
+        widget.setLayout(layout)
+        plot_grid = pg.GraphicsLayoutWidget()
+        layout.addWidget(plot_grid)
+        titles = [
+            "Channel",
+            "+ Tx De-emphasis & Noise",
+            "+ CTLE (& IBIS-AMI DFE if apropos)",
+            "+ PyBERT Native DFE if enabled",
+        ]
+        self.jitter_dist_plots = []
+        for i in range(4):
+            row = i // 2
+            col = i % 2
+            plot = plot_grid.addPlot(row=row, col=col)
+            plot.showGrid(x=True, y=True)
+            plot.setTitle(titles[i])
+            plot.getAxis("left").setLabel("PDF")
+            plot.getAxis("bottom").setLabel("Time", units="ps")
+            plot.addLegend()
+            total_curve = plot.plot(pen=pg.mkPen("b"), name="Total")
+            di_curve = plot.plot(pen=pg.mkPen("r"), name="Data-Ind.")
+            self.jitter_dist_plots.append((total_curve, di_curve))
+        return widget
+
+    def _create_jitter_spec_tab(self):
+        widget = QWidget()
+        layout = QVBoxLayout()
+        widget.setLayout(layout)
+        plot_grid = pg.GraphicsLayoutWidget()
+        layout.addWidget(plot_grid)
+        titles = [
+            "Channel",
+            "+ Tx De-emphasis & Noise",
+            "+ CTLE (& IBIS-AMI DFE if apropos)",
+            "+ PyBERT Native DFE if enabled",
+        ]
+        self.jitter_spec_plots = []
+        for i in range(4):
+            row = i // 2
+            col = i % 2
+            plot = plot_grid.addPlot(row=row, col=col)
+            plot.showGrid(x=True, y=True)
+            plot.setTitle(titles[i])
+            plot.getAxis("left").setLabel("|FFT(TIE)|", units="dBui")
+            plot.getAxis("bottom").setLabel("Frequency", units="MHz")
+            plot.addLegend()
+            total_curve = plot.plot(pen=pg.mkPen("b"), name="Total")
+            di_curve = plot.plot(pen=pg.mkPen("r"), name="Data Independent")
+            thresh_curve = plot.plot(pen=pg.mkPen("m"), name="Pj Threshold")
+            self.jitter_spec_plots.append((total_curve, di_curve, thresh_curve))
+            plot.setMouseEnabled(x=True, y=True)
+        return widget
+
+    def update_jitter_dist_plots(self, jitter_bins, jitter_data, jitter_ext_data):
+        for (total_curve, di_curve), total, di in zip(self.jitter_dist_plots, jitter_data, jitter_ext_data):
+            total_curve.setData(jitter_bins, total)
+            di_curve.setData(jitter_bins, di)
+
+    def update_jitter_spec_plots(self, f_MHz, jitter_spectrum, jitter_ind_spectrum, thresh):
+        for (total_curve, di_curve, thresh_curve), total, di, th in zip(
+            self.jitter_spec_plots, jitter_spectrum, jitter_ind_spectrum, thresh
+        ):
+            total_curve.setData(f_MHz, total)
+            di_curve.setData(f_MHz, di)
+            thresh_curve.setData(f_MHz, th)

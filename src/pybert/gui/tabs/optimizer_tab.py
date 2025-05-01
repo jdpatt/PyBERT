@@ -1,19 +1,24 @@
-"""Optimizer tab for PyBERT GUI.
+"""Optimization tab for PyBERT GUI.
 
-This tab provides controls for optimizing equalization settings and visualizing the results.
+This tab contains controls for configuring and tuning transmitter and receiver equalization.
 """
 
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
-from PySide6.QtCore import Qt
-
 import pyqtgraph as pg
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QHBoxLayout, QSplitter, QVBoxLayout, QWidget
+
+from pybert.gui.widgets import (
+    RxOptimizationCTLEWidget,
+    RxOptimizationDFEWidget,
+    TxOptimizationWidget,
+)
 
 
 class OptimizerTab(QWidget):
-    """Tab for optimizing equalization settings."""
+    """Tab for configuring and tuning equalization."""
 
     def __init__(self, parent=None):
-        """Initialize the optimizer tab.
+        """Initialize the equalization tab.
 
         Args:
             parent: Parent widget
@@ -24,42 +29,61 @@ class OptimizerTab(QWidget):
         layout = QVBoxLayout()
         self.setLayout(layout)
 
-        # Add zoom instructions
-        zoom_label = QLabel(
-            "To zoom: Click in the plot, hit `z` (Cursor will change to crosshair), "
-            "and click/drag to select region of interest. Hit <ESC> to exit zoom."
-        )
-        layout.addWidget(zoom_label)
+        # Create horizontal splitter for controls and plot
+        splitter = QSplitter(Qt.Vertical)
+        layout.addWidget(splitter)
 
-        # Create plot widget
-        plot_widget = pg.PlotWidget(title="Channel + Tx Preemphasis + CTLE (+ AMI DFE) + Ideal DFE")
+        # Left side - Controls
+        controls = QWidget()
+        controls_layout = QHBoxLayout()
+        controls.setLayout(controls_layout)
+
+        # Add Tx and Rx equalization widgets
+        self.tx_optimization = TxOptimizationWidget()
+        self.rx_ctle = RxOptimizationCTLEWidget()
+        self.rx_dfe = RxOptimizationDFEWidget()
+
+        controls_layout.addWidget(self.tx_optimization, stretch=1)
+        controls_layout.addWidget(self.rx_ctle, stretch=1)
+        controls_layout.addWidget(self.rx_dfe, stretch=1)
+
+        splitter.addWidget(controls)
+
+        # Right side - Plot
+        plot_widget = pg.PlotWidget(
+            title="Equalization Results",
+        )
         plot_widget.showGrid(x=True, y=True)
-        plot_widget.setLabel("left", "Pulse Response (V)")
-        plot_widget.setLabel("bottom", "Time (ns)")
+        plot_widget.setLabel("left", "Amplitude")
+        plot_widget.setLabel("bottom", "Time", units="s")
 
         # Add legend
         plot_widget.addLegend()
 
         # Create plot curves
-        self.clocks_curve = plot_widget.plot(name="Clocks", pen=pg.mkPen("gray", width=2))
-        self.eq_curve = plot_widget.plot(name="Equalized Pulse Response", pen=pg.mkPen("blue", width=2))
-        self.channel_curve = plot_widget.plot(name="Channel Pulse Response", pen=pg.mkPen("magenta", width=2))
-        self.cursor_curve = plot_widget.plot(name="Main Cursor", pen=pg.mkPen("red", width=2))
+        self.pulse_curve = plot_widget.plot(name="Pulse Response", pen=pg.mkPen("b", width=2))
+        self.eq_curve = plot_widget.plot(name="Equalized Response", pen=pg.mkPen("r", width=2))
+        self.target_curve = plot_widget.plot(name="Target Response", pen=pg.mkPen("g", width=2, style=Qt.DashLine))
 
-        layout.addWidget(plot_widget)
+        splitter.addWidget(plot_widget)
 
-    def update_plot(self, t_ns_opt, clocks_tune, ctle_out_h_tune, p_chnl, curs_ix, curs_amp):
+        # Set initial splitter sizes (40% controls, 60% plot)
+        splitter.setSizes([400, 600])
+
+    def update_plot(self, time_points, pulse_data, eq_data, target_data=None):
         """Update the plot with new data.
 
         Args:
-            t_ns_opt: Time points in ns
-            clocks_tune: Clock signal data
-            ctle_out_h_tune: Equalized pulse response data
-            p_chnl: Channel pulse response data
-            curs_ix: Cursor x positions
-            curs_amp: Cursor y positions
+            time_points: Array of time points
+            pulse_data: Array of pulse response data
+            eq_data: Array of equalized response data
+            target_data: Optional array of target response data
         """
-        self.clocks_curve.setData(t_ns_opt, clocks_tune)
-        self.eq_curve.setData(t_ns_opt, ctle_out_h_tune)
-        self.channel_curve.setData(t_ns_opt, p_chnl)
-        self.cursor_curve.setData(curs_ix, curs_amp)
+        self.pulse_curve.setData(time_points, pulse_data)
+        self.eq_curve.setData(time_points, eq_data)
+
+        if target_data is not None:
+            self.target_curve.setData(time_points, target_data)
+            self.target_curve.show()
+        else:
+            self.target_curve.hide()

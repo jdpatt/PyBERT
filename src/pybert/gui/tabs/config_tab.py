@@ -4,28 +4,32 @@ This module implements the configuration tab which contains simulation control,
 channel configuration, and other related settings.
 """
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
-    QHBoxLayout,
-    QGroupBox,
-    QLabel,
-    QLineEdit,
     QCheckBox,
     QComboBox,
-    QSpinBox,
     QDoubleSpinBox,
-    QPushButton,
     QFileDialog,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QSizePolicy,
+    QSpinBox,
+    QVBoxLayout,
+    QWidget,
 )
-from PySide6.QtCore import Qt
 
-from ..widgets.analysis_config import AnalysisConfigWidget
-
-from ..widgets.simulation_control import SimulationControlWidget
-from ..widgets.transmitter_config import TxConfigWidget
-from ..widgets.channel_config import ChannelConfigWidget
-from ..widgets.receiver_config import RxConfigWidget
+from pybert.gui.widgets import (
+    AnalysisConfigWidget,
+    ChannelConfigWidget,
+    RxConfigWidget,
+    SimulationControlWidget,
+    TxConfigWidget,
+)
+from pybert.gui.widgets.rx_equalization import RxEqualizationWidget
+from pybert.gui.widgets.tx_equalization import TxEqualizationWidget
 
 
 class ConfigTab(QWidget):
@@ -48,32 +52,34 @@ class ConfigTab(QWidget):
 
         # Add simulation control widget
         self.sim_control = SimulationControlWidget()
-        top_layout.addWidget(self.sim_control)
+        self.sim_control.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
+        top_layout.addWidget(self.sim_control, stretch=2)
 
         # Add analysis control widget
         self.analysis_control = AnalysisConfigWidget()
-        top_layout.addWidget(self.analysis_control)
+        self.analysis_control.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
+        top_layout.addWidget(self.analysis_control, stretch=1)
 
         # Add top layout to main layout
         layout.addLayout(top_layout)
 
         # Create horizontal layout for channel section
-        channel_layout = QHBoxLayout()
+        interconnect_layout = QHBoxLayout()
 
-        # Add Tx configuration
+        # Add Tx elements
         self.tx_config = TxConfigWidget()
-        channel_layout.addWidget(self.tx_config)
+        interconnect_layout.addWidget(self.tx_config)
 
         # Add Channel configuration
         self.channel_config = ChannelConfigWidget()
-        channel_layout.addWidget(self.channel_config)
+        interconnect_layout.addWidget(self.channel_config)
 
-        # Add Rx configuration
+        # Add Rx elements
         self.rx_config = RxConfigWidget()
-        channel_layout.addWidget(self.rx_config)
+        interconnect_layout.addWidget(self.rx_config)
 
-        # Add channel layout to main layout
-        layout.addLayout(channel_layout)
+        # Add channel layout to main layout with stretch to fill remaining space
+        layout.addLayout(interconnect_layout, stretch=1)
 
         # Add stretch to push everything to the top
         layout.addStretch()

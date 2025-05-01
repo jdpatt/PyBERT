@@ -1,14 +1,14 @@
 """PyBERT GUI widgets package."""
 
-from .simulation_control import SimulationControlWidget
-from .transmitter_config import TxConfigWidget
-from .channel_config import ChannelConfigWidget
-from .receiver_config import RxConfigWidget
-from .analysis_config import AnalysisConfigWidget
-from .tx_eq import TxEqualizationWidget
-from .rx_eq import RxEqualizationWidget
+from .analysis import AnalysisConfigWidget
+from .channel import ChannelConfigWidget
 from .debug_console import DebugConsoleWidget
-
+from .rx import RxConfigWidget
+from .rx_optimization_ctle import RxOptimizationCTLEWidget
+from .rx_optimization_dfe import RxOptimizationDFEWidget
+from .simulation import SimulationControlWidget
+from .tx import TxConfigWidget
+from .tx_optimization import TxOptimizationWidget
 
 __all__ = [
     "SimulationControlWidget",
@@ -16,6 +16,8 @@ __all__ = [
     "ChannelConfigWidget",
     "RxConfigWidget",
     "AnalysisConfigWidget",
-    "TxEqualizationWidget",
-    "RxEqualizationWidget",
+    "TxOptimizationWidget",
+    "RxOptimizationCTLEWidget",
+    "RxOptimizationDFEWidget",
+    "DebugConsoleWidget",
 ]
