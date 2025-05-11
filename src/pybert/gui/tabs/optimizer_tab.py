@@ -87,3 +87,7 @@ class OptimizerTab(QWidget):
             self.target_curve.show()
         else:
             self.target_curve.hide()
+
+    def connect_signals(self, pybert):
+        """Connect signals to PyBERT instance."""
+        pass

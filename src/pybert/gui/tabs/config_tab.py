@@ -83,3 +83,7 @@ class ConfigTab(QWidget):
 
         # Add stretch to push everything to the top
         layout.addStretch()
+
+    def connect_signals(self, pybert):
+        """Connect signals to PyBERT instance."""
+        pass

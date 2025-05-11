@@ -39,6 +39,7 @@ class RxConfigWidget(QWidget):
 
         # Create main layout
         layout = QVBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
         self.setLayout(layout)
 
         self.rx_config = QGroupBox("Receiver")

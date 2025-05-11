@@ -32,6 +32,7 @@ from pybert.constants import GETTING_STARTED_URL
 from pybert.gui.tabs import ConfigTab, OptimizerTab, ResultsTab
 from pybert.gui.widgets import DebugConsoleWidget
 from pybert.utility.logger import QStatusBarHandler
+from pybert.pybert import PyBERT
 
 logger = logging.getLogger("pybert")
 
@@ -41,11 +42,12 @@ logger = logging.getLogger("pybert")
 class MainWindow(QMainWindow):
     """Main window for the PyBERT application."""
 
-    def __init__(self, pybert=None, parent: Optional[QWidget] = None):
+    def __init__(self, pybert: PyBERT | None = None, show_debug_console: bool = False, parent: Optional[QWidget] = None):
         """Initialize the main window.
 
         Args:
             pybert: PyBERT model instance
+            show_debug_console: Whether to show the debug console
             parent: Optional parent widget
         """
         super().__init__(parent)
@@ -78,7 +80,31 @@ class MainWindow(QMainWindow):
         self.results_tab = ResultsTab()
         self.tab_widget.addTab(self.results_tab, "Results")
 
-        # Create status bar with permanent widgets
+        # Create the dock widget/debug console
+        self.debug_console = DebugConsoleWidget()
+        self.addDockWidget(Qt.BottomDockWidgetArea, self.debug_console)
+        if show_debug_console:
+            self.debug_console.show()
+        else:
+            self.debug_console.hide()
+
+        self.create_menus()
+        self.create_status_bar()
+
+        self.last_config_filepath = None
+
+        # Connect PyBERT signals if available
+        if self.pybert:
+            self.connect_signals()
+
+    def connect_signals(self):
+        """Connect PyBERT signals to status bar update slots."""
+        self.config_tab.connect_signals(self.pybert)
+        self.optimizer_tab.connect_signals(self.pybert)
+        self.results_tab.connect_signals(self.pybert)
+
+    def create_status_bar(self):
+        """Create and setup the status bar with permanent widgets."""
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
 
@@ -123,21 +149,7 @@ class MainWindow(QMainWindow):
         # Add the status bar handler for logging
         logger.addHandler(QStatusBarHandler(self.status_bar))
 
-        # Create the dock widget/debug console
-        self.debug_console = DebugConsoleWidget()
-        self.addDockWidget(Qt.BottomDockWidgetArea, self.debug_console)
-        self.debug_console.hide()
 
-        # Create menus
-        self.create_menus()
-
-        # Connect PyBERT signals if available
-        if self.pybert:
-            self.connect_pybert_signals()
-
-    def connect_pybert_signals(self):
-        """Connect PyBERT signals to status bar update slots."""
-        pass
 
     def create_menus(self):
         """Create the application menus."""
@@ -221,17 +233,7 @@ class MainWindow(QMainWindow):
         tools_menu = self.menuBar().addMenu("&Tools")
 
         # Presets submenu
-        presets_menu = tools_menu.addMenu("Presets")
-
-        # Add preset actions
-        # TODO: Implement preset actions so the user can easily switch between common configurations
-        pam4_action = QAction("PAM-4 @ 56 Gbps", self)
-        nrz_action = QAction("NRZ @ 28 Gbps", self)
-        duobinary_action = QAction("Duo-binary @ 28 Gbps", self)
-
-        presets_menu.addAction(pam4_action)
-        presets_menu.addAction(nrz_action)
-        presets_menu.addAction(duobinary_action)
+        # presets_menu = tools_menu.addMenu("Presets")
 
         # Help menu
         help_menu = self.menuBar().addMenu("&Help")
@@ -266,21 +268,22 @@ class MainWindow(QMainWindow):
         """Load configuration from a file."""
         file_path, _ = QFileDialog.getOpenFileName(self, "Load Configuration", "", CONFIG_LOAD_WILDCARD)
         if file_path and self.pybert:
-            self.pybert.load_config(Path(file_path))
+            self.last_config_filepath = Path(file_path)
+            self.pybert.load_config(self.last_config_filepath)
 
     def save_config(self):
         """Save configuration to the current file."""
-        if self.pybert:
-            if self.pybert.config_file:
-                self.pybert.save_config()
-            else:
-                self.save_config_as()
+        if self.pybert and self.last_config_filepath:
+            self.pybert.save_configuration(self.last_config_filepath)
+        else:
+            self.save_config_as()
 
     def save_config_as(self):
         """Save configuration to a new file."""
         file_path, _ = QFileDialog.getSaveFileName(self, "Save Configuration As", "", CONFIG_SAVE_WILDCARD)
         if file_path and self.pybert:
-            self.pybert.save_config_as(Path(file_path))
+            self.last_config_filepath = Path(file_path)
+            self.pybert.save_configuration(self.last_config_filepath)
 
     def toggle_console_view(self):
         """Toggle the debug console visibility."""
