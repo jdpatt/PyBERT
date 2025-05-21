@@ -1,15 +1,15 @@
 """Receiver configuration widget for PyBERT GUI.
 
-This widget contains controls for receiver parameters including IBIS model
-selection and native parameters.
+This widget contains controls for receiver parameters including IBIS
+model selection and native parameters.
 """
 
-from PySide6.QtCore import Qt
+from typing import Optional
+
 from PySide6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
     QDoubleSpinBox,
-    QFileDialog,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
@@ -17,19 +17,20 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QPushButton,
     QRadioButton,
-    QSpinBox,
     QStackedLayout,
     QVBoxLayout,
     QWidget,
 )
 
+from pybert.gui.dialogs.dialogs import select_file
 from pybert.gui.widgets.rx_equalization import RxEqualizationWidget
+from pybert.utility.debug import setattr
 
 
 class RxConfigWidget(QWidget):
     """Widget for configuring receiver parameters."""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QWidget] = None) -> None:
         """Initialize the receiver configuration widget.
 
         Args:
@@ -63,7 +64,7 @@ class RxConfigWidget(QWidget):
         self.stacked_layout = QStackedLayout()
 
         # IBIS group
-        self.ibis_group = QWidget()
+        self.ibis_group = QWidget(self)
         ibis_layout = QVBoxLayout()
         self.ibis_group.setLayout(ibis_layout)
 
@@ -107,7 +108,7 @@ class RxConfigWidget(QWidget):
         self.stacked_layout.addWidget(self.ibis_group)
 
         # Native parameters group
-        self.native_group = QWidget()
+        self.native_group = QWidget(self)
         native_form = QFormLayout()
         self.native_group.setLayout(native_form)
 
@@ -139,7 +140,7 @@ class RxConfigWidget(QWidget):
 
         layout.addWidget(self.rx_config, stretch=1)
 
-        self.rx_equalization = RxEqualizationWidget()
+        self.rx_equalization = RxEqualizationWidget(self)
         layout.addWidget(self.rx_equalization, stretch=2)
 
         # Connect signals for radio buttons
@@ -149,16 +150,24 @@ class RxConfigWidget(QWidget):
         # Set initial visibility
         self._update_mode()
 
-    def _browse_ibis(self):
+    def connect_signals(self, pybert) -> None:
+        """Connect signals to PyBERT instance."""
+        self.rx_equalization.connect_signals(pybert)
+        self.use_ts4.toggled.connect(lambda val: setattr(pybert, "rx_use_ts4", val))
+        self.ibis_file.textChanged.connect(lambda val: setattr(pybert, "rx_ibis_file", val))
+        self.mode_group.buttonReleased.connect(lambda val: setattr(pybert, "rx_model", "Native" if self.native_radio.isChecked() else "IBIS"))
+        self.rin.valueChanged.connect(lambda val: setattr(pybert, "rx_rin", val))
+        self.cin.valueChanged.connect(lambda val: setattr(pybert, "rx_cin", val))
+        self.cac.valueChanged.connect(lambda val: setattr(pybert, "rx_cac", val))
+
+    def _browse_ibis(self) -> None:
         """Open file dialog to select IBIS file."""
-        filename, _ = QFileDialog.getOpenFileName(
-            self, "Select IBIS File", "", "IBIS Files (*.ibs);;IBIS Files (*.ibis);;All Files (*.*)"
-        )
+        filename = select_file(self, "Select IBIS File", "IBIS Files (*.ibs);;IBIS Files (*.ibis);;All Files (*.*)")
         if filename:
             self.ibis_file.setText(filename)
             # TODO: Validate IBIS file and enable controls
 
-    def _update_mode(self):
+    def _update_mode(self) -> None:
         """Show only the selected group (Native or IBIS) using stacked layout."""
         if self.native_radio.isChecked():
             self.stacked_layout.setCurrentWidget(self.native_group)

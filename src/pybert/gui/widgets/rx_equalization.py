@@ -1,15 +1,15 @@
 """Transmitter configuration widget for PyBERT GUI.
 
-This widget contains controls for transmitter parameters including IBIS model
-selection and native parameters.
+This widget contains controls for transmitter parameters including IBIS
+model selection and native parameters.
 """
 
-from PySide6.QtCore import Qt
+from typing import Optional
+
 from PySide6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
     QDoubleSpinBox,
-    QFileDialog,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
@@ -23,11 +23,14 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from pybert.gui.dialogs.dialogs import select_file
+from pybert.utility.debug import setattr
+
 
 class RxEqualizationWidget(QGroupBox):
     """Widget for configuring receiver equalization parameters."""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QWidget] = None) -> None:
         """Initialize the receiver equalization widget.
 
         Args:
@@ -56,7 +59,7 @@ class RxEqualizationWidget(QGroupBox):
         self.stacked_layout = QStackedLayout()
 
         # IBIS-AMI group
-        self.ibis_group = QWidget()
+        self.ibis_group = QWidget(self)
         ibis_layout = QVBoxLayout()
         self.ibis_group.setLayout(ibis_layout)
 
@@ -89,7 +92,7 @@ class RxEqualizationWidget(QGroupBox):
         self.stacked_layout.addWidget(self.ibis_group)
 
         # Native parameters group
-        self.native_group = QWidget()
+        self.native_group = QWidget(self)
         native_layout = QVBoxLayout()
         self.native_group.setLayout(native_layout)
 
@@ -120,7 +123,7 @@ class RxEqualizationWidget(QGroupBox):
         self.ctle_stacked_layout = QStackedLayout()
 
         # CTLE File Group
-        file_group = QWidget()
+        file_group = QWidget(self)
         file_group_layout = QHBoxLayout()
         file_group.setLayout(file_group_layout)
         self.ctle_file = QLineEdit()
@@ -132,7 +135,7 @@ class RxEqualizationWidget(QGroupBox):
         self.ctle_stacked_layout.addWidget(file_group)
 
         # CTLE Model Group
-        model_group = QWidget()
+        model_group = QWidget(self)
         model_layout = QHBoxLayout()
         model_group.setLayout(model_layout)
 
@@ -293,26 +296,51 @@ class RxEqualizationWidget(QGroupBox):
         self._update_ctle_mode()
         self._update_sum_bw_control()
 
-    def _update_mode(self):
+    def connect_signals(self, pybert) -> None:
+        """Connect signals to PyBERT instance."""
+        self.mode_group.buttonReleased.connect(lambda val: setattr(pybert, "rx_eq", "Native" if self.native_radio.isChecked() else "IBIS"))
+        # CTLE
+        self.ctle_enable.toggled.connect(lambda val: setattr(pybert, "ctle_enable", val))
+        self.ctle_file_radio.toggled.connect(lambda val: setattr(pybert, "rx_ctle_model", "File"))
+        self.ctle_model_radio.toggled.connect(lambda val: setattr(pybert, "rx_ctle_model", "Native"))
+        self.ctle_file.textChanged.connect(lambda val: setattr(pybert, "ctle_file", val))
+        self.rx_bw.valueChanged.connect(lambda val: setattr(pybert, "rx_bw", val))
+        self.peak_freq.valueChanged.connect(lambda val: setattr(pybert, "peak_freq", val))
+        self.peak_mag.valueChanged.connect(lambda val: setattr(pybert, "peak_mag", val))
+        # CDR
+        self.delta_t.valueChanged.connect(lambda val: setattr(pybert, "delta_t", val))
+        self.alpha.valueChanged.connect(lambda val: setattr(pybert, "alpha", val))
+        self.n_lock_ave.valueChanged.connect(lambda val: setattr(pybert, "n_lock_ave", val))
+        self.rel_lock_tol.valueChanged.connect(lambda val: setattr(pybert, "rel_lock_tol", val))
+        self.lock_sustain.valueChanged.connect(lambda val: setattr(pybert, "lock_sustain", val))
+        # DFE
+        self.gain.valueChanged.connect(lambda val: setattr(pybert, "gain", val))
+        self.n_ave.valueChanged.connect(lambda val: setattr(pybert, "n_ave", val))
+        self.decision_scaler.valueChanged.connect(lambda val: setattr(pybert, "decision_scaler", val))
+        self.sum_bw.valueChanged.connect(lambda val: setattr(pybert, "sum_bw", val))
+        self.sum_ideal.toggled.connect(lambda val: setattr(pybert, "sum_ideal", val))
+
+
+    def _update_mode(self) -> None:
         """Show only the selected group (IBIS or Native) using stacked layout."""
         if self.ibis_radio.isChecked():
             self.stacked_layout.setCurrentWidget(self.ibis_group)
         else:
             self.stacked_layout.setCurrentWidget(self.native_group)
 
-    def _update_ctle_mode(self):
+    def _update_ctle_mode(self) -> None:
         """Show only the selected CTLE mode (File or Model) using stacked layout."""
         if self.ctle_file_radio.isChecked():
             self.ctle_stacked_layout.setCurrentWidget(self.ctle_stacked_layout.widget(0))  # File widget
         else:
             self.ctle_stacked_layout.setCurrentWidget(self.ctle_stacked_layout.widget(1))  # Model widget
 
-    def _browse_ctle(self):
+    def _browse_ctle(self) -> None:
         """Open file dialog to select CTLE file."""
-        filename, _ = QFileDialog.getOpenFileName(self, "Select CTLE File", "", "CSV Files (*.csv);;All Files (*.*)")
+        filename = select_file(self, "Select CTLE File", "CSV Files (*.csv);;All Files (*.*)")
         if filename:
             self.ctle_file.setText(filename)
 
-    def _update_sum_bw_control(self):
+    def _update_sum_bw_control(self) -> None:
         """Enable/disable sum bandwidth control based on ideal checkbox."""
         self.sum_bw.setEnabled(not self.sum_ideal.isChecked())

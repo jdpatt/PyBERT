@@ -1,7 +1,11 @@
 import logging
-from typing import Optional
+import platform
+
+from pyibisami import __version__ as PyAMI_VERSION  # type: ignore
 from PySide6.QtWidgets import QStatusBar, QTextEdit
-from PySide6.QtCore import Qt
+
+from pybert import __version__ as VERSION
+
 
 class StructuredLogger(logging.Formatter):
     """A formatter that formats log messages into a structured format."""
@@ -128,3 +132,8 @@ def setup_logger(level: int = logging.INFO) -> logging.Logger:
     logger.addHandler(fh)
 
     return logger
+
+def log_user_system_information(logger: logging.Logger):
+    """Log the system information."""
+    logger.info(f"Python Version: {platform.python_version()}, System: {platform.system()} {platform.release()}")
+    logger.info(f"PyBERT Version: {VERSION}, PyAMI Version: {PyAMI_VERSION}")

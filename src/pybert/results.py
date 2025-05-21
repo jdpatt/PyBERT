@@ -15,8 +15,6 @@ import pickle
 from pathlib import Path
 from typing import Union
 
-from chaco.api import ArrayPlotData
-
 RESULTS_FILEDIALOG_WILDCARD = "PyBERT Results (*.pybert_data);;All Files (*.*)"
 """This sets the supported file types in the GUI's save-as or loading dialog."""
 
@@ -61,7 +59,7 @@ class PyBertData:
 
         plotdata = the_PyBERT.plotdata
 
-        the_data = ArrayPlotData()
+        the_data = []
 
         for item_name in self._item_names:
             the_data.set_data(item_name, plotdata.get_data(item_name))

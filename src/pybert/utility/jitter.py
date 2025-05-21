@@ -13,16 +13,31 @@ from typing import Optional
 
 import numpy as np
 from numpy import (  # type: ignore
-    argmax, array, concatenate, diag, diff, flip,
-    histogram, mean, ones, real, reshape, resize, sign,
-    sort, sqrt, where, zeros
+    argmax,
+    array,
+    concatenate,
+    diag,
+    diff,
+    flip,
+    histogram,
+    mean,
+    ones,
+    real,
+    reshape,
+    resize,
+    sign,
+    sort,
+    sqrt,
+    where,
+    zeros,
 )
 from numpy.fft import fft, ifft  # type: ignore
 from scipy.interpolate import interp1d
 from scipy.optimize import curve_fit
 
-from ..constants import Rvec
+from pybert.models.stimulus import ModulationType
 
+from ..constants import Rvec
 from .math import gaus_pdf
 from .sigproc import moving_average
 
@@ -128,7 +143,7 @@ def find_crossings(  # pylint: disable=too-many-arguments,too-many-positional-ar
     min_delay: float = 0.0,
     rising_first: bool = True,
     min_init_dev: float = 0.1,
-    mod_type: int = 0
+    mod_type: ModulationType = ModulationType.NRZ
 ) -> Rvec:
     """
     Find the crossing times in a signal, according to the modulation type.
@@ -162,15 +177,15 @@ def find_crossings(  # pylint: disable=too-many-arguments,too-many-positional-ar
         xing_times: The signal threshold crossing times.
     """
 
-    if mod_type not in [0, 1, 2]:
+    if mod_type not in ModulationType:
         raise ValueError(f"ERROR: pybert_util.find_crossings(): Unknown modulation type: {mod_type}")
 
     xings = []
-    if mod_type == 0:  # NRZ
+    if mod_type == ModulationType.NRZ:  # NRZ
         xings.append(
             find_crossing_times(t, x, min_delay=min_delay, rising_first=rising_first, min_init_dev=min_init_dev)
         )
-    elif mod_type == 1:  # Duo-binary
+    elif mod_type == ModulationType.DUO:  # Duo-binary
         xings.append(
             find_crossing_times(
                 t,
@@ -191,7 +206,7 @@ def find_crossings(  # pylint: disable=too-many-arguments,too-many-positional-ar
                 thresh=(0.5 * amplitude),
             )
         )
-    elif mod_type == 2:  # PAM-4 (Enabling the +/-0.67 cases yields multiple ideal crossings at the same edge.)
+    elif mod_type == ModulationType.PAM4:  # PAM-4 (Enabling the +/-0.67 cases yields multiple ideal crossings at the same edge.)
         xings.append(
             find_crossing_times(
                 t,
@@ -340,7 +355,7 @@ def calc_jitter(  # pylint: disable=too-many-arguments,too-many-locals,too-many-
     # - Use averaging to remove the uncorrelated components, before calculating data dependent components.
     tie_risings_ave  = tie_risings.mean(axis=0)
     tie_fallings_ave = tie_fallings.mean(axis=0)
-    isi = max(tie_risings_ave.ptp(), tie_fallings_ave.ptp())
+    isi = max(np.ptp(tie_risings_ave), np.ptp(tie_fallings_ave))
     isi = min(isi, ui)  # Cap the ISI at the unit interval.
     dcd = abs(mean(tie_risings_ave) - mean(tie_fallings_ave))
 

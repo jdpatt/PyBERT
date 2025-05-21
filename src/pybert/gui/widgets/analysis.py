@@ -4,31 +4,32 @@ This widget contains controls for simulation parameters like bit rate,
 samples per unit interval, modulation type, etc.
 """
 
-from PySide6.QtCore import Qt
+from typing import Optional
+
 from PySide6.QtWidgets import (
-    QCheckBox,
     QDoubleSpinBox,
     QGridLayout,
     QGroupBox,
-    QHBoxLayout,
     QLabel,
-    QLineEdit,
-    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
+
+from pybert.utility.debug import setattr
 
 
 class AnalysisConfigWidget(QGroupBox):
     """Widget for controlling analysis parameters."""
 
-    def __init__(self, parent=None):
+    def __init__(self, pybert=None, parent: Optional[QWidget] = None) -> None:
         """Initialize the simulation control widget.
 
         Args:
+            pybert: PyBERT model instance
             parent: Parent widget
         """
         super().__init__("Analysis Parameters", parent)
+        self.pybert = pybert
 
         # Create main layout
         layout = QVBoxLayout()
@@ -91,3 +92,9 @@ class AnalysisConfigWidget(QGroupBox):
 
         # Add stretch to push everything to the top
         layout.addStretch()
+
+    def connect_signals(self, pybert) -> None:
+        self.impulse_length.valueChanged.connect(lambda val: setattr(pybert, "impulse_length", val))
+        self.thresh.valueChanged.connect(lambda val: setattr(pybert, "thresh", val))
+        self.f_max.valueChanged.connect(lambda val: setattr(pybert, "f_max", val))
+        self.f_step.valueChanged.connect(lambda val: setattr(pybert, "f_step", val))

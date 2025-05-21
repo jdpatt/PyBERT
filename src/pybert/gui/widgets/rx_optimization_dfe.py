@@ -1,16 +1,16 @@
 """Receiver equalization widget for PyBERT GUI.
 
-This widget contains controls for receiver equalization including CTLE and DFE.
+This widget contains controls for receiver equalization including CTLE
+and DFE.
 """
+
+from typing import Optional
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QCheckBox,
-    QDoubleSpinBox,
     QGroupBox,
     QHBoxLayout,
     QHeaderView,
-    QLabel,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
@@ -18,17 +18,22 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from pybert.models.tx_tap import TxTapTuner
+from pybert.utility.debug import setattr
+
 
 class RxOptimizationDFEWidget(QGroupBox):
     """Widget for configuring receiver equalization."""
 
-    def __init__(self, parent=None):
+    def __init__(self, pybert=None, parent: Optional[QWidget] = None) -> None:
         """Initialize the receiver equalization widget.
 
         Args:
+            pybert: PyBERT model instance
             parent: Parent widget
         """
         super().__init__("Rx DFE", parent)
+        self.pybert = pybert
 
         dfe_layout = QVBoxLayout()
 
@@ -46,15 +51,15 @@ class RxOptimizationDFEWidget(QGroupBox):
         self.dfe_table.setHorizontalHeaderLabels(["Name", "Enabled", "Min", "Max", "Value"])
 
         # Set default number of taps (can be changed later)
-        self.set_tap_count(20)
+        self.set_taps(self.pybert.dfe_tap_tuners)
 
         # Configure table appearance
         header = self.dfe_table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeToContents)  # Name
-        header.setSectionResizeMode(1, QHeaderView.ResizeToContents)  # Enabled
-        header.setSectionResizeMode(2, QHeaderView.ResizeToContents)  # Min
-        header.setSectionResizeMode(3, QHeaderView.ResizeToContents)  # Max
-        header.setSectionResizeMode(4, QHeaderView.ResizeToContents)  # Value
+        header.setSectionResizeMode(0, QHeaderView.Stretch)  # Name
+        header.setSectionResizeMode(1, QHeaderView.Stretch)  # Enabled
+        header.setSectionResizeMode(2, QHeaderView.Stretch)  # Min
+        header.setSectionResizeMode(3, QHeaderView.Stretch)  # Max
+        header.setSectionResizeMode(4, QHeaderView.Stretch)  # Value
 
         self.dfe_table.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 
@@ -66,52 +71,52 @@ class RxOptimizationDFEWidget(QGroupBox):
         self.disable_btn.clicked.connect(self._disable_all_taps)
         self.enable_btn.clicked.connect(self._enable_all_taps)
 
-    def set_tap_count(self, count):
+    def set_taps(self, tuners: list[TxTapTuner]) -> None:
         """Set the number of DFE taps.
 
         Args:
             count: Number of taps to display
         """
-        self.dfe_table.setRowCount(count)
+        self.dfe_table.setRowCount(len(tuners))
 
-        for i in range(count):
+        for i, tuner in enumerate(tuners):
             # Name
-            name_item = QTableWidgetItem(f"Tap {i+1}")
+            name_item = QTableWidgetItem(tuner.name)
             name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable)
             self.dfe_table.setItem(i, 0, name_item)
 
             # Enabled
             enabled_item = QTableWidgetItem()
             enabled_item.setFlags(enabled_item.flags() | Qt.ItemIsUserCheckable)
-            enabled_item.setCheckState(Qt.Checked)
+            enabled_item.setCheckState(Qt.Checked if tuner.enabled else Qt.Unchecked)
             self.dfe_table.setItem(i, 1, enabled_item)
 
             # Min value
-            min_item = QTableWidgetItem("-0.5")
+            min_item = QTableWidgetItem(f"{tuner.min_val:+.3f}")
             self.dfe_table.setItem(i, 2, min_item)
 
             # Max value
-            max_item = QTableWidgetItem("0.5")
+            max_item = QTableWidgetItem(f"{tuner.max_val:+.3f}")
             self.dfe_table.setItem(i, 3, max_item)
 
             # Current value
-            value_item = QTableWidgetItem("0.0")
+            value_item = QTableWidgetItem(f"{tuner.value:+.3f}")
             value_item.setFlags(value_item.flags() & ~Qt.ItemIsEditable)
             self.dfe_table.setItem(i, 4, value_item)
 
         self.dfe_table.resizeRowsToContents()
 
-    def _disable_all_taps(self):
+    def _disable_all_taps(self) -> None:
         """Disable all DFE taps."""
         for i in range(self.dfe_table.rowCount()):
             self.dfe_table.item(i, 1).setCheckState(Qt.Unchecked)
 
-    def _enable_all_taps(self):
+    def _enable_all_taps(self) -> None:
         """Enable all DFE taps."""
         for i in range(self.dfe_table.rowCount()):
             self.dfe_table.item(i, 1).setCheckState(Qt.Checked)
 
-    def get_dfe_tap_values(self):
+    def get_dfe_tap_values(self) -> list[tuple[bool, float, float, float]]:
         """Get the current DFE tap values.
 
         Returns:
@@ -126,7 +131,7 @@ class RxOptimizationDFEWidget(QGroupBox):
             values.append((enabled, min_val, max_val, value))
         return values
 
-    def set_dfe_tap_value(self, tap_index, value):
+    def set_dfe_tap_value(self, tap_index: int, value: float) -> None:
         """Set the value for a specific DFE tap.
 
         Args:
@@ -135,3 +140,7 @@ class RxOptimizationDFEWidget(QGroupBox):
         """
         if 0 <= tap_index < self.dfe_table.rowCount():
             self.dfe_table.item(tap_index, 4).setText(f"{value:+.3f}")
+
+    def connect_signals(self, pybert) -> None:
+        self.disable_btn.clicked.connect(lambda: setattr(pybert, "dfe_enable_tune", False))
+        self.enable_btn.clicked.connect(lambda: setattr(pybert, "dfe_enable_tune", True))

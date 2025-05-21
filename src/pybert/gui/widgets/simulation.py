@@ -4,25 +4,27 @@ This widget contains controls for simulation parameters like bit rate,
 samples per unit interval, modulation type, etc.
 """
 
-from PySide6.QtCore import Qt
+from typing import Optional
+
 from PySide6.QtWidgets import (
-    QCheckBox,
     QComboBox,
     QDoubleSpinBox,
     QGroupBox,
     QHBoxLayout,
     QLabel,
-    QLineEdit,
     QSpinBox,
     QVBoxLayout,
     QWidget,
 )
 
+from pybert.models.stimulus import BitPattern, ModulationType
+from pybert.utility.debug import setattr
+
 
 class SimulationControlWidget(QGroupBox):
     """Widget for controlling simulation parameters."""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QWidget] = None) -> None:
         """Initialize the simulation control widget.
 
         Args:
@@ -161,3 +163,27 @@ class SimulationControlWidget(QGroupBox):
 
         # Add stretch to push everything to the top
         layout.addStretch()
+
+
+    def connect_signals(self, pybert: "PyBERT") -> None:
+        """Connect widget signals to PyBERT stimulus model."""
+        self.bit_rate.valueChanged.connect(lambda val: setattr(pybert, "bit_rate", val))
+        self.nspui.valueChanged.connect(lambda val: setattr(pybert, "nspui", val))
+        self.modulation.currentIndexChanged.connect(lambda idx: self.update_modulation(pybert, idx))
+        self.pattern.currentTextChanged.connect(lambda text: setattr(pybert, "pattern", BitPattern[text]))
+        self.seed.valueChanged.connect(lambda val: setattr(pybert, "seed", val))
+        self.nbits.valueChanged.connect(lambda val: setattr(pybert, "nbits", val))
+        self.eye_bits.valueChanged.connect(lambda val: setattr(pybert, "eye_bits", val))
+        self.vod.valueChanged.connect(lambda val: setattr(pybert, "vod", val))
+        self.rn.valueChanged.connect(lambda val: setattr(pybert, "rn", val))
+        self.pn_mag.valueChanged.connect(lambda val: setattr(pybert, "pn_mag", val))
+        self.pn_freq.valueChanged.connect(lambda val: setattr(pybert, "pn_freq", val))
+
+    def update_modulation(self, pybert: "PyBERT", idx: int) -> None:
+        """Update the modulation type."""
+        if idx == 0:
+            setattr(pybert, "mod_type", ModulationType.NRZ)
+        elif idx == 1:
+            setattr(pybert, "mod_type", ModulationType.DUO)
+        elif idx == 2:
+            setattr(pybert, "mod_type", ModulationType.PAM4)

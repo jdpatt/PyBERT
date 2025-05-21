@@ -1,10 +1,10 @@
 """Main window for PyBERT application using PySide6.
 
-This module implements the main window and overall GUI structure for PyBERT.
+This module implements the main window and overall GUI structure for
+PyBERT.
 """
 
 import logging
-import sys
 import webbrowser
 from pathlib import Path
 from typing import Optional
@@ -13,13 +13,9 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import (
     QFileDialog,
-    QHBoxLayout,
     QLabel,
     QMainWindow,
-    QMenu,
-    QMenuBar,
     QMessageBox,
-    QSizePolicy,
     QStatusBar,
     QTabWidget,
     QVBoxLayout,
@@ -31,8 +27,8 @@ from pybert.configuration import CONFIG_LOAD_WILDCARD, CONFIG_SAVE_WILDCARD
 from pybert.constants import GETTING_STARTED_URL
 from pybert.gui.tabs import ConfigTab, OptimizerTab, ResultsTab
 from pybert.gui.widgets import DebugConsoleWidget
-from pybert.utility.logger import QStatusBarHandler
 from pybert.pybert import PyBERT
+from pybert.utility.logger import QStatusBarHandler
 
 logger = logging.getLogger("pybert")
 
@@ -51,7 +47,7 @@ class MainWindow(QMainWindow):
             parent: Optional parent widget
         """
         super().__init__(parent)
-        self.pybert = pybert
+        self.pybert: PyBERT = pybert
 
         self.setWindowTitle("PyBERT")
         self.resize(1920, 1080)
@@ -62,33 +58,33 @@ class MainWindow(QMainWindow):
             self.setWindowIcon(QIcon(str(icon_path)))
 
         # Create central widget and main layout
-        central_widget = QWidget()
+        central_widget = QWidget(self)
         self.setCentralWidget(central_widget)
         layout = QVBoxLayout(central_widget)
 
         # Create tab widget
-        self.tab_widget = QTabWidget()
+        self.tab_widget = QTabWidget(self)
         layout.addWidget(self.tab_widget)
 
         # Create and add tabs
-        self.config_tab = ConfigTab()
+        self.config_tab = ConfigTab(pybert, self.tab_widget)
         self.tab_widget.addTab(self.config_tab, "Setup")
 
-        self.optimizer_tab = OptimizerTab()
+        self.optimizer_tab = OptimizerTab(pybert, self.tab_widget)
         self.tab_widget.addTab(self.optimizer_tab, "Optimization")
 
-        self.results_tab = ResultsTab()
+        self.results_tab = ResultsTab(pybert, self.tab_widget)
         self.tab_widget.addTab(self.results_tab, "Results")
 
         # Create the dock widget/debug console
-        self.debug_console = DebugConsoleWidget()
+        self.debug_console = DebugConsoleWidget(self)
         self.addDockWidget(Qt.BottomDockWidgetArea, self.debug_console)
         if show_debug_console:
             self.debug_console.show()
         else:
             self.debug_console.hide()
 
-        self.create_menus()
+        self.create_menus(show_debug_console)
         self.create_status_bar()
 
         self.last_config_filepath = None
@@ -96,12 +92,14 @@ class MainWindow(QMainWindow):
         # Connect PyBERT signals if available
         if self.pybert:
             self.connect_signals()
+            self.pybert.simulate() # Populate the results tab with data
 
     def connect_signals(self):
         """Connect PyBERT signals to status bar update slots."""
         self.config_tab.connect_signals(self.pybert)
         self.optimizer_tab.connect_signals(self.pybert)
         self.results_tab.connect_signals(self.pybert)
+        self.pybert.sim_complete.connect(self.update_status_bar)
 
     def create_status_bar(self):
         """Create and setup the status bar with permanent widgets."""
@@ -149,9 +147,18 @@ class MainWindow(QMainWindow):
         # Add the status bar handler for logging
         logger.addHandler(QStatusBarHandler(self.status_bar))
 
+    def update_status_bar(self, results, perf):
+        """Update the status bar with the performance metrics."""
+        self.perf_label.setText(f"Perf: {perf.total * 6e-05:6.3f} Msmpls/min")
+        self.delay_label.setText(f"Channel Delay: {self.pybert.chnl_dly * 1000000000.0:5.3f} ns")
+        self.errors_label.setText(f"Bit Errors: {int(self.pybert.bit_errs)}")
+        self.power_label.setText(f"Tx Power: {self.pybert.rel_power * 1e3:3.0f} mW")
+        self.isi_label.setText(f"ISI: {self.pybert.isi_dfe* 1.0e12:6.1f} ps")
+        self.dcd_label.setText(f"DCD: {self.pybert.dcd_dfe* 1.0e12:6.1f} ps")
+        self.pj_label.setText(f"Pj: {self.pybert.pj_dfe* 1.0e12:6.1f} ({self.pybert.pjDD_dfe * 1.0e12:6.1f}) ps")
+        self.rj_label.setText(f"Rj: {self.pybert.rj_dfe* 1.0e12:6.1f} ({self.pybert.rjDD_dfe * 1.0e12:6.1f}) ps")
 
-
-    def create_menus(self):
+    def create_menus(self, show_debug_console: bool=False):
         """Create the application menus."""
         # File menu
         file_menu = self.menuBar().addMenu("&File")
@@ -166,7 +173,7 @@ class MainWindow(QMainWindow):
         save_results_action = QAction("Save Results", self)
         save_results_action.triggered.connect(self.save_results)
 
-        load_config_action = QAction("Open Config...", self)
+        load_config_action = QAction("Load Config...", self)
         load_config_action.setShortcut("Ctrl+O")
         load_config_action.triggered.connect(self.load_config)
 
@@ -192,7 +199,7 @@ class MainWindow(QMainWindow):
 
         debug_console_action = QAction("Debug Console", self)
         debug_console_action.setShortcut("Ctrl+`")
-        debug_console_action.setCheckable(True)
+        debug_console_action.setChecked(show_debug_console)
         debug_console_action.triggered.connect(self.toggle_console_view)
 
         clear_waveforms_action = QAction("Clear Waveforms", self)
@@ -216,18 +223,22 @@ class MainWindow(QMainWindow):
 
         # Optimization menu
         opt_menu = self.menuBar().addMenu("&Optimization")
-        use_eq_action = QAction("Use EQ", self)
-        use_eq_action.setShortcut("Ctrl+U")
+        apply_eq_action = QAction("Apply EQ", self)
+        apply_eq_action.setShortcut("Ctrl+U")
+        apply_eq_action.triggered.connect(self.apply_optimization)
         reset_eq_action = QAction("Reset EQ", self)
-        tune_eq_action = QAction("Tune EQ", self)
-        tune_eq_action.setShortcut("Ctrl+T")
-        stop_tune_action = QAction("Abort", self)
-        stop_tune_action.setShortcut("Ctrl+Esc")
+        reset_eq_action.triggered.connect(self.reset_optimization)
+        optimize_eq_action = QAction("Optimize", self)
+        optimize_eq_action.setShortcut("Ctrl+O")
+        optimize_eq_action.triggered.connect(self.start_optimization)
+        abort_optimize_action = QAction("Abort", self)
+        abort_optimize_action.setShortcut("Ctrl+Esc")
+        abort_optimize_action.triggered.connect(self.stop_optimization)
 
-        opt_menu.addAction(use_eq_action)
+        opt_menu.addAction(apply_eq_action)
         opt_menu.addAction(reset_eq_action)
-        opt_menu.addAction(tune_eq_action)
-        opt_menu.addAction(stop_tune_action)
+        opt_menu.addAction(optimize_eq_action)
+        opt_menu.addAction(abort_optimize_action)
 
         # Tools menu
         tools_menu = self.menuBar().addMenu("&Tools")
@@ -294,17 +305,31 @@ class MainWindow(QMainWindow):
 
     def clear_waveforms(self):
         """Clear any loaded waveform data."""
-        self.pybert.clear_reference_from_plots()
+        self.results_tab.clear_waveforms()
 
     def run_simulation(self):
         """Start the simulation."""
-        logger.info("Starting simulation...")
         self.pybert.simulate()
 
     def stop_simulation(self):
         """Stop the running simulation."""
-        logger.info("Stopping simulation...")
         self.pybert.stop_simulation()
+
+    def start_optimization(self):
+        """Start the optimization."""
+        self.pybert.start_optimization()
+
+    def stop_optimization(self):
+        """Stop the running optimization."""
+        self.pybert.stop_optimization()
+
+    def reset_optimization(self):
+        """Reset the optimization."""
+        self.pybert.reset_optimization()
+
+    def apply_optimization(self):
+        """Apply the optimization."""
+        self.pybert.apply_optimization()
 
     def show_getting_started(self):
         """Open the getting started guide in the user's default web browser."""

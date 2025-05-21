@@ -14,6 +14,7 @@ from numpy import array, sign, zeros  # type: ignore
 from scipy.signal import iirfilter
 
 from pybert.models.cdr import CDR
+from pybert.models.stimulus import ModulationType
 
 gNch_taps = 3  # Number of taps used in summing node filter.
 
@@ -149,12 +150,12 @@ class DFE:  # pylint: disable=too-many-instance-attributes
         self.limits = limits
 
         thresholds = []
-        if mod_type == 0:  # NRZ
+        if mod_type == ModulationType.NRZ:  # NRZ
             pass
-        elif mod_type == 1:  # Duo-binary
+        elif mod_type == ModulationType.DUO:  # Duo-binary
             thresholds.append(-decision_scaler / 2.0)
             thresholds.append(decision_scaler / 2.0)
-        elif mod_type == 2:  # PAM-4
+        elif mod_type == ModulationType.PAM4:  # PAM-4
             thresholds.append(-decision_scaler * 2.0 / 3.0)
             thresholds.append(0.0)
             thresholds.append(decision_scaler * 2.0 / 3.0)
@@ -233,20 +234,20 @@ class DFE:  # pylint: disable=too-many-instance-attributes
 
         mod_type = self.mod_type
 
-        if mod_type == 0:  # NRZ
+        if mod_type == ModulationType.NRZ:  # NRZ
             decision = sign(x)
             if decision > 0:
                 bits = [1]
             else:
                 bits = [0]
-        elif mod_type == 1:  # Duo-binary
+        elif mod_type == ModulationType.DUO:  # Duo-binary
             if (x > self.thresholds[0]) ^ (x > self.thresholds[1]):
                 decision = 0
                 bits = [1]
             else:
                 decision = sign(x)
                 bits = [0]
-        elif mod_type == 2:  # PAM-4
+        elif mod_type == ModulationType.PAM4:  # PAM-4
             if x > self.thresholds[2]:
                 decision = 1
                 bits = [1, 1]
@@ -341,16 +342,16 @@ class DFE:  # pylint: disable=too-many-instance-attributes
                 clocks[smpl_cntr] = 1
                 current_clock_sample = sum_out
                 samples = [last_clock_sample, boundary_sample, current_clock_sample]
-                if mod_type == 0:  # NRZ
+                if mod_type == ModulationType.NRZ:  # NRZ
                     pass
-                elif mod_type == 1:  # Duo-binary
+                elif mod_type == ModulationType.DUO:  # Duo-binary
                     samples = array(samples)
                     if samples.mean() < 0.0:
                         samples -= thresholds[0]
                     else:
                         samples -= thresholds[1]
                     samples = list(samples)
-                elif mod_type == 2:  # PAM-4
+                elif mod_type == ModulationType.PAM4:  # PAM-4
                     pass
                 else:
                     raise RuntimeError("ERROR: DFE.run(): Unrecognized modulation type!")

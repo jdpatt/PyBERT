@@ -9,10 +9,12 @@ Copyright (c) 2014 David Banas; all rights reserved World wide.
 
 # pylint: disable=too-many-lines
 
+import logging
+from dataclasses import dataclass
 from time import perf_counter
 from typing import Callable, Optional, TypeAlias
 
-import numpy        as np
+import numpy as np
 import numpy.typing as npt
 import scipy.signal as sig
 from numpy import (  # type: ignore
@@ -31,14 +33,15 @@ from numpy import (  # type: ignore
     where,
     zeros,
 )
-from numpy.fft import rfft, irfft  # type: ignore
+from numpy.fft import irfft, rfft  # type: ignore
 from numpy.random import normal  # type: ignore
 from numpy.typing import NDArray  # type: ignore
-from scipy.signal import iirfilter, lfilter
-from scipy.interpolate import interp1d
-
 from pyibisami.ami.parser import AmiName, AmiNode, ami_parse
+from scipy.interpolate import interp1d
+from scipy.signal import iirfilter, lfilter
+
 from pybert.models.dfe import DFE
+from pybert.models.stimulus import ModulationType
 from pybert.utility import (
     calc_eye,
     calc_jitter,
@@ -59,6 +62,18 @@ AmiFloats: TypeAlias = tuple[AmiName, list["float | 'AmiFloats'"]]
 DEBUG           = False
 MIN_BATHTUB_VAL = 1.0e-12
 gFc             = 1.0e6  # Corner frequency of high-pass filter used to model capacitive coupling of periodic noise.
+
+logger = logging.getLogger("pybert.sim")
+
+@dataclass
+class SimulationPerf:
+    """Performance metrics for the simulation."""
+    start_time: float = 0.0
+    end_time: float = 0.0
+    channel: float = 0.0
+    tx: float = 0.0
+    ctle: float = 0.0
+    dfe: float = 0.0
 
 
 # pylint: disable=too-many-locals,protected-access,too-many-branches,too-many-statements
@@ -94,11 +109,16 @@ def my_run_simulation(self, initial_run: bool = False, update_plots: bool = True
     def _check_sim_status():
         """Checks the status of the simulation thread and if this simulation needs to stop."""
         if aborted_sim and aborted_sim():
-            self.status = "Aborted Simulation"
+            logger.error("Simulation aborted by User.")
             raise RuntimeError("Simulation aborted by User.")
 
-    start_time = clock()
-    self.status = "Running channel..."
+    logger.info("Starting simulation...")
+    logger.info(self.bit_rate)
+    results = None
+
+    perf = SimulationPerf()
+    perf.start_time = clock()
+    logger.info("Running channel...")
 
     # The user sets `seed` to zero to indicate that she wants new bits generated for each run.
     if not self.seed:
@@ -120,7 +140,7 @@ def my_run_simulation(self, initial_run: bool = False, update_plots: bool = True
     rn = self.rn
     pn_mag = self.pn_mag
     pn_freq = self.pn_freq * 1.0e6
-    pattern = self.pattern_
+    pattern = self.pattern.value
     rx_bw = self.rx_bw * 1.0e9
     peak_freq = self.peak_freq * 1.0e9
     peak_mag = self.peak_mag
@@ -137,7 +157,7 @@ def my_run_simulation(self, initial_run: bool = False, update_plots: bool = True
     lock_sustain = self.lock_sustain
     bandwidth = self.sum_bw * 1.0e9
     rel_thresh = self.thresh
-    mod_type = self.mod_type[0]
+    mod_type = self.mod_type
     impulse_length = self.impulse_length
 
     # Calculate misc. values.
@@ -148,7 +168,7 @@ def my_run_simulation(self, initial_run: bool = False, update_plots: bool = True
     max_len = 100 * nspui
     if impulse_length:
         min_len = max_len = round(impulse_length / ts)
-    if mod_type == 2:  # PAM-4
+    if mod_type == ModulationType.PAM4:  # PAM-4
         nspb = nspui // 2
     else:
         nspb = nspui
@@ -159,7 +179,7 @@ def my_run_simulation(self, initial_run: bool = False, update_plots: bool = True
     # impulse response, in order to produce the proper ideal signal.
     x = repeat(symbols, nspui)
     ideal_signal = x
-    if mod_type == 1:  # Handle duo-binary case.
+    if mod_type == ModulationType.DUO:  # Handle duo-binary case.
         duob_h = array(([0.5] + [0.0] * (nspui - 1)) * 2)
         ideal_signal = convolve(x, duob_h)[: len(t)]
 
@@ -175,18 +195,17 @@ def my_run_simulation(self, initial_run: bool = False, update_plots: bool = True
         split_time = clock()
         chnl_out = convolve(x, chnl_h)[: len(t)]
         _conv_chnl_time = clock() - split_time
-        if self.debug:
-            self.log(f"Channel calculation time: {_calc_chnl_time}")
-            self.log(f"Channel convolution time: {_conv_chnl_time}")
-        self.channel_perf = nbits * nspb / (clock() - start_time)
+        logger.debug(f"Channel calculation time: {_calc_chnl_time}")
+        logger.debug(f"Channel convolution time: {_conv_chnl_time}")
+        perf.channel = nbits * nspb / (clock() - perf.start_time)
     except Exception as err:
-        self.status = f"Exception: channel: {err}"
+        logger.exception(f"Exception: channel: {err}")
         raise
     self.chnl_out = chnl_out
 
     _check_sim_status()
     split_time = clock()
-    self.status = "Running Tx..."
+    logger.info("Running Tx...")
 
     # Calculate Tx output power dissipation.
     ffe_out = convolve(symbols, ffe)[: len(symbols)]
@@ -249,28 +268,28 @@ def my_run_simulation(self, initial_run: bool = False, update_plots: bool = True
             tx_out, _, tx_h, tx_out_h, msg, _params = run_ami_model(
                 self.tx_dll_file, self._tx_cfg, True, ui, ts, chnl_h, x)
             params = _params
-            self.log(f"Tx IBIS-AMI model initialization results:\n{msg}")
+            logger.info(f"Tx IBIS-AMI model initialization results:\n{msg}")
             tx_getwave_params = list(map(ami_parse, params))
-            self.log(f"Tx IBIS-AMI model GetWave() output parameters:\n{tx_getwave_params}")
+            logger.info(f"Tx IBIS-AMI model GetWave() output parameters:\n{tx_getwave_params}")
             rx_in = convolve(tx_out + noise, chnl_h)[:len(tx_out)]
             # Calculate the remaining responses from the impulse responses.
             tx_s, tx_p, tx_H = calc_resps(t, tx_h, ui, f)
             tx_out_s, tx_out_p, tx_out_H = calc_resps(t, tx_out_h, ui, f)
-            self.tx_perf = nbits * nspb / (clock() - split_time)
+            perf.tx = nbits * nspb / (clock() - split_time)
             split_time = clock()
             self.status = "Running CTLE..."
             if self.rx_use_ami and self.rx_use_getwave:
                 ctle_out, _, ctle_h, ctle_out_h, msg, _params = run_ami_model(
                     self.rx_dll_file, self._rx_cfg, True, ui, ts, tx_out_h, convolve(tx_out, chnl_h))
                 params = _params
-                self.log(f"Rx IBIS-AMI model initialization results:\n{msg}")
+                logger.info(f"Rx IBIS-AMI model initialization results:\n{msg}")
                 _rx_getwave_params = list(map(ami_parse, params))
-                self.log(f"Rx IBIS-AMI model GetWave() output parameters:\n{_rx_getwave_params}")
+                logger.info(f"Rx IBIS-AMI model GetWave() output parameters:\n{_rx_getwave_params}")
             else:  # Rx is either AMI_Init() or PyBERT native.
                 if self.rx_use_ami:  # Rx Init()
                     _, _, ctle_h, ctle_out_h, msg, _ = run_ami_model(
                         self.rx_dll_file, self._rx_cfg, False, ui, ts, chnl_h, tx_out)
-                    self.log(f"Rx IBIS-AMI model initialization results:\n{msg}")
+                    logger.info(f"Rx IBIS-AMI model initialization results:\n{msg}")
                     ctle_out = convolve(tx_out, ctle_out_h)[:len(tx_out)]
                 else:                # PyBERT native Rx
                     ctle_h = get_ctle_h()
@@ -280,7 +299,7 @@ def my_run_simulation(self, initial_run: bool = False, update_plots: bool = True
             if self.tx_use_ami:  # Tx is AMI_Init().
                 rx_in, _, tx_h, tx_out_h, msg, _ = run_ami_model(
                     self.tx_dll_file, self._tx_cfg, False, ui, ts, chnl_h, x)
-                self.log(f"Tx IBIS-AMI model initialization results:\n{msg}")
+                logger.info(f"Tx IBIS-AMI model initialization results:\n{msg}")
                 rx_in += noise
             else:                # Tx is PyBERT native.
                 # Using `sum` to concatenate:
@@ -291,14 +310,14 @@ def my_run_simulation(self, initial_run: bool = False, update_plots: bool = True
             # Calculate the remaining responses from the impulse responses.
             tx_s, tx_p, tx_H = calc_resps(t, tx_h, ui, f)
             tx_out_s, tx_out_p, tx_out_H = calc_resps(t, tx_out_h, ui, f)
-            self.tx_perf = nbits * nspb / (clock() - split_time)
+            perf.tx = nbits * nspb / (clock() - split_time)
             split_time = clock()
             self.status = "Running CTLE..."
             if self.rx_use_ami and self.rx_use_getwave:
                 ctle_out, clock_times, ctle_h, ctle_out_h, msg, _params = run_ami_model(
                     self.rx_dll_file, self._rx_cfg, True, ui, ts, tx_out_h, rx_in)
                 params = _params
-                self.log(f"Rx IBIS-AMI model initialization results:\n{msg}")
+                logger.info(f"Rx IBIS-AMI model initialization results:\n{msg}")
                 # Time evolution of (<root_name>: AmiName, <param_vals>: list[AmiNode]):
                 # (i.e. - There can be no `AmiAtom`s in the root tuple's second member.)
                 rx_getwave_params: list[tuple[AmiName, list[AmiNode]]] = list(map(ami_parse, params))
@@ -357,7 +376,7 @@ def my_run_simulation(self, initial_run: bool = False, update_plots: bool = True
                 if self.rx_use_ami:  # Rx Init()
                     ctle_out, _, ctle_h, ctle_out_h, msg, _ = run_ami_model(
                         self.rx_dll_file, self._rx_cfg, False, ui, ts, tx_out_h, x)
-                    self.log(f"Rx IBIS-AMI model initialization results:\n{msg}")
+                    logger.info(f"Rx IBIS-AMI model initialization results:\n{msg}")
                     ctle_out += noise
                 else:                # PyBERT native Rx
                     if ctle_enable:
@@ -369,7 +388,7 @@ def my_run_simulation(self, initial_run: bool = False, update_plots: bool = True
                         ctle_out_h = tx_out_h
                         ctle_out = rx_in
     except Exception as err:
-        self.status = f"Exception: {err}"
+        logger.exception(f"Exception: {err}")
         raise
 
     # Calculate the remaining responses from the impulse responses.
@@ -411,9 +430,9 @@ def my_run_simulation(self, initial_run: bool = False, update_plots: bool = True
     self.conv_dly = conv_dly
     self.conv_dly_ix = conv_dly_ix
 
-    self.ctle_perf = nbits * nspb / (clock() - split_time)
+    perf.ctle = nbits * nspb / (clock() - split_time)
     split_time = clock()
-    self.status = "Running DFE/CDR..."
+    logger.info("Running DFE/CDR...")
 
     _check_sim_status()
 
@@ -454,7 +473,7 @@ def my_run_simulation(self, initial_run: bool = False, update_plots: bool = True
                 while t_ix < len(t) and t[t_ix] < sample_time:
                     t_ix += 1
                 if t_ix >= len(t):
-                    self.log("Went beyond system time vector end searching for next clock time!")
+                    logger.warning("Went beyond system time vector end searching for next clock time!")
                     break
                 _, _bits = dfe.decide(ctle_out[t_ix])
                 bits_out.extend(_bits)
@@ -491,7 +510,7 @@ def my_run_simulation(self, initial_run: bool = False, update_plots: bool = True
     bit_errs = where(bits_tst ^ bits_ref)[0]
     n_errs = len(bit_errs)
     if n_errs and False:  # pylint: disable=condition-evals-to-constant
-        self.log(f"pybert.models.bert.my_run_simulation(): Bit errors detected at indices: {bit_errs}.")
+        logger.error(f"pybert.models.bert.my_run_simulation(): Bit errors detected at indices: {bit_errs}.")
     self.bit_errs = n_errs
 
     if len(tap_weights) > 0:
@@ -518,9 +537,9 @@ def my_run_simulation(self, initial_run: bool = False, update_plots: bool = True
     self.dfe_out = dfe_out
     self.lockeds = lockeds
 
-    self.dfe_perf = nbits * nspb / (clock() - split_time)
+    perf.dfe = nbits * nspb / (clock() - split_time)
     split_time = clock()
-    self.status = "Analyzing jitter..."
+    logger.info("Analyzing jitter...")
 
     _check_sim_status()
 
@@ -750,296 +769,20 @@ def my_run_simulation(self, initial_run: bool = False, update_plots: bool = True
         dfe_spec = self.jitter_spectrum_dfe
         self.jitter_rejection_ratio = zeros(len(dfe_spec))
 
-        self.jitter_perf = nbits * nspb / (clock() - split_time)
-        self.total_perf = nbits * nspb / (clock() - start_time)
-        split_time = clock()
-        self.status = "Updating plots..."
+        perf.jitter = nbits * nspb / (clock() - split_time)
     except ValueError as err:
-        self.log(f"The jitter calculation could not be completed, due to the following error:\n{err}",
-                 alert=False)
-        self.status = "Exception: jitter"
+        logger.exception(f"The jitter calculation could not be completed, due to the following error:\n{err}")
         # raise
 
-    _check_sim_status()
-    # Update plots.
-    try:
-        if update_plots:
-            update_results(self)
-            if not initial_run:
-                update_eyes(self)
+    perf.total = nbits * nspb / (clock() - perf.start_time)
+    perf.end_time = clock()
+    logger.info("Simulation complete. Duration: %s", round(perf.end_time - perf.start_time, 3))
+    logger.info(f"Performance Metrics: "
+    f"Channel: {perf.channel * 6e-05:6.3f} Msmpls./min "
+    f"Tx Preemphasis: {perf.tx * 6e-05:6.3f} Msmpls./min "
+    f"CTLE: {perf.ctle * 6e-05:6.3f} Msmpls./min "
+    f"DFE: {perf.dfe * 6e-05:6.3f} Msmpls./min "
+    f"Jitter: {perf.jitter * 6e-05:6.3f} Msmpls./min "
+    f"Total: {perf.total * 6e-05:6.3f} Msmpls./min")
 
-        self.plotting_perf = nbits * nspb / (clock() - split_time)
-        self.status = "Ready."
-    except Exception as err:  # pylint: disable=broad-exception-caught
-        self.log(f"The following error occured, while trying to update the plots:\n{err}")
-        self.status = "Exception: plotting"
-        # raise
-
-
-# Plot updating
-# pylint: disable=too-many-locals,protected-access,too-many-statements
-def update_results(self):
-    """Updates all plot data used by GUI.
-
-    Args:
-        self(PyBERT): Reference to an instance of the *PyBERT* class.
-    """
-
-    # Copy globals into local namespace.
-    ui = self.ui
-    samps_per_ui = self.nspui
-    eye_uis = self.eye_uis
-    num_ui = self.nui
-    clock_times = self.clock_times
-    ui_ests = self.ui_ests
-    f = self.f
-    t = self.t
-    t_ns = self.t_ns
-    t_ns_chnl = self.t_ns_chnl
-    t_irfft = self.t_irfft
-
-    ignore_until = (num_ui - eye_uis) * ui
-    ignore_samps = (num_ui - eye_uis) * samps_per_ui
-
-    # Misc.
-    f_GHz = f / 1.0e9
-    len_f_GHz = len(f_GHz)
-    len_t = len(t_ns)
-    self.plotdata.set_data("f_GHz", f_GHz[1:])
-    self.plotdata.set_data("t_ns_chnl", t_ns_chnl)
-    self.plotdata.set_data("t_ns_irfft", t_irfft * 1e9)
-    if len_t > 1000:  # to prevent Chaco plotting error with too much data
-        t_ns_plot = linspace(0, t_ns[-1], 1000)
-    else:
-        t_ns_plot = t_ns
-    self.plotdata.set_data("t_ns", t_ns_plot)
-
-    # DFE.
-    tap_weights = transpose(array(self.adaptation))
-    if len(tap_weights):
-        for k, tap_weight in enumerate(tap_weights):  # pylint: disable=undefined-loop-variable
-            self.plotdata.set_data(f"tap{k + 1}_weights", tap_weight)
-        self.plotdata.set_data("tap_weight_index", list(range(len(tap_weight))))  # pylint: disable=undefined-loop-variable
-    else:
-        for k in range(len(self.dfe_tap_tuners)):
-            self.plotdata.set_data(f"tap{k + 1}_weights", zeros(10))
-        self.plotdata.set_data("tap_weight_index", list(range(10)))  # pylint: disable=undefined-loop-variable
-
-    (bin_counts, bin_edges) = histogram(ui_ests, bins=100)
-    bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2.0
-    clock_spec = rfft(ui_ests)
-    _f0 = 1 / (t[1] * len(t))
-    spec_freqs = [_f0 * k for k in range(len(t) // 2 + 1)]
-    self.plotdata.set_data("clk_per_hist_bins", bin_centers)
-    self.plotdata.set_data("clk_per_hist_vals", bin_counts)
-    self.plotdata.set_data("clk_spec", safe_log10(abs(clock_spec[1:]) / abs(clock_spec[1])))  # Omit the d.c. value and normalize to fundamental magnitude.
-    self.plotdata.set_data("clk_freqs", array(spec_freqs[1:]) * ui)
-    self.plotdata.set_data("dfe_out", self.dfe_out)
-    self.plotdata.set_data("clocks", self.clocks)
-    self.plotdata.set_data("lockeds", self.lockeds)
-    if len_t > 1000:  # to prevent Chaco plotting error with too much data
-        krnl = interp1d(t_ns, self.ui_ests)
-        ui_ests_plot = krnl(t_ns_plot)
-    else:
-        ui_ests_plot = self.ui_ests
-    self.plotdata.set_data("ui_ests", ui_ests_plot)
-
-    # Impulse responses
-    self.plotdata.set_data("chnl_h", self.chnl_h)
-    self.plotdata.set_data("tx_h", self.tx_h)
-    self.plotdata.set_data("tx_out_h", self.tx_out_h)
-    self.plotdata.set_data("ctle_h", self.ctle_h)
-    self.plotdata.set_data("ctle_out_h", self.ctle_out_h)
-    self.plotdata.set_data("dfe_h", self.dfe_h)
-    self.plotdata.set_data("dfe_out_h", self.dfe_out_h)
-
-    # Step responses
-    self.plotdata.set_data("chnl_s", self.chnl_s)
-    self.plotdata.set_data("tx_s", self.tx_s)
-    self.plotdata.set_data("tx_out_s", self.tx_out_s)
-    self.plotdata.set_data("ctle_s", self.ctle_s)
-    self.plotdata.set_data("ctle_out_s", self.ctle_out_s)
-    self.plotdata.set_data("dfe_s", self.dfe_s)
-    self.plotdata.set_data("dfe_out_s", self.dfe_out_s)
-
-    # Pulse responses
-    self.plotdata.set_data("chnl_p", self.chnl_p)
-    self.plotdata.set_data("tx_out_p", self.tx_out_p)
-    self.plotdata.set_data("ctle_out_p", self.ctle_out_p)
-    self.plotdata.set_data("dfe_out_p", self.dfe_out_p)
-
-    # Frequency responses
-    self.plotdata.set_data("chnl_H_raw", 20.0 * safe_log10(abs(self.chnl_H_raw[1:len_f_GHz])))
-    self.plotdata.set_data("chnl_H", 20.0 * safe_log10(abs(self.chnl_H[1:len_f_GHz])))
-    self.plotdata.set_data("chnl_trimmed_H", 20.0 * safe_log10(abs(self.chnl_trimmed_H[1:len_f_GHz])))
-    self.plotdata.set_data("tx_H", 20.0 * safe_log10(abs(self.tx_H[1:])))
-    self.plotdata.set_data("tx_out_H", 20.0 * safe_log10(abs(self.tx_out_H[1:len_f_GHz])))
-    self.plotdata.set_data("ctle_H", 20.0 * safe_log10(abs(self.ctle_H[1:len_f_GHz])))
-    self.plotdata.set_data("ctle_out_H", 20.0 * safe_log10(abs(self.ctle_out_H[1:len_f_GHz])))
-    self.plotdata.set_data("dfe_H", 20.0 * safe_log10(abs(self.dfe_H[1:len_f_GHz])))
-    self.plotdata.set_data("dfe_out_H", 20.0 * safe_log10(abs(self.dfe_out_H[1:len_f_GHz])))
-
-    # Outputs
-    ideal_signal = self.ideal_signal[:len_t]
-    chnl_out = self.chnl_out[:len_t]
-    rx_in = self.rx_in[:len_t]
-    ctle_out = self.ctle_out[:len_t]
-    dfe_out = self.dfe_out[:len_t]
-    lockeds = self.lockeds[:len_t]
-    if len_t > 1000:  # to prevent Chaco plotting error with too much data
-        krnl = interp1d(t_ns, ideal_signal)
-        ideal_signal_plot = krnl(t_ns_plot)
-        krnl = interp1d(t_ns, chnl_out)
-        chnl_out_plot = krnl(t_ns_plot)
-        krnl = interp1d(t_ns, rx_in)
-        rx_in_plot = krnl(t_ns_plot)
-        krnl = interp1d(t_ns, ctle_out)
-        ctle_out_plot = krnl(t_ns_plot)
-        krnl = interp1d(t_ns, dfe_out)
-        dfe_out_plot = krnl(t_ns_plot)
-        krnl = interp1d(t_ns, lockeds)
-        lockeds_plot = krnl(t_ns_plot)
-    else:
-        ideal_signal_plot = ideal_signal
-        chnl_out_plot = chnl_out
-        rx_in_plot = rx_in
-        ctle_out_plot = ctle_out
-        dfe_out_plot = dfe_out
-        lockeds_plot = lockeds
-    self.plotdata.set_data("ideal_signal", ideal_signal_plot)
-    self.plotdata.set_data("chnl_out", chnl_out_plot)
-    self.plotdata.set_data("rx_in", rx_in_plot)
-    self.plotdata.set_data("ctle_out", ctle_out_plot)
-    self.plotdata.set_data("dfe_out", dfe_out_plot)
-    self.plotdata.set_data("dbg_out", lockeds_plot)
-
-    # Jitter distributions
-    jitter_chnl = self.jitter_chnl  # These are used again in bathtub curve generation, below.
-    jitter_tx   = self.jitter_tx
-    jitter_ctle = self.jitter_ctle
-    jitter_dfe  = self.jitter_dfe
-    jitter_bins = self.jitter_bins
-    self.plotdata.set_data("jitter_bins", array(self.jitter_bins)  * 1e12)
-    self.plotdata.set_data("jitter_chnl",     jitter_chnl          * 1e-12)  # PDF (/ps)
-    self.plotdata.set_data("jitter_ext_chnl", self.jitter_ext_chnl * 1e-12)
-    self.plotdata.set_data("jitter_tx",       jitter_tx            * 1e-12)
-    self.plotdata.set_data("jitter_ext_tx",   self.jitter_ext_tx   * 1e-12)
-    self.plotdata.set_data("jitter_ctle",     jitter_ctle          * 1e-12)
-    self.plotdata.set_data("jitter_ext_ctle", self.jitter_ext_ctle * 1e-12)
-    self.plotdata.set_data("jitter_dfe",      jitter_dfe           * 1e-12)
-    self.plotdata.set_data("jitter_ext_dfe",  self.jitter_ext_dfe  * 1e-12)
-
-    # Jitter spectrums
-    log10_ui = safe_log10(ui)
-    self.plotdata.set_data("f_MHz", self.f_MHz[1:])
-    self.plotdata.set_data("f_MHz_dfe", self.f_MHz_dfe[1:])
-    self.plotdata.set_data("jitter_spectrum_chnl", 10.0 * (safe_log10(self.jitter_spectrum_chnl[1:]) - log10_ui))
-    self.plotdata.set_data("jitter_ind_spectrum_chnl", 10.0 * (safe_log10(self.jitter_ind_spectrum_chnl[1:]) - log10_ui))
-    self.plotdata.set_data("thresh_chnl", 10.0 * (safe_log10(self.thresh_chnl[1:]) - log10_ui))
-    self.plotdata.set_data("jitter_spectrum_tx", 10.0 * (safe_log10(self.jitter_spectrum_tx[1:]) - log10_ui))
-    self.plotdata.set_data("jitter_ind_spectrum_tx", 10.0 * (safe_log10(self.jitter_ind_spectrum_tx[1:]) - log10_ui))
-    self.plotdata.set_data("thresh_tx", 10.0 * (safe_log10(self.thresh_tx[1:]) - log10_ui))
-    self.plotdata.set_data("jitter_spectrum_ctle", 10.0 * (safe_log10(self.jitter_spectrum_ctle[1:]) - log10_ui))
-    self.plotdata.set_data("jitter_ind_spectrum_ctle", 10.0 * (safe_log10(self.jitter_ind_spectrum_ctle[1:]) - log10_ui))
-    self.plotdata.set_data("thresh_ctle", 10.0 * (safe_log10(self.thresh_ctle[1:]) - log10_ui))
-    self.plotdata.set_data("jitter_spectrum_dfe", 10.0 * (safe_log10(self.jitter_spectrum_dfe[1:]) - log10_ui))
-    self.plotdata.set_data("jitter_ind_spectrum_dfe", 10.0 * (safe_log10(self.jitter_ind_spectrum_dfe[1:]) - log10_ui))
-    self.plotdata.set_data("thresh_dfe", 10.0 * (safe_log10(self.thresh_dfe[1:]) - log10_ui))
-    self.plotdata.set_data("jitter_rejection_ratio", self.jitter_rejection_ratio[1:])
-
-    # Bathtubs
-    bathtub_chnl = make_bathtub(
-        jitter_bins, jitter_chnl, min_val=0.1 * MIN_BATHTUB_VAL,
-        rj=self.rjDD_chnl, mu_r=self.mu_pos_chnl, mu_l=self.mu_neg_chnl, extrap=True)
-    bathtub_tx = make_bathtub(
-        jitter_bins, jitter_tx,   min_val=0.1 * MIN_BATHTUB_VAL,
-        rj=self.rjDD_tx, mu_r=self.mu_pos_tx, mu_l=self.mu_neg_tx, extrap=True)
-    bathtub_ctle = make_bathtub(
-        jitter_bins, jitter_ctle, min_val=0.1 * MIN_BATHTUB_VAL,
-        rj=self.rjDD_ctle, mu_r=self.mu_pos_ctle, mu_l=self.mu_neg_ctle, extrap=True)
-    bathtub_dfe = make_bathtub(
-        jitter_bins, jitter_dfe,  min_val=0.1 * MIN_BATHTUB_VAL,
-        rj=self.rjDD_dfe, mu_r=self.mu_pos_dfe, mu_l=self.mu_neg_dfe, extrap=True)
-    self.plotdata.set_data("bathtub_chnl", safe_log10(bathtub_chnl))
-    self.plotdata.set_data("bathtub_tx",   safe_log10(bathtub_tx))
-    self.plotdata.set_data("bathtub_ctle", safe_log10(bathtub_ctle))
-    self.plotdata.set_data("bathtub_dfe",  safe_log10(bathtub_dfe))
-
-    # Eyes
-    width = 2 * samps_per_ui
-    xs = linspace(-ui * 1.0e12, ui * 1.0e12, width)
-    height = 1000
-    tiny_noise = normal(scale=1e-3, size=len(chnl_out[ignore_samps:]))  # to make channel eye easier to view.
-    chnl_out_noisy = self.chnl_out[ignore_samps:] + tiny_noise
-    y_max = 1.1 * max(abs(array(chnl_out_noisy)))
-    eye_chnl = calc_eye(ui, samps_per_ui, height, chnl_out_noisy, y_max)
-    y_max = 1.1 * max(abs(array(self.rx_in[ignore_samps:])))
-    eye_tx = calc_eye(ui, samps_per_ui, height, self.rx_in[ignore_samps:], y_max)
-    y_max = 1.1 * max(abs(array(self.ctle_out[ignore_samps:])))
-    eye_ctle = calc_eye(ui, samps_per_ui, height, self.ctle_out[ignore_samps:], y_max)
-    y_max = 1.1 * max(abs(array(self.dfe_out[ignore_samps:])))
-    i = 0
-    len_clock_times = len(clock_times)
-    while i < len_clock_times and clock_times[i] < ignore_until:
-        i += 1
-    if i >= len(clock_times):
-        self.log("ERROR: Insufficient coverage in 'clock_times' vector.")
-        eye_dfe = calc_eye(ui, samps_per_ui, height, self.dfe_out[ignore_samps:], y_max)
-    else:
-        eye_dfe = calc_eye(ui, samps_per_ui, height, self.dfe_out[ignore_samps:], y_max, array(clock_times[i:]) - ignore_until)
-    self.plotdata.set_data("eye_index", xs)
-    self.plotdata.set_data("eye_chnl", eye_chnl)
-    self.plotdata.set_data("eye_tx", eye_tx)
-    self.plotdata.set_data("eye_ctle", eye_ctle)
-    self.plotdata.set_data("eye_dfe", eye_dfe)
-
-
-def update_eyes(self):
-    """Update the heat plots representing the eye diagrams.
-
-    Args:
-        self(PyBERT): Reference to an instance of the *PyBERT* class.
-    """
-
-    ui = self.ui
-    samps_per_ui = self.nspui
-
-    width = 2 * samps_per_ui
-    height = 100
-    xs = linspace(-ui * 1.0e12, ui * 1.0e12, width)
-
-    y_max = 1.1 * max(abs(array(self.chnl_out)))
-    ys = linspace(-y_max, y_max, height)
-    self.plots_eye.components[0].components[0].index.set_data(xs, ys)
-    self.plots_eye.components[0].x_axis.mapper.range.low = xs[0]
-    self.plots_eye.components[0].x_axis.mapper.range.high = xs[-1]
-    self.plots_eye.components[0].y_axis.mapper.range.low = ys[0]
-    self.plots_eye.components[0].y_axis.mapper.range.high = ys[-1]
-    self.plots_eye.components[0].invalidate_draw()
-
-    y_max = 1.1 * max(abs(array(self.rx_in)))
-    ys = linspace(-y_max, y_max, height)
-    self.plots_eye.components[1].components[0].index.set_data(xs, ys)
-    self.plots_eye.components[1].x_axis.mapper.range.low = xs[0]
-    self.plots_eye.components[1].x_axis.mapper.range.high = xs[-1]
-    self.plots_eye.components[1].y_axis.mapper.range.low = ys[0]
-    self.plots_eye.components[1].y_axis.mapper.range.high = ys[-1]
-    self.plots_eye.components[1].invalidate_draw()
-
-    y_max = 1.1 * max(abs(array(self.dfe_out)))
-    ys = linspace(-y_max, y_max, height)
-    self.plots_eye.components[3].components[0].index.set_data(xs, ys)
-    self.plots_eye.components[3].x_axis.mapper.range.low = xs[0]
-    self.plots_eye.components[3].x_axis.mapper.range.high = xs[-1]
-    self.plots_eye.components[3].y_axis.mapper.range.low = ys[0]
-    self.plots_eye.components[3].y_axis.mapper.range.high = ys[-1]
-    self.plots_eye.components[3].invalidate_draw()
-
-    self.plots_eye.components[2].components[0].index.set_data(xs, ys)
-    self.plots_eye.components[2].x_axis.mapper.range.low = xs[0]
-    self.plots_eye.components[2].x_axis.mapper.range.high = xs[-1]
-    self.plots_eye.components[2].y_axis.mapper.range.low = ys[0]
-    self.plots_eye.components[2].y_axis.mapper.range.high = ys[-1]
-    self.plots_eye.components[2].invalidate_draw()
-
-    self.plots_eye.request_redraw()
+    return results, perf

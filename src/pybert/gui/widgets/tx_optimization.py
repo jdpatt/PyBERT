@@ -1,33 +1,37 @@
 """Transmitter equalization widget for PyBERT GUI.
 
-This widget contains controls for transmitter equalization including FFE taps.
+This widget contains controls for transmitter equalization including FFE
+taps.
 """
+
+from typing import Optional
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QCheckBox,
-    QDoubleSpinBox,
     QGroupBox,
-    QHBoxLayout,
     QHeaderView,
-    QLabel,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
 
+from pybert.models.tx_tap import TxTapTuner
+from pybert.pybert import PyBERT
+from pybert.utility.debug import setattr
+
 
 class TxOptimizationWidget(QGroupBox):
     """Widget for configuring transmitter equalization."""
 
-    def __init__(self, parent=None):
+    def __init__(self, pybert: PyBERT | None = None, parent: Optional[QWidget] = None) -> None:
         """Initialize the transmitter equalization widget.
 
         Args:
             parent: Parent widget
         """
         super().__init__("Tx Equalization", parent)
+        self.pybert = pybert
 
         # Create main layout
         layout = QVBoxLayout()
@@ -35,66 +39,74 @@ class TxOptimizationWidget(QGroupBox):
 
         # Create FFE table
         self.ffe_table = QTableWidget()
-        self.ffe_table.setColumnCount(6)
-        self.ffe_table.setHorizontalHeaderLabels(["Name", "Enabled", "Min", "Max", "Step", "Value"])
+        headers = ["Name", "Enabled", "Min", "Max", "Step", "Value"]
+        self.ffe_table.setColumnCount(len(headers))
+        self.ffe_table.setHorizontalHeaderLabels(headers)
 
         # Set default number of taps (can be changed later)
-        self.set_taps(["Pre-Tap3", "Pre-Tap2", "Pre-Tap1", "Post-Tap1", "Post-Tap2", "Post-Tap3"])
+        self.set_taps(self.pybert.tx_tap_tuners)
 
         # Configure table appearance
         header = self.ffe_table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeToContents)  # Name
-        header.setSectionResizeMode(1, QHeaderView.ResizeToContents)  # Enabled
-        header.setSectionResizeMode(2, QHeaderView.ResizeToContents)  # Min
-        header.setSectionResizeMode(3, QHeaderView.ResizeToContents)  # Max
-        header.setSectionResizeMode(4, QHeaderView.ResizeToContents)  # Step
-        header.setSectionResizeMode(5, QHeaderView.ResizeToContents)  # Value
+        header.setSectionResizeMode(0, QHeaderView.Stretch)  # Name
+        header.setSectionResizeMode(1, QHeaderView.Stretch)  # Enabled
+        header.setSectionResizeMode(2, QHeaderView.Stretch)  # Min
+        header.setSectionResizeMode(3, QHeaderView.Stretch)  # Max
+        header.setSectionResizeMode(4, QHeaderView.Stretch)  # Step
+        header.setSectionResizeMode(5, QHeaderView.Stretch)  # Value
 
         self.ffe_table.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.ffe_table.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 
         layout.addWidget(self.ffe_table)
 
-    def set_taps(self, names: list[str]):
+    def connect_signals(self, pybert) -> None:
+        """Connect signals to PyBERT instance."""
+        self.ffe_table.itemChanged.connect(lambda item: setattr(pybert, "tx_tap_tuners", self.get_tap_values()))
+
+    def set_taps(self, tuners: list[TxTapTuner]) -> None:
         """Set the number of FFE taps.
 
         Args:
-            count: Number of taps to display
+            tuners: List of TxTapTuner objects
         """
-        self.ffe_table.setRowCount(len(names))
+        self.ffe_table.setRowCount(len(tuners))
 
-        for i, name in enumerate(names):
+        for i, tuner in enumerate(tuners):
             # Name
-            name_item = QTableWidgetItem(name)
+            name_item = QTableWidgetItem(tuner.name)
             name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable)
             self.ffe_table.setItem(i, 0, name_item)
 
             # Enabled
             enabled_item = QTableWidgetItem()
-            enabled_item.setFlags(enabled_item.flags() | Qt.ItemIsUserCheckable)
-            enabled_item.setCheckState(Qt.Checked)
+            flags = enabled_item.flags() | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled
+            flags &= ~Qt.ItemIsEditable
+            enabled_item.setFlags(flags)
+            enabled_item.setCheckState(Qt.Checked if tuner.enabled else Qt.Unchecked)
+            enabled_item.setTextAlignment(Qt.AlignCenter)
             self.ffe_table.setItem(i, 1, enabled_item)
 
             # Min value
-            min_item = QTableWidgetItem("-1.0")
+            min_item = QTableWidgetItem(f"{tuner.min_val:+.3f}")
             self.ffe_table.setItem(i, 2, min_item)
 
             # Max value
-            max_item = QTableWidgetItem("1.0")
+            max_item = QTableWidgetItem(f"{tuner.max_val:+.3f}")
             self.ffe_table.setItem(i, 3, max_item)
 
             # Step
-            step_item = QTableWidgetItem("0.1")
+            step_item = QTableWidgetItem(f"{tuner.step:+.3f}")
             self.ffe_table.setItem(i, 4, step_item)
 
             # Current value
-            value_item = QTableWidgetItem("0.0")
+            value_item = QTableWidgetItem(f"{tuner.value:+.3f}")
             value_item.setFlags(value_item.flags() & ~Qt.ItemIsEditable)
             self.ffe_table.setItem(i, 5, value_item)
 
         self.ffe_table.resizeRowsToContents()
 
-    def get_tap_values(self):
+    def get_tap_values(self) -> list[tuple[bool, float, float, float, float]]:
         """Get the current tap values.
 
         Returns:
@@ -110,7 +122,7 @@ class TxOptimizationWidget(QGroupBox):
             values.append((enabled, min_val, max_val, step, value))
         return values
 
-    def set_tap_value(self, tap_index, value):
+    def set_tap_value(self, tap_index: int, value: float) -> None:
         """Set the value for a specific tap.
 
         Args:

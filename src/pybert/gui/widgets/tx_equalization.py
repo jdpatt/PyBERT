@@ -1,24 +1,21 @@
 """Transmitter configuration widget for PyBERT GUI.
 
-This widget contains controls for transmitter parameters including IBIS model
-selection and native parameters.
+This widget contains controls for transmitter parameters including IBIS
+model selection and native parameters.
 """
+
+from typing import Optional
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
-    QDoubleSpinBox,
-    QFileDialog,
-    QFormLayout,
     QGroupBox,
     QHBoxLayout,
     QHeaderView,
     QLabel,
     QLineEdit,
-    QPushButton,
     QRadioButton,
-    QSpinBox,
     QStackedLayout,
     QTableWidget,
     QTableWidgetItem,
@@ -26,17 +23,22 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from pybert.models.tx_tap import TxTapTuner
+from pybert.pybert import PyBERT
+from pybert.utility.debug import setattr
+
 
 class TxEqualizationWidget(QGroupBox):
     """Widget for configuring transmitter equalization parameters."""
 
-    def __init__(self, parent=None):
+    def __init__(self, pybert: PyBERT | None = None, parent: Optional[QWidget] = None) -> None:
         """Initialize the transmitter configuration widget.
 
         Args:
             parent: Parent widget
         """
         super().__init__("Equalization", parent)
+        self.pybert = pybert
 
         # Create main layout
         layout = QVBoxLayout()
@@ -59,7 +61,7 @@ class TxEqualizationWidget(QGroupBox):
         self.stacked_layout = QStackedLayout()
 
         # IBIS-AMI group
-        self.ibis_group = QWidget()
+        self.ibis_group = QWidget(self)
         ibis_layout = QVBoxLayout()
         self.ibis_group.setLayout(ibis_layout)
 
@@ -92,21 +94,22 @@ class TxEqualizationWidget(QGroupBox):
         self.stacked_layout.addWidget(self.ibis_group)
 
         # Native parameters group
-        self.native_group = QWidget()
+        self.native_group = QWidget(self)
         native_layout = QVBoxLayout()
         self.native_group.setLayout(native_layout)
 
         self.ffe_table = QTableWidget()
-        self.ffe_table.setColumnCount(3)
-        self.ffe_table.setHorizontalHeaderLabels(["Name", "Enabled", "Value"])
+        headers = ["Name", "Enabled", "Value"]
+        self.ffe_table.setColumnCount(len(headers))
+        self.ffe_table.setHorizontalHeaderLabels(headers)
 
         # Set default number of taps (can be changed later)
-        self.set_taps(["Pre-Tap3", "Pre-Tap2", "Pre-Tap1", "Post-Tap1", "Post-Tap2", "Post-Tap3"])
+        self.set_taps(self.pybert.tx_taps)
 
         # Configure table appearance
         header = self.ffe_table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeToContents)  # Name
-        header.setSectionResizeMode(1, QHeaderView.ResizeToContents)  # Enabled
+        header.setSectionResizeMode(0, QHeaderView.Stretch)  # Name
+        header.setSectionResizeMode(1, QHeaderView.Stretch)  # Enabled
         header.setSectionResizeMode(2, QHeaderView.Stretch)  # Value
 
         self.ffe_table.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -129,44 +132,42 @@ class TxEqualizationWidget(QGroupBox):
         # Set initial visibility
         self._update_mode()
 
-    def _update_mode(self):
+    def connect_signals(self, pybert) -> None:
+        """Connect signals to PyBERT instance."""
+        self.mode_group.buttonReleased.connect(lambda val: setattr(pybert, "tx_eq", "Native" if self.native_radio.isChecked() else "IBIS"))
+        self.ffe_table.itemChanged.connect(lambda item: setattr(pybert, "tx_taps", self.get_tap_values()))
+
+    def _update_mode(self) -> None:
         """Show only the selected group (IBIS or Native) using stacked layout."""
         if self.ibis_radio.isChecked():
             self.stacked_layout.setCurrentWidget(self.ibis_group)
         else:
             self.stacked_layout.setCurrentWidget(self.native_group)
 
-    def set_taps(self, names: list[str]):
+    def set_taps(self, tuners: list[TxTapTuner]) -> None:
         """Set the number of FFE taps.
 
         Args:
-            count: Number of taps to display
+            names: List of tap names to display
         """
-        self.ffe_table.setRowCount(len(names))
-
-        for i, name in enumerate(names):
-            # Name
-            name_item = QTableWidgetItem(name)
+        self.ffe_table.setRowCount(len(tuners))
+        for i, tuner in enumerate(tuners):
+            name_item = QTableWidgetItem(tuner.name)
             name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable)
             self.ffe_table.setItem(i, 0, name_item)
-
-            # Enabled
             enabled_item = QTableWidgetItem()
             enabled_item.setFlags(enabled_item.flags() | Qt.ItemIsUserCheckable)
-            enabled_item.setCheckState(Qt.Checked)
+            enabled_item.setCheckState(Qt.Checked if tuner.enabled else Qt.Unchecked)
             self.ffe_table.setItem(i, 1, enabled_item)
-
-            # Current value - make it editable
-            value_item = QTableWidgetItem("0.0")
+            value_item = QTableWidgetItem(f"{tuner.value:+.3f}")
             self.ffe_table.setItem(i, 2, value_item)
-
         self.ffe_table.resizeRowsToContents()
 
-    def get_tap_values(self):
+    def get_tap_values(self) -> list[tuple[bool, float]]:
         """Get the current tap values.
 
         Returns:
-            list: List of tuples containing (enabled, min, max, step, value) for each tap
+            list: List of tuples containing (enabled, value) for each tap
         """
         values = []
         for i in range(self.ffe_table.rowCount()):
@@ -174,11 +175,11 @@ class TxEqualizationWidget(QGroupBox):
             try:
                 value = float(self.ffe_table.item(i, 2).text())
             except (ValueError, TypeError):
-                value = 0.0  # Default to 0 if invalid input
+                value = 0.0
             values.append((enabled, value))
         return values
 
-    def set_tap_value(self, tap_index, value):
+    def set_tap_value(self, tap_index: int, value: float) -> None:
         """Set the value for a specific tap.
 
         Args:

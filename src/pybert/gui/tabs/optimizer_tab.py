@@ -1,6 +1,7 @@
 """Optimization tab for PyBERT GUI.
 
-This tab contains controls for configuring and tuning transmitter and receiver equalization.
+This tab contains controls for configuring and tuning transmitter and
+receiver equalization.
 """
 
 import pyqtgraph as pg
@@ -12,18 +13,20 @@ from pybert.gui.widgets import (
     RxOptimizationDFEWidget,
     TxOptimizationWidget,
 )
+from pybert.pybert import PyBERT
 
 
 class OptimizerTab(QWidget):
     """Tab for configuring and tuning equalization."""
 
-    def __init__(self, parent=None):
+    def __init__(self, pybert: PyBERT | None = None, parent=None):
         """Initialize the equalization tab.
 
         Args:
             parent: Parent widget
         """
         super().__init__(parent)
+        self.pybert = pybert
 
         # Create main layout
         layout = QVBoxLayout()
@@ -34,14 +37,14 @@ class OptimizerTab(QWidget):
         layout.addWidget(splitter)
 
         # Left side - Controls
-        controls = QWidget()
+        controls = QWidget(self)
         controls_layout = QHBoxLayout()
         controls.setLayout(controls_layout)
 
         # Add Tx and Rx equalization widgets
-        self.tx_optimization = TxOptimizationWidget()
-        self.rx_ctle = RxOptimizationCTLEWidget()
-        self.rx_dfe = RxOptimizationDFEWidget()
+        self.tx_optimization = TxOptimizationWidget(pybert=self.pybert, parent=self)
+        self.rx_ctle = RxOptimizationCTLEWidget(pybert=self.pybert, parent=self)
+        self.rx_dfe = RxOptimizationDFEWidget(pybert=self.pybert, parent=self)
 
         controls_layout.addWidget(self.tx_optimization, stretch=1)
         controls_layout.addWidget(self.rx_ctle, stretch=1)
@@ -51,43 +54,46 @@ class OptimizerTab(QWidget):
 
         # Right side - Plot
         plot_widget = pg.PlotWidget(
-            title="Equalization Results",
+            parent=self,
+            title="Channel + Tx Preemphasis + CTLE (+ AMI DFE) + Ideal DFE",
         )
-        plot_widget.showGrid(x=True, y=True)
-        plot_widget.setLabel("left", "Amplitude")
-        plot_widget.setLabel("bottom", "Time", units="s")
+        plot_widget.showGrid(x=False, y=False)
+        plot_widget.setLabel("left", "Pulse Response", units="V")
+        plot_widget.setLabel("bottom", "Time", units="ns")
 
         # Add legend
         plot_widget.addLegend()
 
         # Create plot curves
-        self.pulse_curve = plot_widget.plot(name="Pulse Response", pen=pg.mkPen("b", width=2))
-        self.eq_curve = plot_widget.plot(name="Equalized Response", pen=pg.mkPen("r", width=2))
-        self.target_curve = plot_widget.plot(name="Target Response", pen=pg.mkPen("g", width=2, style=Qt.DashLine))
+        self.clocks_curve = plot_widget.plot(name="Clocks", pen=pg.mkPen("b", width=2))
+        self.eq_curve = plot_widget.plot(name="Equalized Pulse Response", pen=pg.mkPen("r", width=2))
+        self.pulse_curve = plot_widget.plot(name="Channel Pulse Response", pen=pg.mkPen("b", width=2))
+        self.cursor_curve = plot_widget.plot(name="Main Cursor", pen=pg.mkPen("g", width=2, style=Qt.DashLine))
 
         splitter.addWidget(plot_widget)
 
         # Set initial splitter sizes (40% controls, 60% plot)
         splitter.setSizes([400, 600])
 
-    def update_plot(self, time_points, pulse_data, eq_data, target_data=None):
+    def update_plot(self, result):
         """Update the plot with new data.
 
         Args:
-            time_points: Array of time points
-            pulse_data: Array of pulse response data
-            eq_data: Array of equalized response data
-            target_data: Optional array of target response data
+            result: Result from optimization
         """
-        self.pulse_curve.setData(time_points, pulse_data)
-        self.eq_curve.setData(time_points, eq_data)
+        self.clocks_curve.setData(result.get("t_ns_opt"), result.get("clocks_tune"))
+        self.eq_curve.setData(result.get("t_ns_opt"), result.get("ctle_out_h_tune"))
+        self.cursor_curve.setData(result.get("curs_ix"), result.get("curs_amp"))
+        self.pulse_curve.setData(result.get("t_ns_opt"), result.get("p_chnl"))
 
-        if target_data is not None:
-            self.target_curve.setData(time_points, target_data)
-            self.target_curve.show()
-        else:
-            self.target_curve.hide()
+    def update_channel_response(self, result):
+        """Update the channel response plot."""
+        self.pulse_curve.setData(result.get("t_ns_opt"), result.get("p_chnl"))
 
     def connect_signals(self, pybert):
         """Connect signals to PyBERT instance."""
-        pass
+        self.tx_optimization.connect_signals(pybert)
+        self.rx_ctle.connect_signals(pybert)
+        self.rx_dfe.connect_signals(pybert)
+        pybert.opt_loop_complete.connect(self.update_plot)
+        pybert.opt_complete.connect(self.rx_ctle.set_ctle_boost)

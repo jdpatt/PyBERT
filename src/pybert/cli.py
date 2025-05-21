@@ -1,12 +1,12 @@
 """Main Entry Point for the PyBERT GUI when using the CLI."""
-from pathlib import Path
 import sys
+from pathlib import Path
 
 import click  # type: ignore
+from PySide6.QtWidgets import QApplication
 
 from pybert import __version__
 from pybert.gui.main_window import MainWindow
-from PySide6.QtWidgets import QApplication
 from pybert.pybert import PyBERT
 
 
@@ -43,7 +43,7 @@ def sim(config_file, results):
     """
     pybert = PyBERT()
     pybert.load_configuration(config_file)
-    pybert.simulate(initial_run=True, update_plots=True)
+    pybert.simulate()
     if not results:
         results = Path(config_file).with_suffix(".pybert_data")
     pybert.save_results(results)

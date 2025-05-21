@@ -10,18 +10,42 @@ Copyright (c) 2017 David Banas; all rights reserved World wide.
 TX, RX or co optimization are run in a separate thread to keep the gui responsive.
 """
 
+import logging
 import time
 
-from numpy import arange, argmax, array, convolve, log10, ones, pi, where, zeros  # type: ignore
+from numpy import (  # type: ignore
+    arange,
+    argmax,
+    array,
+    convolve,
+    log10,
+    ones,
+    pi,
+    where,
+    zeros,
+)
 from numpy.fft import irfft  # type: ignore
 from scipy.interpolate import interp1d
 
 from pybert.models.tx_tap import TxTapTuner
 from pybert.threads.stoppable import StoppableThread
-from pybert.utility import make_ctle, calc_resps
+from pybert.utility import calc_resps, make_ctle
+from pybert.utility.logger import StructuredLogger
 
 gDebugOptimize = False
 
+logger = logging.getLogger("pybert.optimization")
+logger.propagate = False  # Prevent passing logs to parent handlers (which may include Qt handlers)
+
+# Remove any existing handlers (if any)
+for handler in logger.handlers[:]:
+    logger.removeHandler(handler)
+
+# Add only a file handler
+file_handler = logging.FileHandler('pybert.log', mode='a')
+file_handler.setLevel(logging.DEBUG)
+file_handler.setFormatter(StructuredLogger())
+logger.addHandler(file_handler)
 
 # pylint: disable=no-member
 class OptThread(StoppableThread):
@@ -32,23 +56,27 @@ class OptThread(StoppableThread):
 
         pybert = self.pybert
 
-        pybert.status = "Optimizing EQ..."
+        logger.info("Optimizing EQ...")
         time.sleep(0.001)
 
         try:
             tx_weights, rx_peaking, fom, valid = coopt(pybert)
         except RuntimeError:
-            pybert.status = "User abort."
+            logger.warning("User abort.")
+            pybert.result_queue.put({
+                "type": "optimization",
+                "valid": False
+            })
             return
 
-        if not valid:
-            pybert.status = "Failed."
-            return
-        for k, tx_weight in enumerate(tx_weights):
-            pybert.tx_tap_tuners[k].value = tx_weight
-        pybert.peak_mag_tune = rx_peaking
-        pybert.status = f"Finished. (SNR: {20 * log10(fom):5.1f} dB)"
-
+        # Put result in the queue for the main thread to handle
+        pybert.result_queue.put({
+            "type": "optimization",
+            "tx_weights": tx_weights,
+            "rx_peaking": rx_peaking,
+            "fom": fom,
+            "valid": valid
+        })
 
 def mk_tx_weights(weightss: list[list[float]], enumerated_tuners: list[tuple[int, TxTapTuner]]) -> list[list[float]]:
     """
@@ -115,7 +143,7 @@ def coopt(pybert) -> tuple[list[float], float, float, bool]:  # pylint: disable=
     nspui = pybert.nspui
     f = pybert.f
     _, p_chnl, _ = calc_resps(t, h_chnl, ui, f)
-    pybert.plotdata.set_data("p_chnl", p_chnl)
+
 
     # Calculate Tx tap weight candidates.
     n_weights = len(tx_taps)
@@ -132,7 +160,7 @@ def coopt(pybert) -> tuple[list[float], float, float, bool]:  # pylint: disable=
 
     # Calculate and report the total number of trials, as well as some other misc. info.
     n_trials = len(peak_mags) * len(tx_weightss)
-    pybert.log("\n".join([
+    logger.debug("\n".join([
         "Optimizing linear EQ...",
         f"\tTime step: {t[1] * 1e12:5.1f} ps",
         f"\tUnit interval: {ui * 1e12:5.1f} ps",
@@ -182,20 +210,25 @@ def coopt(pybert) -> tuple[list[float], float, float, bool]:  # pylint: disable=
                 clocks = 1.1 * curs_amp * ones(len(p_tot))
                 for ix in range(curs_ix - n_pre_isi * nspui, len(clocks), nspui):
                     clocks[ix] = 0
-                pybert.plotdata.set_data("clocks_tune", clocks)
-                pybert.plotdata.set_data("ctle_out_h_tune", p_tot)
-                pybert.plotdata.set_data("t_ns_opt", pybert.t_ns[:len(p_tot)])
-                pybert.plotdata.set_data("curs_amp", [0, curs_amp])
                 curs_time = pybert.t_ns[curs_ix]
-                pybert.plotdata.set_data("curs_ix", [curs_time, curs_time])
+                t_ns_opt = pybert.t_ns[:len(p_tot)]
+                pybert.result_queue.put({
+                    "type": "opt_loop_complete",
+                    "clocks_tune": clocks,
+                    "ctle_out_h_tune": p_tot,
+                    "t_ns_opt": t_ns_opt,
+                    "curs_amp": [0, curs_amp],
+                    "curs_ix": [curs_time, curs_time],
+                    "p_chnl": p_chnl,
+                })
                 fom_max = fom
                 time.sleep(0.001)
             trials_run += 1
             if not trials_run % 100:
-                pybert.status = f"Optimizing EQ...({100 * trials_run // n_trials}%)"
+                logger.info("Optimizing EQ...(%d%%)", 100 * trials_run // n_trials)
                 time.sleep(0.001)
                 if pybert.opt_thread.stopped():
-                    pybert.status = "Optimization aborted by user."
+                    logger.warning("Optimization aborted by user.")
                     raise RuntimeError("Optimization aborted by user.")
 
     for k, dfe_weight in enumerate(dfe_weights_best):  # pylint: disable=possibly-used-before-assignment

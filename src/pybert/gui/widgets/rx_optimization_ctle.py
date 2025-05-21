@@ -1,34 +1,37 @@
 """Receiver equalization widget for PyBERT GUI.
 
-This widget contains controls for receiver equalization including CTLE and DFE.
+This widget contains controls for receiver equalization including CTLE
+and DFE.
 """
 
-from PySide6.QtCore import Qt
+from typing import Optional
+
 from PySide6.QtWidgets import (
     QCheckBox,
     QDoubleSpinBox,
     QGroupBox,
     QHBoxLayout,
-    QHeaderView,
     QLabel,
-    QPushButton,
-    QTableWidget,
-    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
+
+from pybert.pybert import PyBERT
+from pybert.utility.debug import setattr
 
 
 class RxOptimizationCTLEWidget(QGroupBox):
     """Widget for configuring receiver equalization."""
 
-    def __init__(self, parent=None):
+    def __init__(self, pybert: PyBERT | None = None, parent: Optional[QWidget] = None) -> None:
         """Initialize the receiver equalization widget.
 
         Args:
             parent: Parent widget
         """
         super().__init__("Rx CTLE", parent)
+        self.pybert = pybert
+
 
         # Create main layout
         layout = QVBoxLayout()
@@ -36,6 +39,7 @@ class RxOptimizationCTLEWidget(QGroupBox):
 
         # CTLE enable
         self.ctle_enable = QCheckBox("Enable")
+        self.ctle_enable.setChecked(True)
         layout.addWidget(self.ctle_enable)
 
         # CTLE configuration
@@ -102,7 +106,7 @@ class RxOptimizationCTLEWidget(QGroupBox):
         result_group.setLayout(result_layout)
 
         result_layout.addWidget(QLabel("Boost:"))
-        self.boost_result = QLabel("0.0 dB")
+        self.boost_result = QLabel("1.7 dB")
         self.boost_result.setStyleSheet("font-weight: bold;")
         result_layout.addWidget(self.boost_result)
         result_layout.addStretch()
@@ -114,7 +118,16 @@ class RxOptimizationCTLEWidget(QGroupBox):
         # Connect signals
         self.ctle_enable.toggled.connect(self._toggle_ctle)
 
-    def _toggle_ctle(self, enabled):
+    def connect_signals(self, pybert) -> None:
+        """Connect signals to PyBERT instance."""
+        self.ctle_enable.toggled.connect(lambda val: setattr(pybert, "ctle_enable_tune", val))
+        self.peak_freq.valueChanged.connect(lambda val: setattr(pybert, "peak_freq_tune", val))
+        self.rx_bw.valueChanged.connect(lambda val: setattr(pybert, "rx_bw_tune", val))
+        self.min_boost.valueChanged.connect(lambda val: setattr(pybert, "min_mag_tune", val))
+        self.max_boost.valueChanged.connect(lambda val: setattr(pybert, "max_mag_tune", val))
+        self.step_boost.valueChanged.connect(lambda val: setattr(pybert, "step_boost", val))
+
+    def _toggle_ctle(self, enabled: bool) -> None:
         """Enable/disable CTLE controls based on checkbox state."""
         self.peak_freq.setEnabled(enabled)
         self.rx_bw.setEnabled(enabled)
@@ -122,7 +135,7 @@ class RxOptimizationCTLEWidget(QGroupBox):
         self.max_boost.setEnabled(enabled)
         self.step_boost.setEnabled(enabled)
 
-    def get_ctle_settings(self):
+    def get_ctle_settings(self) -> tuple[bool, float, float, float, float, float, str]:
         """Get the current CTLE settings.
 
         Returns:
@@ -138,10 +151,10 @@ class RxOptimizationCTLEWidget(QGroupBox):
             self.boost_result.value(),
         )
 
-    def set_ctle_boost(self, value):
+    def set_ctle_boost(self, value: str) -> None:
         """Set the current CTLE boost value.
 
         Args:
             value: New boost value in dB
         """
-        self.boost_result.setValue(value)
+        self.boost_result.setText(f"{value:.1f} dB")

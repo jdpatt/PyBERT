@@ -1,14 +1,14 @@
 """Debug console widget for PyBERT application.
 
-This module implements a debug console widget that displays log messages.
+This module implements a debug console widget that displays log
+messages.
 """
 
 import logging
 
-from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QDockWidget, QTextEdit
 
-from pybert.utility.logger import QTextEditHandler
+from pybert.utility.logger import QTextEditHandler, log_user_system_information
 
 
 class DebugConsoleWidget(QDockWidget):
@@ -38,6 +38,7 @@ class DebugConsoleWidget(QDockWidget):
 
         # Show initial message
         logger.debug("Debug console initialized")
+        log_user_system_information(logger)
 
     def append_message(self, msg: str):
         """Append a message to the console.
