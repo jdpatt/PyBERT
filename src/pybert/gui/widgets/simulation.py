@@ -4,6 +4,7 @@ This widget contains controls for simulation parameters like bit rate,
 samples per unit interval, modulation type, etc.
 """
 
+import logging
 from typing import Optional
 
 from PySide6.QtWidgets import (
@@ -17,20 +18,23 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from pybert.gui.dialogs import warning
 from pybert.models.stimulus import BitPattern, ModulationType
+from pybert.pybert import PyBERT
 from pybert.utility.debug import setattr
 
-
+logger = logging.getLogger("pybert")
 class SimulationControlWidget(QGroupBox):
     """Widget for controlling simulation parameters."""
 
-    def __init__(self, parent: Optional[QWidget] = None) -> None:
+    def __init__(self, pybert: PyBERT | None = None, parent: Optional[QWidget] = None) -> None:
         """Initialize the simulation control widget.
 
         Args:
             parent: Parent widget
         """
         super().__init__("Stimulus", parent)
+        self.pybert = pybert
 
         # Create main layout
         layout = QVBoxLayout()
@@ -170,10 +174,10 @@ class SimulationControlWidget(QGroupBox):
         self.bit_rate.valueChanged.connect(lambda val: setattr(pybert, "bit_rate", val))
         self.nspui.valueChanged.connect(lambda val: setattr(pybert, "nspui", val))
         self.modulation.currentIndexChanged.connect(lambda idx: self.update_modulation(pybert, idx))
-        self.pattern.currentTextChanged.connect(lambda text: setattr(pybert, "pattern", BitPattern[text]))
         self.seed.valueChanged.connect(lambda val: setattr(pybert, "seed", val))
-        self.nbits.valueChanged.connect(lambda val: setattr(pybert, "nbits", val))
-        self.eye_bits.valueChanged.connect(lambda val: setattr(pybert, "eye_bits", val))
+        self.pattern.currentTextChanged.connect(self.update_pattern)
+        self.nbits.valueChanged.connect(self.update_nbits)
+        self.eye_bits.valueChanged.connect(self.update_eye_bits)
         self.vod.valueChanged.connect(lambda val: setattr(pybert, "vod", val))
         self.rn.valueChanged.connect(lambda val: setattr(pybert, "rn", val))
         self.pn_mag.valueChanged.connect(lambda val: setattr(pybert, "pn_mag", val))
@@ -187,3 +191,34 @@ class SimulationControlWidget(QGroupBox):
             setattr(pybert, "mod_type", ModulationType.DUO)
         elif idx == 2:
             setattr(pybert, "mod_type", ModulationType.PAM4)
+
+    def update_nbits(self, nbits: int) -> None:
+        self.validate_eye_bits(self.eye_bits.value(), nbits)
+        setattr(self.pybert, "nbits", nbits)
+
+    def update_eye_bits(self, eye_bits: int) -> None:
+        self.validate_eye_bits(eye_bits, self.nbits.value())
+        self.validate_pattern_length(BitPattern[self.pattern.currentText()], eye_bits)
+        setattr(self.pybert, "eye_bits", eye_bits)
+
+    def update_pattern(self, text: str) -> None:
+        """Update the pattern type."""
+        new_pattern = BitPattern[text]
+        self.validate_pattern_length(new_pattern, self.eye_bits.value())
+        setattr(self.pybert, "pattern", new_pattern)
+
+    def validate_eye_bits(self, eye_bits: int, nbits: int) -> None:
+        """Validate user selected number of eye bits."""
+        if eye_bits > nbits:
+            logger.warning("`EyeBits` has been held at `Nbits`.")
+            self.eye_bits.setValue(nbits)
+
+    def validate_pattern_length(self, pattern: BitPattern, eye_bits: int) -> None:
+        """Validate chosen pattern length against number of bits being run."""
+        pat_len = 2 * pow(2, max(pattern.value))  # "2 *", to accommodate PAM-4.
+        if eye_bits < 5 * pat_len:
+            warning("Configuration Warning",
+                "\n".join([
+                "Accurate jitter decomposition may not be possible with the current configuration!",
+                "Try to keep `EyeBits` > 10 * 2^n, where `n` comes from `PRBS-n`.",]),
+            )

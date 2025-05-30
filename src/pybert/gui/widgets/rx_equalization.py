@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from pybert.gui.dialogs.dialogs import select_file
+from pybert.gui.dialogs import select_file
 from pybert.utility.debug import setattr
 
 

@@ -42,7 +42,7 @@ from scipy.interpolate import interp1d
 
 from pybert import __version__ as VERSION
 from pybert.configuration import InvalidFileType, PyBertCfg
-from pybert.gui.dialogs.dialogs import warning
+from pybert.gui.dialogs import warning
 from pybert.models.bert import my_run_simulation
 from pybert.models.stimulus import BitPattern, ModulationType
 from pybert.models.tx_tap import TxTapTuner
@@ -614,31 +614,8 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
         if new_value:
             self._btn_disable_fired()
 
-    def check_pat_len(self):
-        "Validate chosen pattern length against number of bits being run."
-        taps = self.pattern.value
-        pat_len = 2 * pow(2, max(taps))  # "2 *", to accommodate PAM-4.
-        if self.eye_bits < 5 * pat_len:
-            logger.warning("\n".join([
-                "Accurate jitter decomposition may not be possible with the current configuration!",
-                "Try to keep `EyeBits` > 10 * 2^n, where `n` comes from `PRBS-n`.",]),
-            )
 
-    def check_eye_bits(self):
-        "Validate user selected number of eye bits."
-        if self.eye_bits > self.nbits:
-            self.eye_bits = self.nbits
-            logger.warning("`EyeBits` has been held at `Nbits`.")
 
-    def _pattern_changed(self):
-        self.check_pat_len()
-
-    def _nbits_changed(self):
-        self.check_eye_bits()
-
-    def _eye_bits_changed(self):
-        self.check_eye_bits()
-        self.check_pat_len()
 
     def _f_max_changed(self, new_value):
         fmax = 0.5e-9 / self.t[1]  # Nyquist frequency, given our sampling rate (GHz).
