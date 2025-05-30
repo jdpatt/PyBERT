@@ -48,6 +48,7 @@ from pybert.models.stimulus import BitPattern, ModulationType
 from pybert.models.tx_tap import TxTapTuner
 from pybert.results import PyBertData
 from pybert.threads.optimization import OptThread
+from pybert.threads.sim import SimulationThread
 from pybert.utility import (
     calc_gamma,
     import_channel,
@@ -59,7 +60,6 @@ from pybert.utility import (
 )
 from pybert.utility.logger import log_user_system_information, setup_logger
 
-gDebugStatus = False
 gUseDfe      = True     # Include DFE when running simulation.
 gMaxCTLEPeak =    20.0  # max. allowed CTLE peaking (dB) (when optimizing, only)
 gPeakFreq    =     5.0  # CTLE peaking frequency (GHz)
@@ -79,6 +79,7 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
     sim_complete = Signal(object, object)
     opt_complete = Signal(object)
     opt_loop_complete = Signal(object)
+    status_update = Signal(str)
 
     def __init__(self, run_simulation=True):
         """Initialize the PyBERT class.
@@ -241,23 +242,8 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
         self.cfg_file = ""  #: PyBERT configuration data storage file (File).
         self.data_file = ""  #: PyBERT results data storage file (File).
 
-        # Plots (plot containers, actually)
-        self.plotdata = {}
-        self.plots_h = []
-        self.plots_s = []
-        self.plots_p = []
-        self.plots_H = []
-        self.plots_dfe = []
-        self.plots_eye = []
-        self.plots_jitter_dist = []
-        self.plots_jitter_spec = []
-        self.plots_bathtub = []
 
         # Status
-        self.status = "Ready."  #: PyBERT status (String).
-        self.jitter_perf = 0.0
-        self.total_perf = 0.0
-        self.sweep_results = []
         self.len_h = 0
         self.chnl_dly = 0.0  #: Estimated channel delay (s).
         self.bit_errs = 0  #: # of bit errors observed in last run.
@@ -297,6 +283,8 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
         self.rj_dfe = 0
         self.pjDD_dfe = 0
         self.rjDD_dfe = 0
+
+        self.simulation_thread = None
 
         self.result_queue = queue.Queue()
         self.result_timer = QTimer()
@@ -497,304 +485,6 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
 
         return taps
 
-    # pylint: disable=too-many-locals,consider-using-f-string,too-many-branches,too-many-statements
-    # @property
-    def jitter_info(self):
-        isi_chnl = self.isi_chnl * 1.0e12
-        dcd_chnl = self.dcd_chnl * 1.0e12
-        pj_chnl = self.pj_chnl * 1.0e12
-        rj_chnl = self.rj_chnl * 1.0e12
-        isi_tx = self.isi_tx * 1.0e12
-        dcd_tx = self.dcd_tx * 1.0e12
-        pj_tx = self.pj_tx * 1.0e12
-        rj_tx = self.rj_tx * 1.0e12
-        isi_ctle = self.isi_ctle * 1.0e12
-        dcd_ctle = self.dcd_ctle * 1.0e12
-        pj_ctle = self.pj_ctle * 1.0e12
-        rj_ctle = self.rj_ctle * 1.0e12
-        isi_dfe = self.isi_dfe * 1.0e12
-        dcd_dfe = self.dcd_dfe * 1.0e12
-        pj_dfe = self.pj_dfe * 1.0e12
-        rj_dfe = self.rj_dfe * 1.0e12
-
-        isi_rej_tx = 1.0e20
-        dcd_rej_tx = 1.0e20
-        isi_rej_ctle = 1.0e20
-        dcd_rej_ctle = 1.0e20
-        pj_rej_ctle = 1.0e20
-        rj_rej_ctle = 1.0e20
-        isi_rej_dfe = 1.0e20
-        dcd_rej_dfe = 1.0e20
-        pj_rej_dfe = 1.0e20
-        rj_rej_dfe = 1.0e20
-        isi_rej_total = 1.0e20
-        dcd_rej_total = 1.0e20
-        pj_rej_total = 1.0e20
-        rj_rej_total = 1.0e20
-
-        if isi_tx:
-            isi_rej_tx = isi_chnl / isi_tx
-        if dcd_tx:
-            dcd_rej_tx = dcd_chnl / dcd_tx
-        if isi_ctle:
-            isi_rej_ctle = isi_tx / isi_ctle
-        if dcd_ctle:
-            dcd_rej_ctle = dcd_tx / dcd_ctle
-        if pj_ctle:
-            pj_rej_ctle = pj_tx / pj_ctle
-        if rj_ctle:
-            rj_rej_ctle = rj_tx / rj_ctle
-        if isi_dfe:
-            isi_rej_dfe = isi_ctle / isi_dfe
-        if dcd_dfe:
-            dcd_rej_dfe = dcd_ctle / dcd_dfe
-        if pj_dfe:
-            pj_rej_dfe = pj_ctle / pj_dfe
-        if rj_dfe:
-            rj_rej_dfe = rj_ctle / rj_dfe
-        if isi_dfe:
-            isi_rej_total = isi_chnl / isi_dfe
-        if dcd_dfe:
-            dcd_rej_total = dcd_chnl / dcd_dfe
-        if pj_dfe:
-            pj_rej_total = pj_tx / pj_dfe
-        if rj_dfe:
-            rj_rej_total = rj_tx / rj_dfe
-
-        # Temporary, until I figure out DPI independence.
-        info_str = "<style>\n"
-        info_str += " table td {font-size: 12em;}\n"
-        info_str += " table th {font-size: 14em;}\n"
-        info_str += "</style>\n"
-        # End Temp.
-
-        info_str = "<H1>Jitter Rejection by Equalization Component</H1>\n"
-
-        info_str += "<H2>Tx Preemphasis</H2>\n"
-        info_str += '<TABLE border="1">\n'
-        info_str += '<TR align="center">\n'
-        info_str += "<TH>Jitter Component</TH><TH>Input (ps)</TH><TH>Output (ps)</TH><TH>Rejection (dB)</TH>\n"
-        info_str += "</TR>\n"
-        info_str += '<TR align="right">\n'
-        info_str += '<TD align="center">ISI</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n' % (
-            isi_chnl,
-            isi_tx,
-            10.0 * safe_log10(isi_rej_tx),
-        )
-        info_str += "</TR>\n"
-        info_str += '<TR align="right">\n'
-        info_str += f'<TD align="center">DCD</TD><TD>{dcd_chnl:6.3f}</TD><TD>{dcd_tx:6.3f}</TD><TD>{10.0 * safe_log10(dcd_rej_tx):4.1f}</TD>\n'
-        info_str += "</TR>\n"
-        info_str += '<TR align="right">\n'
-        info_str += '<TD align="center">Pj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>n/a</TD>\n' % (
-            pj_chnl,
-            pj_tx,
-        )
-        info_str += "</TR>\n"
-        info_str += '<TR align="right">\n'
-        info_str += '<TD align="center">Rj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>n/a</TD>\n' % (
-            rj_chnl,
-            rj_tx,
-        )
-        info_str += "</TR>\n"
-        info_str += "</TABLE>\n"
-
-        info_str += "<H2>CTLE (+ AMI DFE)</H2>\n"
-        info_str += '<TABLE border="1">\n'
-        info_str += '<TR align="center">\n'
-        info_str += "<TH>Jitter Component</TH><TH>Input (ps)</TH><TH>Output (ps)</TH><TH>Rejection (dB)</TH>\n"
-        info_str += "</TR>\n"
-        info_str += '<TR align="right">\n'
-        info_str += '<TD align="center">ISI</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n' % (
-            isi_tx,
-            isi_ctle,
-            10.0 * safe_log10(isi_rej_ctle),
-        )
-        info_str += "</TR>\n"
-        info_str += '<TR align="right">\n'
-        info_str += '<TD align="center">DCD</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n' % (
-            dcd_tx,
-            dcd_ctle,
-            10.0 * safe_log10(dcd_rej_ctle),
-        )
-        info_str += "</TR>\n"
-        info_str += '<TR align="right">\n'
-        info_str += '<TD align="center">Pj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n' % (
-            pj_tx,
-            pj_ctle,
-            10.0 * safe_log10(pj_rej_ctle),
-        )
-        info_str += "</TR>\n"
-        info_str += '<TR align="right">\n'
-        info_str += '<TD align="center">Rj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n' % (
-            rj_tx,
-            rj_ctle,
-            10.0 * safe_log10(rj_rej_ctle),
-        )
-        info_str += "</TR>\n"
-        info_str += "</TABLE>\n"
-
-        info_str += "<H2>DFE</H2>\n"
-        info_str += '<TABLE border="1">\n'
-        info_str += '<TR align="center">\n'
-        info_str += "<TH>Jitter Component</TH><TH>Input (ps)</TH><TH>Output (ps)</TH><TH>Rejection (dB)</TH>\n"
-        info_str += "</TR>\n"
-        info_str += '<TR align="right">\n'
-        info_str += '<TD align="center">ISI</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n' % (
-            isi_ctle,
-            isi_dfe,
-            10.0 * safe_log10(isi_rej_dfe),
-        )
-        info_str += "</TR>\n"
-        info_str += '<TR align="right">\n'
-        info_str += '<TD align="center">DCD</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n' % (
-            dcd_ctle,
-            dcd_dfe,
-            10.0 * safe_log10(dcd_rej_dfe),
-        )
-        info_str += "</TR>\n"
-        info_str += '<TR align="right">\n'
-        info_str += '<TD align="center">Pj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n' % (
-            pj_ctle,
-            pj_dfe,
-            10.0 * safe_log10(pj_rej_dfe),
-        )
-        info_str += "</TR>\n"
-        info_str += '<TR align="right">\n'
-        info_str += '<TD align="center">Rj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n' % (
-            rj_ctle,
-            rj_dfe,
-            10.0 * safe_log10(rj_rej_dfe),
-        )
-        info_str += "</TR>\n"
-        info_str += "</TABLE>\n"
-
-        info_str += "<H2>TOTAL</H2>\n"
-        info_str += '<TABLE border="1">\n'
-        info_str += '<TR align="center">\n'
-        info_str += "<TH>Jitter Component</TH><TH>Input (ps)</TH><TH>Output (ps)</TH><TH>Rejection (dB)</TH>\n"
-        info_str += "</TR>\n"
-        info_str += '<TR align="right">\n'
-        info_str += '<TD align="center">ISI</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n' % (
-            isi_chnl,
-            isi_dfe,
-            10.0 * safe_log10(isi_rej_total),
-        )
-        info_str += "</TR>\n"
-        info_str += '<TR align="right">\n'
-        info_str += '<TD align="center">DCD</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n' % (
-            dcd_chnl,
-            dcd_dfe,
-            10.0 * safe_log10(dcd_rej_total),
-        )
-        info_str += "</TR>\n"
-        info_str += '<TR align="right">\n'
-        info_str += '<TD align="center">Pj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n' % (
-            pj_tx,
-            pj_dfe,
-            10.0 * safe_log10(pj_rej_total),
-        )
-        info_str += "</TR>\n"
-        info_str += '<TR align="right">\n'
-        info_str += '<TD align="center">Rj</TD><TD>%6.3f</TD><TD>%6.3f</TD><TD>%4.1f</TD>\n' % (
-            rj_tx,
-            rj_dfe,
-            10.0 * safe_log10(rj_rej_total),
-        )
-        info_str += "</TR>\n"
-        info_str += "</TABLE>\n"
-
-        return info_str
-
-    @property
-    def perf_info(self):
-        info_str = "<H2>Performance by Component</H2>\n"
-        info_str += '  <TABLE border="1">\n'
-        info_str += '    <TR align="center">\n'
-        info_str += "      <TH>Component</TH><TH>Performance (Msmpls./min.)</TH>\n"
-        info_str += "    </TR>\n"
-        info_str += '    <TR align="right">\n'
-        info_str += f'      <TD align="center">Channel</TD><TD>{self.channel_perf * 6e-05:6.3f}</TD>\n'
-        info_str += "    </TR>\n"
-        info_str += '    <TR align="right">\n'
-        info_str += f'      <TD align="center">Tx Preemphasis</TD><TD>{self.tx_perf * 6e-05:6.3f}</TD>\n'
-        info_str += "    </TR>\n"
-        info_str += '    <TR align="right">\n'
-        info_str += f'      <TD align="center">CTLE</TD><TD>{self.ctle_perf * 6e-05:6.3f}</TD>\n'
-        info_str += "    </TR>\n"
-        info_str += '    <TR align="right">\n'
-        info_str += f'      <TD align="center">DFE</TD><TD>{self.dfe_perf * 6e-05:6.3f}</TD>\n'
-        info_str += "    </TR>\n"
-        info_str += '    <TR align="right">\n'
-        info_str += f'      <TD align="center">Jitter Analysis</TD><TD>{self.jitter_perf * 6e-05:6.3f}</TD>\n'
-        info_str += "    </TR>\n"
-        info_str += '    <TR align="right">\n'
-        info_str += f'      <TD align="center"><strong>TOTAL</strong></TD><TD><strong>{self.total_perf * 60.0e-6:6.3f}</strong></TD>\n'
-        info_str += "    </TR>\n"
-        info_str += '    <TR align="right">\n'
-        info_str += f'      <TD align="center">Plotting</TD><TD>{self.plotting_perf * 6e-05:6.3f}</TD>\n'
-        info_str += "    </TR>\n"
-        info_str += "  </TABLE>\n"
-
-        return info_str
-
-    # @property
-    def sweep_info(self):
-        sweep_results = self.sweep_results
-
-        info_str = "<H2>Sweep Results</H2>\n"
-        info_str += '  <TABLE border="1">\n'
-        info_str += '    <TR align="center">\n'
-        info_str += "      <TH>Pretap</TH><TH>Posttap</TH><TH>Mean(bit errors)</TH><TH>StdDev(bit errors)</TH>\n"
-        info_str += "    </TR>\n"
-
-        for item in sweep_results:
-            info_str += '    <TR align="center">\n'
-            info_str += str(item)
-            info_str += "    </TR>\n"
-
-        info_str += "  </TABLE>\n"
-
-        return info_str
-
-    # @property
-    def status_str(self):
-        status_str = f"{self.status:20s} | Perf. (Msmpls./min.): {self.total_perf * 60.0e-6:4.1f}"
-        dly_str = f"    | ChnlDly (ns): {self.chnl_dly * 1000000000.0:5.3f}"
-        err_str = f"    | BitErrs: {int(self.bit_errs)}"
-        pwr_str = f"    | TxPwr (mW): {self.rel_power * 1e3:3.0f}"
-        status_str += dly_str + err_str + pwr_str
-        jit_str = "    | Jitter (ps):  ISI=%6.1f  DCD=%6.1f  Pj=%6.1f (%6.1f)  Rj=%6.1f (%6.1f)" % (
-            self.isi_dfe * 1.0e12,
-            self.dcd_dfe * 1.0e12,
-            self.pj_dfe * 1.0e12,
-            self.pjDD_dfe * 1.0e12,
-            self.rj_dfe * 1.0e12,
-            self.rjDD_dfe * 1.0e12,
-        )
-        status_str += jit_str
-
-        return status_str
-
-    # Changed property handlers.
-    def _status_str_changed(self):
-        if gDebugStatus:
-            print(self.status_str, flush=True)
-
-    def _use_dfe_changed(self, new_value):
-        if not new_value:
-            for i in range(1, 4):
-                self.tx_taps[i].enabled = True
-        else:
-            for i in range(1, 4):
-                self.tx_taps[i].enabled = False
-
-    def _dfe_tap_tuners_changed(self, new_value):
-        limits = []
-        for tuner in new_value:
-            limits.append((tuner.min_val, tuner.max_val))
-        self.dfe.limits = limits
-        print(f"limits: {limits}", flush=True)
 
     def _tx_ibis_file_changed(self, new_value):
         self.status = f"Parsing IBIS file: {new_value}"
@@ -1127,12 +817,7 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
 
         return chnl_h
 
-    def simulate(self):
-        """Run all queued simulations."""
-        # TODO: This should be run in a separate thread or process to avoid blocking the GUI.
-        results, perf = my_run_simulation(self, initial_run=False, update_plots=False)
-        self.sim_complete.emit(results, perf)
-        return results
+
 
     def load_configuration(self, filepath: Path):
         """Load in a configuration into pybert.
@@ -1193,8 +878,18 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
             logger.error("Failed to save results to file. See the console for more detail.")
             logger.exception(str(err))
 
-    def start_optimization(self):
-        """Start the optimization."""
+    def simulate(self):
+        """Start a simulation of the current configuration in a separate thread."""
+        # TODO: This should be run in a separate thread or process to avoid blocking the GUI.
+        results, perf = my_run_simulation(self, initial_run=False, update_plots=False)
+        self.sim_complete.emit(results, perf)
+        return results
+
+    def optimize(self):
+        """Start the optimization process using the tuner values.
+
+        If the user accidently sets a large number of trials, prompt them to confirm before proceeding.
+        """
         logger.info("Starting optimization.")
         if self.opt_thread and self.opt_thread.is_alive():
             pass
@@ -1218,7 +913,7 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
             self.opt_thread.join(10)
 
     def reset_optimization(self):
-        """Reset the optimization."""
+        """Reset the optimization back to what the current configuration is."""
         logger.info("Resetting optimization.")
         for i, tap in enumerate(self.tx_taps):
             self.tx_tap_tuners[i].value   = tap.value
@@ -1229,7 +924,7 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
         self.ctle_enable_tune = self.ctle_enable
 
     def apply_optimization(self):
-        """Apply the optimization."""
+        """Apply the optimization to the current configuration."""
         logger.info("Applying optimization.")
         for i, tap in enumerate(self.tx_tap_tuners):
             self.tx_taps[i].value   = tap.value
@@ -1240,7 +935,7 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
         self.ctle_enable = self.ctle_enable_tune
 
     def poll_results(self):
-        """The Qt timer calls this function every 100ms to check if there are any results from optimization or simulation in the queue."""
+        """The Qt timer calls this function every 100ms to check if there are any results in the queue."""
         try:
             while True:
                 result = self.result_queue.get_nowait()
@@ -1249,7 +944,16 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
             pass
 
     def handle_result(self, result):
-        """Handle the results from optimization or simulation."""
+        """Handle the results from from the thread message queue.
+
+        The QT framework expects that all signal/slots that update the GUI are called from the main thread. This function
+        allows us to communicate between the threads without breaking this requirement.  Otherwise, the GUI would freeze
+        and error out with a QTimer timing out from trying to keep the main thread updated.
+
+        Args:
+            result: The result from the thread message queue.
+        """
+        # The optimizer will put the end results in the queue if complete and valid.
         if result.get("type") == "optimization":
             if result.get("valid"):
                 tx_weights = result.get("tx_weights", [])
@@ -1262,7 +966,15 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
                 logger.info("Optimization complete. (SNR: %5.1f dB)", 20 * np.log10(fom))
             else:
                 logger.error("Optimization failed.")
+        # This is used to update the plots during the optimization loop.
         elif result.get("type") == "opt_loop_complete":
             self.opt_loop_complete.emit(result)
-        # elif result.get("type") == "simulation":
-        #     ... handle simulation results ...
+        # This is used to log messages to the filehandler, debug console and status bar.
+        elif result.get("type") == "message":
+            logger.log(result.get("level"), result.get("message"))
+        # This is used to update only the status bar this is for something that has a progress or a lot of updates
+        elif result.get("type") == "status_update":
+            self.status_update.emit(result.get("message"))
+        # This is used to update the plots and the results after a simulation is complete.
+        elif result.get("type") == "simulation_complete":
+            self.sim_complete.emit(result)

@@ -49,7 +49,7 @@ class MainWindow(QMainWindow):
         super().__init__(parent)
         self.pybert: PyBERT = pybert
 
-        self.setWindowTitle("PyBERT")
+        self.setWindowTitle(f"PyBERT v{__version__}")
         self.resize(1920, 1080)
 
         # Set window icon
@@ -100,6 +100,7 @@ class MainWindow(QMainWindow):
         self.optimizer_tab.connect_signals(self.pybert)
         self.results_tab.connect_signals(self.pybert)
         self.pybert.sim_complete.connect(self.update_status_bar)
+        self.pybert.status_update.connect(lambda msg: self.status_bar.showMessage(msg))
 
     def create_status_bar(self):
         """Create and setup the status bar with permanent widgets."""
@@ -317,7 +318,7 @@ class MainWindow(QMainWindow):
 
     def start_optimization(self):
         """Start the optimization."""
-        self.pybert.start_optimization()
+        self.pybert.optimize()
 
     def stop_optimization(self):
         """Stop the running optimization."""

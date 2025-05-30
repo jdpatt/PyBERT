@@ -34,18 +34,9 @@ from pybert.utility.logger import StructuredLogger
 
 gDebugOptimize = False
 
-logger = logging.getLogger("pybert.optimization")
-logger.propagate = False  # Prevent passing logs to parent handlers (which may include Qt handlers)
-
-# Remove any existing handlers (if any)
-for handler in logger.handlers[:]:
-    logger.removeHandler(handler)
-
-# Add only a file handler
-file_handler = logging.FileHandler('pybert.log', mode='a')
-file_handler.setLevel(logging.DEBUG)
-file_handler.setFormatter(StructuredLogger())
-logger.addHandler(file_handler)
+class OptimizationAborted(Exception):
+    """Exception raised when the optimization is aborted by the user."""
+    pass
 
 # pylint: disable=no-member
 class OptThread(StoppableThread):
@@ -56,17 +47,16 @@ class OptThread(StoppableThread):
 
         pybert = self.pybert
 
-        logger.info("Optimizing EQ...")
+        pybert.result_queue.put({
+                "type": "message",
+                "level": logging.INFO,
+                "message": "Optimizing EQ..."
+            })
         time.sleep(0.001)
 
         try:
             tx_weights, rx_peaking, fom, valid = coopt(pybert)
-        except RuntimeError:
-            logger.warning("User abort.")
-            pybert.result_queue.put({
-                "type": "optimization",
-                "valid": False
-            })
+        except OptimizationAborted:
             return
 
         # Put result in the queue for the main thread to handle
@@ -160,15 +150,19 @@ def coopt(pybert) -> tuple[list[float], float, float, bool]:  # pylint: disable=
 
     # Calculate and report the total number of trials, as well as some other misc. info.
     n_trials = len(peak_mags) * len(tx_weightss)
-    logger.debug("\n".join([
-        "Optimizing linear EQ...",
-        f"\tTime step: {t[1] * 1e12:5.1f} ps",
-        f"\tUnit interval: {ui * 1e12:5.1f} ps",
-        f"\tOversampling factor: {nspui}",
-        f"\tNumber of Tx taps: {n_weights}",
-        f"\tTx cursor tap position: {tx_curs_pos}",
-        f"\tRunning {n_trials} trials.",
-        ""]))
+    pybert.result_queue.put({
+        "type": "message",
+        "level": logging.DEBUG,
+        "message": "\n".join([
+            "Optimizing linear EQ...",
+            f"\tTime step: {t[1] * 1e12:5.1f} ps",
+            f"\tUnit interval: {ui * 1e12:5.1f} ps",
+            f"\tOversampling factor: {nspui}",
+            f"\tNumber of Tx taps: {n_weights}",
+            f"\tTx cursor tap position: {tx_curs_pos}",
+            f"\tRunning {n_trials} trials.",
+        ])
+    })
 
     # Run the optimization loop.
     fom_max = -1000.
@@ -225,11 +219,19 @@ def coopt(pybert) -> tuple[list[float], float, float, bool]:  # pylint: disable=
                 time.sleep(0.001)
             trials_run += 1
             if not trials_run % 100:
-                logger.info("Optimizing EQ...(%d%%)", 100 * trials_run // n_trials)
+                pybert.result_queue.put({
+                    "type": "status_update",
+                    "level": logging.INFO,
+                    "message": f"Optimizing EQ...({100 * trials_run // n_trials}%)"
+                })
                 time.sleep(0.001)
                 if pybert.opt_thread.stopped():
-                    logger.warning("Optimization aborted by user.")
-                    raise RuntimeError("Optimization aborted by user.")
+                    pybert.result_queue.put({
+                        "type": "message",
+                        "level": logging.WARNING,
+                        "message": "Optimization aborted by user."
+                    })
+                    raise OptimizationAborted("Optimization aborted by user.")
 
     for k, dfe_weight in enumerate(dfe_weights_best):  # pylint: disable=possibly-used-before-assignment
         dfe_taps[k].value = dfe_weight

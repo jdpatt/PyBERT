@@ -72,6 +72,8 @@ class ResultsTab(QWidget):
         self.jitter_info = JitterInfoTable(self.pybert, parent=self)
         tab_widget.addTab(self.jitter_info, "Jitter Info")
 
+        tab_widget.setCurrentWidget(self.eyes_tab)
+
     def connect_signals(self, pybert):
         """Connect signals to PyBERT instance."""
         pybert.sim_complete.connect(self.update_results)
@@ -274,7 +276,7 @@ class ResultsTab(QWidget):
 
         return widget
 
-    def _create_response_tab(self, title):
+    def _create_response_tab(self, response_type):
         """Create a tab with a 2x2 grid of plots."""
         widget = QWidget(self)
         layout = QVBoxLayout()
@@ -284,35 +286,51 @@ class ResultsTab(QWidget):
         layout.addWidget(plot_grid)
 
         plots = []
-        for i in range(4):
+        titles = [
+            "Channel",
+            "+ Tx De-emphasis & Noise",
+            "+ CTLE (& IBIS-AMI DFE if apropos)",
+            "+ PyBERT Native DFE if enabled",
+        ]
+        for i, title in enumerate(titles):
             row = i // 2
             col = i % 2
             plot = plot_grid.addPlot(row=row, col=col)
             plot.showGrid(x=True, y=True)
-            plot.addLegend()
-            plot.getAxis("left").setLabel("Amplitude")
-            # Set appropriate x-axis label based on plot type
-            if title == "Frequency Response":
+            plot.setTitle(title)
+            if response_type == "Frequency Response":
+                plot.addLegend(offset=(-1, 1)) # Upper Right
+                plot.getAxis("left").setLabel("Frequency Response", units="dB")
                 plot.getAxis("bottom").setLabel("Frequency", units="GHz")
                 plot.setMouseEnabled(False, False)  # Disable zooming for freq response
                 plot.setYRange(-40, 10, padding=0)  # Set min/max y values for freq response
-            else:
+            elif response_type == "Impulses":
+                plot.addLegend(offset=(-1, 1)) # Upper Right
+                plot.getAxis("left").setLabel("Impulse Response", units="V/sample")
+                plot.getAxis("bottom").setLabel("Time", units="ns")
+            elif response_type == "Steps":
+                plot.addLegend(offset=(-1, -1)) # Lower Right
+                plot.getAxis("left").setLabel("Step Response", units="V")
+                plot.getAxis("bottom").setLabel("Time", units="ns")
+            elif response_type == "Pulses":
+                plot.addLegend(offset=(-1, 1)) # Upper Right
+                plot.getAxis("left").setLabel("Pulse Response", units="V")
                 plot.getAxis("bottom").setLabel("Time", units="ns")
             plots.append(plot)
 
         # Only link x-axes for non-frequency response plots
-        if title != "Frequency Response":
+        if response_type != "Frequency Response":
             for plot in plots[1:]:
                 plot.setXLink(plots[0])
 
         # Store plots for update methods
-        if title == "Impulses":
+        if response_type == "Impulses":
             self.impulse_plots = plots
-        elif title == "Steps":
+        elif response_type == "Steps":
             self.step_plots = plots
-        elif title == "Pulses":
+        elif response_type == "Pulses":
             self.pulse_plots = plots
-        elif title == "Frequency Response":
+        elif response_type == "Frequency Response":
             self.freq_plots = plots
         return widget
 
@@ -362,6 +380,7 @@ class ResultsTab(QWidget):
             col = i % 2
             plot = plot_grid.addPlot(row=row, col=col)
             plot.showGrid(x=True, y=True)
+            plot.addLegend(offset=(-1, -1)) # Lower Right
             plot.setTitle(titles[i])
             plot.getAxis("left").setLabel("|FFT(TIE)|", units="dBui")
             plot.getAxis("bottom").setLabel("Frequency", units="MHz")
@@ -420,13 +439,16 @@ class ResultsTab(QWidget):
         Args:
             eye_data: List of 2D arrays containing eye diagram data
             ui_ps: UI period in ps
-            v_range: Voltage range tuple (min, max)
+            v_range: Voltage range tuple (min, max)  # (can be ignored now)
         """
         colormap = get_custom_colormap()
         lut = colormap.getLookupTable(0.0, 1.0, 256)
         for img, data in zip(self.eye_plots, eye_data):
             img.setImage(np.rot90(data), lut=lut)
-            img.setRect(pg.QtCore.QRectF(0, v_range[0], ui_ps, v_range[1] - v_range[0]))
+            # img.setRect(pg.QtCore.QRectF(0, v_range[0], ui_ps, v_range[1] - v_range[0]))
+            # Calculate y_max for this eye, center around zero
+            y_max = 1.1 * max(abs(data.min()), abs(data.max()))
+            img.setRect(pg.QtCore.QRectF(0, -y_max, ui_ps, 2 * y_max))
 
     def update_bathtub_plots(self, jitter_bins, bathtub_data):
         """Update bathtub curve plots.
@@ -439,10 +461,10 @@ class ResultsTab(QWidget):
             curve.setData(jitter_bins, data)
 
     def update_impulse_plots(self, t_ns, chnl_h, tx_out_h, ctle_out_h, dfe_out_h):
-        self.impulse_plots[0].plot(t_ns, chnl_h, pen="b", name="Channel", clear=True)
-        self.impulse_plots[1].plot(t_ns, tx_out_h, pen="r", name="+ Tx", clear=True)
-        self.impulse_plots[2].plot(t_ns, ctle_out_h, pen="r", name="+ CTLE", clear=True)
-        self.impulse_plots[3].plot(t_ns, dfe_out_h, pen="r", name="+ DFE", clear=True)
+        self.impulse_plots[0].plot(t_ns, chnl_h, pen="b", name="Incremental", clear=True)
+        self.impulse_plots[1].plot(t_ns, tx_out_h, pen="r", name="Cumulative", clear=True)
+        self.impulse_plots[2].plot(t_ns, ctle_out_h, pen="r", name="Cumulative", clear=True)
+        self.impulse_plots[3].plot(t_ns, dfe_out_h, pen="r", name="Cumulative", clear=True)
 
     def update_step_plots(self, t_ns, chnl_s, tx_s, tx_out_s, ctle_s, ctle_out_s, dfe_s, dfe_out_s):
         self.step_plots[0].plot(t_ns, chnl_s, pen="b", name="Channel", clear=True)
@@ -454,17 +476,17 @@ class ResultsTab(QWidget):
         self.step_plots[3].plot(t_ns, dfe_out_s, pen="r", name="Cumulative")
 
     def update_pulse_plots(self, t_ns, chnl_p, tx_out_p, ctle_out_p, dfe_out_p):
-        self.pulse_plots[0].plot(t_ns, chnl_p, pen="b", name="Channel", clear=True)
-        self.pulse_plots[1].plot(t_ns, tx_out_p, pen="r", name="+ Tx", clear=True)
-        self.pulse_plots[2].plot(t_ns, ctle_out_p, pen="r", name="+ CTLE", clear=True)
-        self.pulse_plots[3].plot(t_ns, dfe_out_p, pen="r", name="+ DFE", clear=True)
+        self.pulse_plots[0].plot(t_ns, chnl_p, pen="b", name="Incremental", clear=True)
+        self.pulse_plots[1].plot(t_ns, tx_out_p, pen="r", name="Cumulative", clear=True)
+        self.pulse_plots[2].plot(t_ns, ctle_out_p, pen="r", name="Cumulative", clear=True)
+        self.pulse_plots[3].plot(t_ns, dfe_out_p, pen="r", name="Cumulative", clear=True)
 
     def update_freq_plots(
         self, f_GHz, chnl_H, chnl_H_raw, chnl_trimmed_H, tx_H, tx_out_H, ctle_H, ctle_out_H, dfe_H, dfe_out_H
     ):
         self.freq_plots[0].plot(f_GHz, chnl_H_raw, pen="k", name="Perfect Term.", clear=True)
         self.freq_plots[0].plot(f_GHz, chnl_H, pen="b", name="Actual Term.")
-        self.freq_plots[0].plot(f_GHz, chnl_trimmed_H, pen="r", name="Trimmed")
+        self.freq_plots[0].plot(f_GHz, chnl_trimmed_H, pen="r", name="Trimmed Impulse")
         self.freq_plots[0].setLogMode(x=True, y=False)
         self.freq_plots[1].plot(f_GHz, tx_H, pen="b", name="Incremental", clear=True)
         self.freq_plots[1].plot(f_GHz, tx_out_H, pen="r", name="Cumulative")
@@ -477,8 +499,6 @@ class ResultsTab(QWidget):
         self.freq_plots[3].setLogMode(x=True, y=False)
         for plot in self.freq_plots:
             plot.setYRange(-40, 10, padding=0)
-            plot.getAxis("bottom").setLabel("Frequency", units="GHz")
-            plot.getAxis("left").setLabel("Response", units="dB")
 
     def update_jitter_dist_plots(self, jitter_bins, jitter_data, jitter_ext_data):
         for (total_curve, di_curve), total, di in zip(self.jitter_dist_plots, jitter_data, jitter_ext_data):
@@ -555,6 +575,7 @@ class ResultsTab(QWidget):
         ignore_until = (num_ui - eye_uis) * pb.ui
         ignore_samps = (num_ui - eye_uis) * samps_per_ui
         width = 2 * samps_per_ui
+        xs = np.linspace(-ui * 1.0e12, ui * 1.0e12, width)
         height = 1000
         tiny_noise = np.random.normal(scale=1e-3, size=len(chnl_out[ignore_samps:]))
         chnl_out_noisy = pb.chnl_out[ignore_samps:] + tiny_noise

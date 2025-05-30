@@ -4,7 +4,7 @@ from pybert.models.bert import my_run_simulation
 from pybert.threads.stoppable import StoppableThread
 
 
-class RunSimThread(StoppableThread):
+class SimulationThread(StoppableThread):
     """Used to run the simulation in its own thread, in order to preserve GUI
     responsiveness."""
 

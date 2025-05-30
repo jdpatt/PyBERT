@@ -70,6 +70,7 @@ class RxOptimizationDFEWidget(QGroupBox):
         # Connect signals
         self.disable_btn.clicked.connect(self._disable_all_taps)
         self.enable_btn.clicked.connect(self._enable_all_taps)
+        self.dfe_table.itemChanged.connect(lambda item: setattr(pybert, "dfe_tap_tuners", self.get_dfe_tap_values()))
 
     def set_taps(self, tuners: list[TxTapTuner]) -> None:
         """Set the number of DFE taps.
@@ -108,27 +109,40 @@ class RxOptimizationDFEWidget(QGroupBox):
 
     def _disable_all_taps(self) -> None:
         """Disable all DFE taps."""
+        self.dfe_table.blockSignals(True)
         for i in range(self.dfe_table.rowCount()):
             self.dfe_table.item(i, 1).setCheckState(Qt.Unchecked)
+        self.dfe_table.blockSignals(False)
+        # Manually trigger the update once
+        setattr(self.pybert, "dfe_tap_tuners", self.get_dfe_tap_values())
 
     def _enable_all_taps(self) -> None:
         """Enable all DFE taps."""
+        self.dfe_table.blockSignals(True)
         for i in range(self.dfe_table.rowCount()):
             self.dfe_table.item(i, 1).setCheckState(Qt.Checked)
+        self.dfe_table.blockSignals(False)
+        # Manually trigger the update once
+        setattr(self.pybert, "dfe_tap_tuners", self.get_dfe_tap_values())
 
-    def get_dfe_tap_values(self) -> list[tuple[bool, float, float, float]]:
+    def get_dfe_tap_values(self) -> list[TxTapTuner]:
         """Get the current DFE tap values.
 
         Returns:
-            list: List of tuples containing (enabled, min, max, value) for each tap
+            list: List of TxTapTuner objects
         """
         values = []
+        limits = []
         for i in range(self.dfe_table.rowCount()):
+            name = self.dfe_table.item(i, 0).text()
             enabled = self.dfe_table.item(i, 1).checkState() == Qt.Checked
             min_val = float(self.dfe_table.item(i, 2).text())
             max_val = float(self.dfe_table.item(i, 3).text())
             value = float(self.dfe_table.item(i, 4).text())
-            values.append((enabled, min_val, max_val, value))
+            values.append(TxTapTuner(name=name, enabled=enabled, min_val=min_val, max_val=max_val, value=value))
+            limits.append((min_val, max_val))
+
+        setattr(self.pybert, "dfe.limits", limits)
         return values
 
     def set_dfe_tap_value(self, tap_index: int, value: float) -> None:

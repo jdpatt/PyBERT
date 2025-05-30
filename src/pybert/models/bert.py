@@ -75,6 +75,15 @@ class SimulationPerf:
     ctle: float = 0.0
     dfe: float = 0.0
 
+    def __str__(self):
+        return f"Performance Metrics: (Msmpls./min) " \
+               f"Channel: {self.channel * 6e-05:6.3f}  " \
+               f"Tx Preemphasis: {self.tx * 6e-05:6.3f}  " \
+               f"CTLE: {self.ctle * 6e-05:6.3f}  " \
+               f"DFE: {self.dfe * 6e-05:6.3f}  " \
+               f"Jitter: {self.jitter * 6e-05:6.3f}  " \
+               f"Total: {self.total * 6e-05:6.3f}"
+
 
 # pylint: disable=too-many-locals,protected-access,too-many-branches,too-many-statements
 def my_run_simulation(self, initial_run: bool = False, update_plots: bool = True,
@@ -113,7 +122,6 @@ def my_run_simulation(self, initial_run: bool = False, update_plots: bool = True
             raise RuntimeError("Simulation aborted by User.")
 
     logger.info("Starting simulation...")
-    logger.info(self.bit_rate)
     results = None
 
     perf = SimulationPerf()
@@ -777,12 +785,13 @@ def my_run_simulation(self, initial_run: bool = False, update_plots: bool = True
     perf.total = nbits * nspb / (clock() - perf.start_time)
     perf.end_time = clock()
     logger.info("Simulation complete. Duration: %s", round(perf.end_time - perf.start_time, 3))
-    logger.info(f"Performance Metrics: "
-    f"Channel: {perf.channel * 6e-05:6.3f} Msmpls./min "
-    f"Tx Preemphasis: {perf.tx * 6e-05:6.3f} Msmpls./min "
-    f"CTLE: {perf.ctle * 6e-05:6.3f} Msmpls./min "
-    f"DFE: {perf.dfe * 6e-05:6.3f} Msmpls./min "
-    f"Jitter: {perf.jitter * 6e-05:6.3f} Msmpls./min "
-    f"Total: {perf.total * 6e-05:6.3f} Msmpls./min")
+    logger.info(str(perf))
+    # logger.info(f"Performance Metrics: "
+    # f"Channel: {perf.channel * 6e-05:6.3f} Msmpls./min "
+    # f"Tx Preemphasis: {perf.tx * 6e-05:6.3f} Msmpls./min "
+    # f"CTLE: {perf.ctle * 6e-05:6.3f} Msmpls./min "
+    # f"DFE: {perf.dfe * 6e-05:6.3f} Msmpls./min "
+    # f"Jitter: {perf.jitter * 6e-05:6.3f} Msmpls./min "
+    # f"Total: {perf.total * 6e-05:6.3f} Msmpls./min")
 
     return results, perf

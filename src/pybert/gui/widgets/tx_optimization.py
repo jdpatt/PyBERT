@@ -106,20 +106,21 @@ class TxOptimizationWidget(QGroupBox):
 
         self.ffe_table.resizeRowsToContents()
 
-    def get_tap_values(self) -> list[tuple[bool, float, float, float, float]]:
+    def get_tap_values(self) -> list[TxTapTuner]:
         """Get the current tap values.
 
         Returns:
-            list: List of tuples containing (enabled, min, max, step, value) for each tap
+            list: List of TxTapTuner objects
         """
         values = []
         for i in range(self.ffe_table.rowCount()):
+            name = self.ffe_table.item(i, 0).text()
             enabled = self.ffe_table.item(i, 1).checkState() == Qt.Checked
             min_val = float(self.ffe_table.item(i, 2).text())
             max_val = float(self.ffe_table.item(i, 3).text())
             step = float(self.ffe_table.item(i, 4).text())
             value = float(self.ffe_table.item(i, 5).text())
-            values.append((enabled, min_val, max_val, step, value))
+            values.append(TxTapTuner(name=name, enabled=enabled, min_val=min_val, max_val=max_val, step=step, value=value))
         return values
 
     def set_tap_value(self, tap_index: int, value: float) -> None:

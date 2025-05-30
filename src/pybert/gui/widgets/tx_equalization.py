@@ -163,20 +163,21 @@ class TxEqualizationWidget(QGroupBox):
             self.ffe_table.setItem(i, 2, value_item)
         self.ffe_table.resizeRowsToContents()
 
-    def get_tap_values(self) -> list[tuple[bool, float]]:
+    def get_tap_values(self) -> list[TxTapTuner]:
         """Get the current tap values.
 
         Returns:
-            list: List of tuples containing (enabled, value) for each tap
+            list: List of TxTapTuner objects
         """
         values = []
         for i in range(self.ffe_table.rowCount()):
+            name = self.ffe_table.item(i, 0).text()
             enabled = self.ffe_table.item(i, 1).checkState() == Qt.Checked
             try:
                 value = float(self.ffe_table.item(i, 2).text())
             except (ValueError, TypeError):
                 value = 0.0
-            values.append((enabled, value))
+            values.append(TxTapTuner(name=name, enabled=enabled, value=value))
         return values
 
     def set_tap_value(self, tap_index: int, value: float) -> None:
