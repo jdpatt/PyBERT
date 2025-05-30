@@ -27,6 +27,7 @@ import time
 from datetime import datetime
 from os.path import dirname, join
 from pathlib import Path
+from typing import Optional
 
 import numpy as np  # type: ignore
 import skrf as rf
@@ -43,6 +44,7 @@ from scipy.interpolate import interp1d
 from pybert import __version__ as VERSION
 from pybert.bert import my_run_simulation
 from pybert.configuration import InvalidFileType, PyBertCfg
+from pybert.constants import gPeakFreq, gPeakMag
 from pybert.gui.dialogs import warning
 from pybert.models.stimulus import BitPattern, ModulationType
 from pybert.models.tx_tap import TxTapTuner
@@ -60,13 +62,6 @@ from pybert.utility import (
 )
 from pybert.utility.logger import setup_logger
 
-gUseDfe      = True     # Include DFE when running simulation.
-gMaxCTLEPeak =    20.0  # max. allowed CTLE peaking (dB) (when optimizing, only)
-gPeakFreq    =     5.0  # CTLE peaking frequency (GHz)
-gPeakMag     =     1.7  # CTLE peaking magnitude (dB)
-gCTLEOffset  =     0.0  # CTLE d.c. offset (dB)
-
-
 logger = setup_logger("pybert")
 
 class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
@@ -76,12 +71,16 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
     Useful for exploring the concepts of serial communication link
     design.
     """
-    sim_complete = Signal(object, object)
-    opt_complete = Signal(object)
-    opt_loop_complete = Signal(object)
-    status_update = Signal(str)
 
-    def __init__(self, run_simulation=True):
+    # QT Signals - Most are emitted from the `handle_results()` method
+    sim_complete = Signal(object, object) # Simulation complete signal, update all the plots
+    opt_complete = Signal(object) # Optimization complete signal, update the boost and plot
+    opt_loop_complete = Signal(object) # Optimization loop complete signal
+    status_update = Signal(str) # Tells the GUI to update the status bar but do not use the logger instance.
+    new_tx_model = Signal() # New Tx model (an ibis file was loaded and potentially an AMI/DLL file was loaded)
+    new_rx_model = Signal() # New Rx model (an ibis file was loaded and potentially an AMI/DLL file was loaded)
+
+    def __init__(self, run_simulation: bool = True) -> None:
         """Initialize the PyBERT class.
 
         Args:
@@ -97,38 +96,37 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
         # Independent variables
 
         # - Simulation Control
-        self.bit_rate = 10.0   #: (Gbps)
-        self.nbits = 15000     #: Number of bits to simulate.
-        self.eye_bits = 10160  #: Number of bits used to form eye.
-        self.pattern = BitPattern.PRBS7  #: Pattern to use for simulation.
-        self.seed = 1  # LFSR seed. 0 means regenerate bits, using a new random seed, each run.
-        self.nspui = 32  #: Signal vector samples per unit interval.
-        self.mod_type = ModulationType.NRZ  #: 0 = NRZ; 1 = Duo-binary; 2 = PAM-4
-        self.do_sweep = False  #: Run sweeps? (Default = False)
-        self.debug = False  #: Send log messages to terminal, as well as console, when True. (Default = False)
-        self.thresh = 3.0  #: Spectral threshold for identifying periodic components (sigma). (Default = 3.0)
+        self.bit_rate: float = 10.0   #: (Gbps)
+        self.nbits: int = 15000     #: Number of bits to simulate.
+        self.eye_bits: int = 10160  #: Number of bits used to form eye.
+        self.pattern: BitPattern = BitPattern.PRBS7  #: Pattern to use for simulation.
+        self.seed: int = 1  # LFSR seed. 0 means regenerate bits, using a new random seed, each run.
+        self.nspui: int = 32  #: Signal vector samples per unit interval.
+        self.mod_type: ModulationType = ModulationType.NRZ  #: 0 = NRZ; 1 = Duo-binary; 2 = PAM-4
+        self.do_sweep: bool = False  #: Run sweeps? (Default = False)
+        self.thresh: float = 3.0  #: Spectral threshold for identifying periodic components (sigma). (Default = 3.0)
 
         # - Channel Control
-        self.channel_model = "Native"  #: Channel model type.
-        self.elements = []  #: Channel elements.
-        self.ch_file = ""  #: Channel file name.
-        self.use_ch_file = False  #: Import channel description from file? (Default = False)
-        self.renumber = False  #: Automatically fix "1=>3/2=>4" port numbering? (Default = False)
-        self.f_step = 10  #: Frequency step to use when constructing H(f) (MHz). (Default = 10 MHz)
-        self.f_max = 40  #: Frequency maximum to use when constructing H(f) (GHz). (Default = 40 GHz)
-        self.impulse_length = 0.0  #: Impulse response length. (Determined automatically, when 0.)
-        self.Rdc = 0.1876  #: Channel d.c. resistance (Ohms/m).
-        self.w0 = 10e6  #: Channel transition frequency (rads./s).
-        self.R0 = 1.452  #: Channel skin effect resistance (Ohms/m).
-        self.Theta0 = 0.02  #: Channel loss tangent (unitless).
-        self.Z0 = 100  #: Channel characteristic impedance, in LC region (Ohms).
-        self.v0 = 0.67  #: Channel relative propagation velocity (c).
-        self.l_ch = 0.5  #: Channel length (m).
-        self.use_window = False  #: Apply raised cosine to frequency response before FFT()-ing? (Default = False)
+        self.channel_model: str = "Native"  #: Channel model type.
+        self.elements: list[str] = []  #: Channel elements.
+        self.ch_file: str = ""  #: Channel file name.
+        self.use_ch_file: bool = False  #: Import channel description from file? (Default = False)
+        self.renumber: bool = False  #: Automatically fix "1=>3/2=>4" port numbering? (Default = False)
+        self.f_step: float = 10  #: Frequency step to use when constructing H(f) (MHz). (Default = 10 MHz)
+        self.f_max: float = 40  #: Frequency maximum to use when constructing H(f) (GHz). (Default = 40 GHz)
+        self.impulse_length: float = 0.0  #: Impulse response length. (Determined automatically, when 0.)
+        self.Rdc: float = 0.1876  #: Channel d.c. resistance (Ohms/m).
+        self.w0: float = 10e6  #: Channel transition frequency (rads./s).
+        self.R0: float = 1.452  #: Channel skin effect resistance (Ohms/m).
+        self.Theta0: float = 0.02  #: Channel loss tangent (unitless).
+        self.Z0: float = 100  #: Channel characteristic impedance, in LC region (Ohms).
+        self.v0: float = 0.67  #: Channel relative propagation velocity (c).
+        self.l_ch: float = 0.5  #: Channel length (m).
+        self.use_window: bool = False  #: Apply raised cosine to frequency response before FFT()-ing? (Default = False)
 
         # - EQ Tune
-        self.tx_eq = "Native"
-        self.tx_tap_tuners = [
+        self.tx_eq: str = "Native"
+        self.tx_tap_tuners: list[TxTapTuner] = [
             TxTapTuner(name="Pre-tap3",  pos=-3, enabled=True, min_val=-0.05, max_val=0.05, step=0.025),
                 TxTapTuner(name="Pre-tap2",  pos=-2, enabled=True, min_val=-0.1,  max_val=0.1,  step=0.05),
                 TxTapTuner(name="Pre-tap1",  pos=-1, enabled=True, min_val=-0.2,  max_val=0.2,  step=0.1),
@@ -136,14 +134,14 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
                 TxTapTuner(name="Post-tap2", pos=2,  enabled=True, min_val=-0.1,  max_val=0.1,  step=0.05),
                 TxTapTuner(name="Post-tap3", pos=3,  enabled=True, min_val=-0.05, max_val=0.05, step=0.025),
             ] #: EQ optimizer list of TxTapTuner objects.
-        self.rx_bw_tune = 12.0  #: EQ optimizer CTLE bandwidth (GHz).
-        self.peak_freq_tune = gPeakFreq  #: EQ optimizer CTLE peaking freq. (GHz).
-        self.peak_mag_tune = gPeakMag  #: EQ optimizer CTLE peaking mag. (dB).
-        self.min_mag_tune = 2  #: EQ optimizer CTLE peaking mag. min. (dB).
-        self.max_mag_tune = 12  #: EQ optimizer CTLE peaking mag. max. (dB).
-        self.step_mag_tune = 1  #: EQ optimizer CTLE peaking mag. step (dB).
-        self.ctle_enable_tune = True  #: EQ optimizer CTLE enable
-        self.dfe_tap_tuners = [
+        self.rx_bw_tune: float = 12.0  #: EQ optimizer CTLE bandwidth (GHz).
+        self.peak_freq_tune: float = gPeakFreq  #: EQ optimizer CTLE peaking freq. (GHz).
+        self.peak_mag_tune: float = gPeakMag  #: EQ optimizer CTLE peaking mag. (dB).
+        self.min_mag_tune: float = 2  #: EQ optimizer CTLE peaking mag. min. (dB).
+        self.max_mag_tune: float = 12  #: EQ optimizer CTLE peaking mag. max. (dB).
+        self.step_mag_tune: float = 1  #: EQ optimizer CTLE peaking mag. step (dB).
+        self.ctle_enable_tune: bool = True  #: EQ optimizer CTLE enable
+        self.dfe_tap_tuners: list[TxTapTuner]  = [
             TxTapTuner(name="Tap1",  enabled=True,  min_val=0.1,   max_val=0.4,  value=0.1),
             TxTapTuner(name="Tap2",  enabled=True,  min_val=-0.15, max_val=0.15, value=0.0),
             TxTapTuner(name="Tap3",  enabled=True,  min_val=-0.05, max_val=0.1,  value=0.0),
@@ -168,14 +166,14 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
 
 
         # - Tx
-        self.tx_model = "Native"
-        self.vod = 1.0  #: Tx differential output voltage (V)
-        self.rs = 100  #: Tx source impedance (Ohms)
-        self.cout = 0.5  #: Tx parasitic output capacitance (pF)
-        self.pn_mag = 0.1  #: Periodic noise magnitude (V).
-        self.pn_freq = 11  #: Periodic noise frequency (MHz).
-        self.rn = 0.1  #: Standard deviation of Gaussian random noise (V).
-        self.tx_taps = [
+        self.tx_model: str = "Native"
+        self.vod: float = 1.0  #: Tx differential output voltage (V)
+        self.rs: int = 100  #: Tx source impedance (Ohms)
+        self.cout: float = 0.5  #: Tx parasitic output capacitance (pF)
+        self.pn_mag: float = 0.1  #: Periodic noise magnitude (V).
+        self.pn_freq: float = 11  #: Periodic noise frequency (MHz).
+        self.rn: float = 0.1  #: Standard deviation of Gaussian random noise (V).
+        self.tx_taps: list[TxTapTuner] = [
                 TxTapTuner(name="Pre-tap3",  pos=-3, enabled=True, min_val=-0.05, max_val=0.05),
                 TxTapTuner(name="Pre-tap2",  pos=-2, enabled=True, min_val=-0.1,  max_val=0.1),
                 TxTapTuner(name="Pre-tap1",  pos=-1, enabled=True, min_val=-0.2,  max_val=0.2),
@@ -183,72 +181,72 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
                 TxTapTuner(name="Post-tap2", pos=2,  enabled=True, min_val=-0.1,  max_val=0.1),
                 TxTapTuner(name="Post-tap3", pos=3,  enabled=True, min_val=-0.05, max_val=0.05),
             ] #: List of TxTapTuner objects.
-        self.rel_power = 1.0  #: Tx power dissipation (W).
-        self.tx_use_ami = False  #: (Bool)
-        self.tx_has_ts4 = False  #: (Bool)
-        self.tx_use_ts4 = False  #: (Bool)
-        self.tx_use_getwave = False  #: (Bool)
-        self.tx_has_getwave = False  #: (Bool)
-        self.tx_ami_file = ""  #: (File)
-        self.tx_ami_valid = False  #: (Bool)
-        self.tx_dll_file = ""  #: (File)
-        self.tx_dll_valid = False  #: (Bool)
-        self.tx_ibis_file = ""  #: (File)
-        self.tx_ibis_valid = False  #: (Bool)
-        self.tx_use_ibis = False  #: (Bool)
+        self.rel_power: float = 1.0  #: Tx power dissipation (W).
+        self.tx_use_ami: bool = False  #: (Bool)
+        self.tx_has_ts4: bool = False  #: (Bool)
+        self.tx_use_ts4: bool = False  #: (Bool)
+        self.tx_use_getwave: bool = False  #: (Bool)
+        self.tx_has_getwave: bool = False  #: (Bool)
+        self.tx_ami_file: str = ""  #: (File)
+        self.tx_ami_valid: bool = False  #: (Bool)
+        self.tx_dll_file: str = ""  #: (File)
+        self.tx_dll_valid: bool = False  #: (Bool)
+        self.tx_ibis_file: str = ""  #: (File)
+        self.tx_ibis_valid: bool = False  #: (Bool)
+        self.tx_use_ibis: bool = False  #: (Bool)
 
         # - Rx
-        self.rx_model = "Native"
-        self.rx_eq = "Native"
-        self.rin = 100  #: Rx input impedance (Ohm)
-        self.cin = 0.5  #: Rx parasitic input capacitance (pF)
-        self.cac = 1.0  #: Rx a.c. coupling capacitance (uF)
-        self.rx_ctle_model = "Native"
-        self.use_ctle_file = False  #: For importing CTLE impulse/step response directly.
-        self.ctle_file = ""  #: CTLE response file (when use_ctle_file = True).
-        self.rx_bw = 12.0  #: CTLE bandwidth (GHz).
-        self.peak_freq = gPeakFreq  #: CTLE peaking frequency (GHz)
-        self.peak_mag = gPeakMag  #: CTLE peaking magnitude (dB)
-        self.ctle_enable = True  #: CTLE enable.
-        self.rx_use_ami = False  #: (Bool)
-        self.rx_has_ts4 = False  #: (Bool)
-        self.rx_use_ts4 = False  #: (Bool)
-        self.rx_use_getwave = False  #: (Bool)
-        self.rx_has_getwave = False  #: (Bool)
-        self.rx_use_clocks = False  #: (Bool)
-        self.rx_ami_file = ""  #: (File)
-        self.rx_ami_valid = False  #: (Bool)
-        self.rx_dll_file = ""  #: (File)
-        self.rx_dll_valid = False  #: (Bool)
-        self.rx_ibis_file = ""  #: (File)
-        self.rx_ibis_valid = False  #: (Bool)
-        self.rx_use_ibis = False  #: (Bool)
+        self.rx_model: str = "Native"
+        self.rx_eq: str = "Native"
+        self.rin: int = 100  #: Rx input impedance (Ohm)
+        self.cin: float = 0.5  #: Rx parasitic input capacitance (pF)
+        self.cac: float = 1.0  #: Rx a.c. coupling capacitance (uF)
+        self.rx_ctle_model: str = "Native"
+        self.use_ctle_file: bool = False  #: For importing CTLE impulse/step response directly.
+        self.ctle_file: str = ""  #: CTLE response file (when use_ctle_file = True).
+        self.rx_bw: float = 12.0  #: CTLE bandwidth (GHz).
+        self.peak_freq: float = gPeakFreq  #: CTLE peaking frequency (GHz)
+        self.peak_mag: float = gPeakMag  #: CTLE peaking magnitude (dB)
+        self.ctle_enable: bool = True  #: CTLE enable.
+        self.rx_use_ami: bool = False  #: (Bool)
+        self.rx_has_ts4: bool = False  #: (Bool)
+        self.rx_use_ts4: bool = False  #: (Bool)
+        self.rx_use_getwave: bool = False  #: (Bool)
+        self.rx_has_getwave: bool = False  #: (Bool)
+        self.rx_use_clocks: bool = False  #: (Bool)
+        self.rx_ami_file: str = ""  #: (File)
+        self.rx_ami_valid: bool = False  #: (Bool)
+        self.rx_dll_file: str = ""  #: (File)
+        self.rx_dll_valid: bool = False  #: (Bool)
+        self.rx_ibis_file: str = ""  #: (File)
+        self.rx_ibis_valid: bool = False  #: (Bool)
+        self.rx_use_ibis: bool = False  #: (Bool)
 
         # - DFE
-        self.sum_ideal = True  #: True = use an ideal (i.e. - infinite bandwidth) summing node (Bool).
-        self.decision_scaler = 0.5  #: DFE slicer output voltage (V).
-        self.gain = 0.2  #: DFE error gain (unitless).
-        self.n_ave = 100  #: DFE # of averages to take, before making tap corrections.
-        self.sum_bw = 12.0  #: DFE summing node bandwidth (Used when sum_ideal=False.) (GHz).
+        self.sum_ideal: bool = True  #: True = use an ideal (i.e. - infinite bandwidth) summing node (Bool).
+        self.decision_scaler: float = 0.5  #: DFE slicer output voltage (V).
+        self.gain: float = 0.2  #: DFE error gain (unitless).
+        self.n_ave: int = 100  #: DFE # of averages to take, before making tap corrections.
+        self.sum_bw: float = 12.0  #: DFE summing node bandwidth (Used when sum_ideal=False.) (GHz).
 
         # - CDR
-        self.delta_t = 0.1  #: CDR proportional branch magnitude (ps).
-        self.alpha = 0.01  #: CDR integral branch magnitude (unitless).
-        self.n_lock_ave = 500  #: CDR # of averages to take in determining lock.
-        self.rel_lock_tol = 0.1  #: CDR relative tolerance to use in determining lock.
-        self.lock_sustain = 500  #: CDR hysteresis to use in determining lock.
+        self.delta_t: float = 0.1  #: CDR proportional branch magnitude (ps).
+        self.alpha: float = 0.01  #: CDR integral branch magnitude (unitless).
+        self.n_lock_ave: int = 500  #: CDR # of averages to take in determining lock.
+        self.rel_lock_tol: float = 0.1  #: CDR relative tolerance to use in determining lock.
+        self.lock_sustain: int = 500  #: CDR hysteresis to use in determining lock.
 
         # Misc.
-        self.cfg_file = ""  #: PyBERT configuration data storage file (File).
-        self.data_file = ""  #: PyBERT results data storage file (File).
+        self.cfg_file: str = ""  #: PyBERT configuration data storage file (File).
+        self.data_file: str = ""  #: PyBERT results data storage file (File).
 
 
         # Status
-        self.len_h = 0
-        self.chnl_dly = 0.0  #: Estimated channel delay (s).
-        self.bit_errs = 0  #: # of bit errors observed in last run.
-        self.run_count = 0  # Used as a mechanism to force bit stream regeneration.
-        self.dfe_out_p = []
+        self.len_h: float = 0
+        self.chnl_dly: float = 0.0  #: Estimated channel delay (s).
+        self.bit_errs: int = 0  #: # of bit errors observed in last run.
+        self.run_count: int = 0  # Used as a mechanism to force bit stream regeneration.
+        self.dfe_out_p: list = []
 
         self._tx_ibis = None
         self._tx_ibis_dir = ""
@@ -286,24 +284,18 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
 
 
         # Threading and Processing
-        self.simulation_thread = None
-        self.opt_thread = None #: EQ optimization thread.
+        self.simulation_thread: Optional[SimulationThread] = None
+        self.opt_thread: Optional[OptThread] = None  #: EQ optimization thread.
 
         # Setup a threading Queue to share results between threads
-        self.result_queue = queue.Queue()
-        self.result_timer = QTimer()
+        self.result_queue: queue.Queue = queue.Queue()
+        self.result_timer: QTimer = QTimer()
         self.result_timer.timeout.connect(self.poll_results)
         self.result_timer.start(100)  # Poll every 100 ms
 
         if run_simulation:
             self.simulate()
 
-    # Independent variable setting intercepts
-    # (Primarily, for debugging.)
-    def _set_ctle_peak_mag_tune(self, val):
-        if val > gMaxCTLEPeak or val < 0.0:
-            raise RuntimeError("CTLE peak magnitude out of range!")
-        self.peak_mag_tune = val
 
     # Dependent variable definitions
     @property
@@ -489,14 +481,14 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
         return taps
 
 
-    def _tx_ibis_file_changed(self, new_value):
+    def load_new_tx_ibis_file(self, new_value):
         self.status = f"Parsing IBIS file: {new_value}"
         dName = ""
         try:
             self.tx_ibis_valid = False
             self.tx_use_ami = False
             logger.info(f"Parsing Tx IBIS file, '{new_value}'...")
-            ibis = IBISModel(new_value, True, debug=self.debug, gui=self.GUI)
+            ibis = IBISModel(new_value, is_tx=True)
             logger.info(f"  Result:\n{ibis.ibis_parsing_errors}")
             self._tx_ibis = ibis
             self.tx_ibis_valid = True
@@ -514,7 +506,7 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
         self._tx_ibis_dir = dName
         self.status = "Done."
 
-    def _tx_ami_file_changed(self, new_value):
+    def tx_ami_file_changed(self, new_value):
         try:
             self.tx_ami_valid = False
             if new_value:
@@ -540,7 +532,7 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
             logger.exception(error_message)
             raise
 
-    def _tx_dll_file_changed(self, new_value):
+    def tx_dll_file_changed(self, new_value):
         try:
             self.tx_dll_valid = False
             if new_value:
@@ -551,14 +543,14 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
             error_message = f"Failed to open DLL/SO file!\n{err}"
             logger.exception(error_message)
 
-    def _rx_ibis_file_changed(self, new_value):
+    def load_new_rx_ibis_file(self, new_value):
         self.status = f"Parsing IBIS file: {new_value}"
         dName = ""
         try:
             self.rx_ibis_valid = False
             self.rx_use_ami = False
             logger.info(f"Parsing Rx IBIS file, '{new_value}'...")
-            ibis = IBISModel(new_value, False, self.debug, gui=self.GUI)
+            ibis = IBISModel(new_value, is_tx=False)
             logger.info(f"  Result:\n{ibis.ibis_parsing_errors}")
             self._rx_ibis = ibis
             self.rx_ibis_valid = True
@@ -577,7 +569,7 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
         self._rx_ibis_dir = dName
         self.status = "Done."
 
-    def _rx_ami_file_changed(self, new_value):
+    def rx_ami_file_changed(self, new_value):
         try:
             self.rx_ami_valid = False
             if new_value:
@@ -602,7 +594,7 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
             error_message = f"Failed to open and/or parse AMI file!\n{err}"
             logger.exception(error_message)
 
-    def _rx_dll_file_changed(self, new_value):
+    def rx_dll_file_changed(self, new_value):
         try:
             self.rx_dll_valid = False
             if new_value:

@@ -24,19 +24,22 @@ from PySide6.QtWidgets import (
 
 from pybert.gui.dialogs import select_file
 from pybert.gui.widgets.rx_equalization import RxEqualizationWidget
+from pybert.pybert import PyBERT
 from pybert.utility.debug import setattr
 
 
 class RxConfigWidget(QWidget):
     """Widget for configuring receiver parameters."""
 
-    def __init__(self, parent: Optional[QWidget] = None) -> None:
+    def __init__(self, pybert: PyBERT | None = None, parent: Optional[QWidget] = None) -> None:
         """Initialize the receiver configuration widget.
 
         Args:
+            pybert: PyBERT instance
             parent: Parent widget
         """
         super().__init__(parent)
+        self.pybert = pybert
 
         # Create main layout
         layout = QVBoxLayout()
@@ -165,7 +168,7 @@ class RxConfigWidget(QWidget):
         filename = select_file(self, "Select IBIS File", "IBIS Files (*.ibs);;IBIS Files (*.ibis);;All Files (*.*)")
         if filename:
             self.ibis_file.setText(filename)
-            # TODO: Validate IBIS file and enable controls
+            self.pybert.load_new_rx_ibis_file(filename)
 
     def _update_mode(self) -> None:
         """Show only the selected group (Native or IBIS) using stacked layout."""

@@ -59,7 +59,7 @@ class ConfigTab(QWidget):
         interconnect_layout.addWidget(self.channel_config)
 
         # Add Rx elements
-        self.rx_config = RxConfigWidget(self)
+        self.rx_config = RxConfigWidget(pybert=self.pybert, parent=self)
         interconnect_layout.addWidget(self.rx_config)
 
         # Add channel layout to main layout with stretch to fill remaining space

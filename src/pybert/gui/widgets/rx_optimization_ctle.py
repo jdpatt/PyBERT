@@ -16,9 +16,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from pybert.constants import gMaxCTLEPeak
 from pybert.pybert import PyBERT
 from pybert.utility.debug import setattr
+from pybert.utility.logger import setup_logger
 
+logger = setup_logger("pybert")
 
 class RxOptimizationCTLEWidget(QGroupBox):
     """Widget for configuring receiver equalization."""
@@ -158,3 +161,10 @@ class RxOptimizationCTLEWidget(QGroupBox):
             value: New boost value in dB
         """
         self.boost_result.setText(f"{value:.1f} dB")
+
+    # Independent variable setting intercepts
+    # (Primarily, for debugging.)
+    # def set_ctle_peak_mag_tune(self, val: float) -> None:
+    #     if val > gMaxCTLEPeak or val < 0.0:
+    #         logger.error(f"CTLE peak magnitude out of range! {val} dB")
+    #     self.peak_mag_tune = val

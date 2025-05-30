@@ -160,6 +160,7 @@ class TxConfigWidget(QWidget):
         filename = select_file(self, "Select IBIS File", "IBIS Files (*.ibs);;IBIS Files (*.ibis);;All Files (*.*)")
         if filename:
             self.ibis_file.setText(filename)
+            self.pybert.load_new_tx_ibis_file(filename)
 
     def _update_mode(self) -> None:
         """Show only the selected group (IBIS or Native) using stacked layout."""
