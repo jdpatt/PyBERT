@@ -1,6 +1,6 @@
 "Thread for running the PyBERT simulation."
 
-from pybert.models.bert import my_run_simulation
+from pybert.bert import my_run_simulation
 from pybert.threads.stoppable import StoppableThread
 
 

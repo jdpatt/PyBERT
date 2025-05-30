@@ -10,8 +10,8 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QTabWidget, QVBoxLayout, QWidget
 from scipy.interpolate import interp1d
 
+from pybert.bert import MIN_BATHTUB_VAL
 from pybert.gui.widgets.jitter_info import JitterInfoTable
-from pybert.models.bert import MIN_BATHTUB_VAL
 from pybert.pybert import PyBERT
 from pybert.utility.math import make_bathtub, safe_log10
 from pybert.utility.sigproc import calc_eye

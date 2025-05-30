@@ -41,13 +41,13 @@ from PySide6.QtCore import QObject, QTimer, Signal
 from scipy.interpolate import interp1d
 
 from pybert import __version__ as VERSION
+from pybert.bert import my_run_simulation
 from pybert.configuration import InvalidFileType, PyBertCfg
 from pybert.gui.dialogs import warning
-from pybert.models.bert import my_run_simulation
 from pybert.models.stimulus import BitPattern, ModulationType
 from pybert.models.tx_tap import TxTapTuner
+from pybert.optimization import OptThread
 from pybert.results import PyBertData
-from pybert.threads.optimization import OptThread
 from pybert.threads.sim import SimulationThread
 from pybert.utility import (
     calc_gamma,
@@ -58,14 +58,14 @@ from pybert.utility import (
     sdd_21,
     trim_impulse,
 )
-from pybert.utility.logger import log_user_system_information, setup_logger
+from pybert.utility.logger import setup_logger
 
 gUseDfe      = True     # Include DFE when running simulation.
 gMaxCTLEPeak =    20.0  # max. allowed CTLE peaking (dB) (when optimizing, only)
 gPeakFreq    =     5.0  # CTLE peaking frequency (GHz)
 gPeakMag     =     1.7  # CTLE peaking magnitude (dB)
 gCTLEOffset  =     0.0  # CTLE d.c. offset (dB)
-gNtaps       =     5
+
 
 logger = setup_logger("pybert")
 
