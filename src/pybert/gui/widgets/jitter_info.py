@@ -1,6 +1,7 @@
 from itertools import product
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QGuiApplication, QKeySequence
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
@@ -37,25 +38,20 @@ class JitterInfoTable(QTableWidget):
         super().__init__(parent)
         self.pybert = pybert
 
-        self.layout = QHBoxLayout()
-        self.layout.setContentsMargins(0, 0, 0, 0)
-        self.setLayout(self.layout)
-
-        self.jitter_info_table = QTableWidget()
-        self.jitter_info_table.setAlternatingRowColors(True)
-        self.jitter_info_table.setStyleSheet("""
+        self.setAlternatingRowColors(True)
+        self.setStyleSheet("""
             QTableWidget {
                 alternate-background-color: #f0f0f0;
                 background-color: white;
             }
         """)
-        self.jitter_info_table.setColumnCount(5)
-        self.jitter_info_table.setRowCount(16)
-        self.jitter_info_table.setHorizontalHeaderLabels(
+        self.setColumnCount(5)
+        self.setRowCount(16)
+        self.setHorizontalHeaderLabels(
             ["Location", "Component", "Input (ps)", "Output (ps)", "Rejection (dB)"]
         )
 
-        header = self.jitter_info_table.horizontalHeader()
+        header = self.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.Stretch)
         header.setSectionResizeMode(1, QHeaderView.Stretch)
         header.setSectionResizeMode(2, QHeaderView.Stretch)
@@ -64,7 +60,7 @@ class JitterInfoTable(QTableWidget):
 
         self.locations = ["Tx Preemphasis", "CTLE (+ AMI DFE)", "DFE", "Total"]
         self.components = ["ISI", "DCD", "Pj", "Rj"]
-        self.jitter_info_table.setItemDelegate(ThickBottomBorderDelegate(self.jitter_info_table, group_size=len(self.locations)))
+        self.setItemDelegate(ThickBottomBorderDelegate(self, group_size=len(self.locations)))
 
         for row, (location, component) in enumerate(product(self.locations, self.components)):
             location_cell = QTableWidgetItem(location)
@@ -79,9 +75,28 @@ class JitterInfoTable(QTableWidget):
                 # Add thicker bottom border if last component in a location group
                 if component == self.components[-1]:
                     cell.setData(Qt.UserRole, "border-bottom: 2px solid black;")
-                self.jitter_info_table.setItem(row, col, cell)
+                self.setItem(row, col, cell)
 
-        self.layout.addWidget(self.jitter_info_table)
+
+    def keyPressEvent(self, event):
+        if event.matches(QKeySequence.Copy):
+            self.copy_selection()
+        else:
+            super().keyPressEvent(event)
+
+    def copy_selection(self):
+        selection = self.selectedRanges()
+        if not selection:
+            return
+        s = ""
+        for r in selection:
+            for row in range(r.topRow(), r.bottomRow() + 1):
+                row_data = []
+                for col in range(r.leftColumn(), r.rightColumn() + 1):
+                    item = self.item(row, col)
+                    row_data.append(item.text() if item else "")
+                s += "\t".join(row_data) + "\n"
+        QGuiApplication.clipboard().setText(s)
 
 
     def update_rejection(self):
@@ -137,11 +152,11 @@ class JitterInfoTable(QTableWidget):
 
         for row, (input_val, output_val, rejection) in enumerate(values):
             # Input (ps)
-            self.jitter_info_table.item(row, 2).setText(f"{input_val:6.3f}")
+            self.item(row, 2).setText(f"{input_val:6.3f}")
             # Output (ps)
-            self.jitter_info_table.item(row, 3).setText(f"{output_val:6.3f}")
+            self.item(row, 3).setText(f"{output_val:6.3f}")
             # Rejection (dB)
             if not (rejection is None or rejection != rejection or rejection == float('inf') or rejection == float('-inf')):
-                self.jitter_info_table.item(row, 4).setText(f"{10.0 * safe_log10(rejection):4.1f}")
+                self.item(row, 4).setText(f"{10.0 * safe_log10(rejection):4.1f}")
             else:
-                self.jitter_info_table.item(row, 4).setText("n/a")
+                self.item(row, 4).setText("n/a")
