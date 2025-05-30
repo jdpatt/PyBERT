@@ -10,6 +10,7 @@ from typing import Optional
 from PySide6.QtWidgets import (
     QComboBox,
     QDoubleSpinBox,
+    QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -37,11 +38,10 @@ class SimulationControlWidget(QGroupBox):
         self.pybert = pybert
 
         # Create main layout
-        layout = QVBoxLayout()
+        layout = QHBoxLayout()
         self.setLayout(layout)
 
-        # Create horizontal layout for top section
-        top_layout = QHBoxLayout()
+
 
         # Rate & Modulation group
         rate_group = QGroupBox("Rate && Modulation")
@@ -76,7 +76,7 @@ class SimulationControlWidget(QGroupBox):
         mod_layout.addWidget(self.modulation)
         rate_layout.addLayout(mod_layout)
 
-        top_layout.addWidget(rate_group)
+        layout.addWidget(rate_group)
 
         # Test Pattern group
         pattern_group = QGroupBox("Test Pattern")
@@ -119,7 +119,7 @@ class SimulationControlWidget(QGroupBox):
         eye_layout.addWidget(self.eye_bits)
         pattern_layout.addLayout(eye_layout)
 
-        top_layout.addWidget(pattern_group)
+        layout.addWidget(pattern_group)
 
         # Tx Level & Noise group
         level_group = QGroupBox("Tx Level && Noise")
@@ -162,12 +162,61 @@ class SimulationControlWidget(QGroupBox):
         pn_freq_layout.addWidget(self.pn_freq)
         level_layout.addLayout(pn_freq_layout)
 
-        top_layout.addWidget(level_group)
-        layout.addLayout(top_layout)
+        layout.addWidget(level_group)
 
-        # Add stretch to push everything to the top
-        layout.addStretch()
 
+        # --- Analysis Parameters Group ---
+        analysis_group = QGroupBox("Analysis Parameters")
+        analysis_layout = QGridLayout()
+        analysis_group.setLayout(analysis_layout)
+
+        # Impulse Response Length
+        impulse_label = QLabel("Impulse Response Length")
+        self.impulse_length = QDoubleSpinBox()
+        self.impulse_length.setToolTip("Manual impulse response length override (Determined automatically, when 0.)")
+        self.impulse_length.setDecimals(3)
+        self.impulse_length.setValue(0.0)
+        self.impulse_length.setFixedWidth(100)
+        self.impulse_length.setSuffix(" ns")
+        analysis_layout.addWidget(impulse_label, 0, 0)
+        analysis_layout.addWidget(self.impulse_length, 0, 1)
+
+        # PJ Threshold
+        thresh_label = QLabel("PJ Threshold")
+        self.thresh = QDoubleSpinBox()
+        self.thresh.setToolTip("Threshold for identifying periodic jitter spectral elements. (sigma)")
+        self.thresh.setDecimals(3)
+        self.thresh.setValue(3.0)
+        self.thresh.setFixedWidth(100)
+        self.thresh.setSuffix(" sigma")
+        analysis_layout.addWidget(thresh_label, 1, 0)
+        analysis_layout.addWidget(self.thresh, 1, 1)
+
+        # Maximum Frequency
+        fmax_label = QLabel("fMax")
+        self.f_max = QDoubleSpinBox()
+        self.f_max.setToolTip("Maximum frequency used for plotting, modeling, and signal processing. (GHz)")
+        self.f_max.setDecimals(3)
+        self.f_max.setValue(40.0)
+        self.f_max.setFixedWidth(100)
+        self.f_max.setSuffix(" GHz")
+        self.f_max.setRange(0.0, 1000.0)
+        analysis_layout.addWidget(fmax_label, 2, 0)
+        analysis_layout.addWidget(self.f_max, 2, 1)
+
+        # Frequency Step
+        fstep_label = QLabel("fStep")
+        self.f_step = QDoubleSpinBox()
+        self.f_step.setToolTip("Frequency step used for plotting, modeling, and signal processing. (MHz)")
+        self.f_step.setDecimals(3)
+        self.f_step.setValue(10.0)
+        self.f_step.setFixedWidth(100)
+        self.f_step.setSuffix(" MHz")
+        analysis_layout.addWidget(fstep_label, 3, 0)
+        analysis_layout.addWidget(self.f_step, 3, 1)
+
+        # Add the analysis group to the main layout
+        layout.addWidget(analysis_group)
 
     def connect_signals(self, pybert: "PyBERT") -> None:
         """Connect widget signals to PyBERT stimulus model."""
@@ -182,6 +231,10 @@ class SimulationControlWidget(QGroupBox):
         self.rn.valueChanged.connect(lambda val: setattr(pybert, "rn", val))
         self.pn_mag.valueChanged.connect(lambda val: setattr(pybert, "pn_mag", val))
         self.pn_freq.valueChanged.connect(lambda val: setattr(pybert, "pn_freq", val))
+        self.impulse_length.valueChanged.connect(lambda val: setattr(pybert, "impulse_length", val))
+        self.thresh.valueChanged.connect(lambda val: setattr(pybert, "thresh", val))
+        self.f_max.valueChanged.connect(self.update_f_max)
+        self.f_step.valueChanged.connect(lambda val: setattr(pybert, "f_step", val))
 
     def update_modulation(self, pybert: "PyBERT", idx: int) -> None:
         """Update the modulation type."""
@@ -207,6 +260,14 @@ class SimulationControlWidget(QGroupBox):
         self.validate_pattern_length(new_pattern, self.eye_bits.value())
         setattr(self.pybert, "pattern", new_pattern)
 
+    def update_f_max(self, new_value: float) -> None:
+        fmax = self.nyquist_ghz(self.pybert.ui, self.nspui.value()) # Nyquist frequency, given our sampling rate (GHz).
+        if new_value > fmax:
+            self.f_max.setValue(fmax)
+            logger.warning("`fMax` has been held at the Nyquist frequency.")
+        else:
+            setattr(self.pybert, "f_max", new_value)
+
     def validate_eye_bits(self, eye_bits: int, nbits: int) -> None:
         """Validate user selected number of eye bits."""
         if eye_bits > nbits:
@@ -222,3 +283,8 @@ class SimulationControlWidget(QGroupBox):
                 "Accurate jitter decomposition may not be possible with the current configuration!",
                 "Try to keep `EyeBits` > 10 * 2^n, where `n` comes from `PRBS-n`.",]),
             )
+
+    @staticmethod
+    def nyquist_ghz(ui: float, nspui: int) -> float:
+        t_step = ui / nspui
+        return 0.5e-9 / t_step

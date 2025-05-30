@@ -165,7 +165,7 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
             TxTapTuner(name="Tap19", enabled=False, min_val=-0.05, max_val=0.1,  value=0.0),
             TxTapTuner(name="Tap20", enabled=False, min_val=-0.05, max_val=0.1,  value=0.0),
         ] #: EQ optimizer list of DFE tap tuner objects.
-        self.opt_thread = None #: EQ optimization thread.
+
 
         # - Tx
         self.tx_model = "Native"
@@ -284,14 +284,17 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
         self.pjDD_dfe = 0
         self.rjDD_dfe = 0
 
-        self.simulation_thread = None
 
+        # Threading and Processing
+        self.simulation_thread = None
+        self.opt_thread = None #: EQ optimization thread.
+
+        # Setup a threading Queue to share results between threads
         self.result_queue = queue.Queue()
         self.result_timer = QTimer()
         self.result_timer.timeout.connect(self.poll_results)
         self.result_timer.start(100)  # Poll every 100 ms
 
-        logger.info("Started.")
         if run_simulation:
             self.simulate()
 
@@ -610,18 +613,6 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
             error_message = f"Failed to open DLL/SO file!\n{err}"
             logger.exception(error_message)
 
-    def _rx_use_ami_changed(self, new_value):
-        if new_value:
-            self._btn_disable_fired()
-
-
-
-
-    def _f_max_changed(self, new_value):
-        fmax = 0.5e-9 / self.t[1]  # Nyquist frequency, given our sampling rate (GHz).
-        if new_value > fmax:
-            self.f_max = fmax
-            logger.warning("`fMax` has been held at the Nyquist frequency.")
 
     # This function has been pulled outside of the standard Traits/UI "depends_on / @property" mechanism,
     # in order to more tightly control when it executes. I wasn't able to get truly lazy evaluation, and

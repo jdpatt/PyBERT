@@ -1,6 +1,5 @@
 """PyBERT GUI widgets package."""
 
-from .analysis import AnalysisConfigWidget
 from .channel import ChannelConfigWidget
 from .debug_console import DebugConsoleWidget
 from .rx import RxConfigWidget
@@ -15,7 +14,6 @@ __all__ = [
     "TxConfigWidget",
     "ChannelConfigWidget",
     "RxConfigWidget",
-    "AnalysisConfigWidget",
     "TxOptimizationWidget",
     "RxOptimizationCTLEWidget",
     "RxOptimizationDFEWidget",

@@ -12,7 +12,6 @@ from PySide6.QtWidgets import (
 )
 
 from pybert.gui.widgets import (
-    AnalysisConfigWidget,
     ChannelConfigWidget,
     RxConfigWidget,
     SimulationControlWidget,
@@ -41,14 +40,9 @@ class ConfigTab(QWidget):
         top_layout = QHBoxLayout()
 
         # Add simulation control widget
-        self.sim_control = SimulationControlWidget(self)
+        self.sim_control = SimulationControlWidget(pybert=self.pybert, parent=self)
         self.sim_control.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
         top_layout.addWidget(self.sim_control, stretch=2)
-
-        # Add analysis control widget
-        self.analysis_control = AnalysisConfigWidget(self)
-        self.analysis_control.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
-        top_layout.addWidget(self.analysis_control, stretch=1)
 
         # Add top layout to main layout
         layout.addLayout(top_layout)
@@ -77,7 +71,6 @@ class ConfigTab(QWidget):
     def connect_signals(self, pybert):
         """Connect signals to PyBERT instance."""
         self.sim_control.connect_signals(pybert)
-        self.analysis_control.connect_signals(pybert)
         self.tx_config.connect_signals(pybert)
         self.channel_config.connect_signals(pybert)
         self.rx_config.connect_signals(pybert)
