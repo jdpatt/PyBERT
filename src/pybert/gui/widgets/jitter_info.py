@@ -13,7 +13,6 @@ from PySide6.QtWidgets import (
 )
 
 from pybert.pybert import PyBERT
-from pybert.utility.debug import setattr
 from pybert.utility.math import safe_log10
 
 
@@ -34,22 +33,22 @@ class ThickBottomBorderDelegate(QStyledItemDelegate):
 
 
 class JitterInfoTable(QTableWidget):
-    def __init__(self, pybert: PyBERT| None = None, parent=None):
+    def __init__(self, pybert: PyBERT | None = None, parent=None):
         super().__init__(parent)
         self.pybert = pybert
 
         self.setAlternatingRowColors(True)
-        self.setStyleSheet("""
+        self.setStyleSheet(
+            """
             QTableWidget {
                 alternate-background-color: #f0f0f0;
                 background-color: white;
             }
-        """)
+        """
+        )
         self.setColumnCount(5)
         self.setRowCount(16)
-        self.setHorizontalHeaderLabels(
-            ["Location", "Component", "Input (ps)", "Output (ps)", "Rejection (dB)"]
-        )
+        self.setHorizontalHeaderLabels(["Location", "Component", "Input (ps)", "Output (ps)", "Rejection (dB)"])
 
         header = self.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.Stretch)
@@ -77,7 +76,6 @@ class JitterInfoTable(QTableWidget):
                     cell.setData(Qt.UserRole, "border-bottom: 2px solid black;")
                 self.setItem(row, col, cell)
 
-
     def keyPressEvent(self, event):
         if event.matches(QKeySequence.Copy):
             self.copy_selection()
@@ -97,7 +95,6 @@ class JitterInfoTable(QTableWidget):
                     row_data.append(item.text() if item else "")
                 s += "\t".join(row_data) + "\n"
         QGuiApplication.clipboard().setText(s)
-
 
     def update_rejection(self):
         # Gather jitter values from pybert (in ps)
@@ -122,7 +119,7 @@ class JitterInfoTable(QTableWidget):
         def rej(in_val, out_val):
             if out_val:
                 return in_val / out_val
-            return float('nan')
+            return float("nan")
 
         # Table order: locations x components
         # locations = ["Tx Preemphasis", "CTLE (+ AMI DFE)", "DFE", "Total"]
@@ -131,8 +128,8 @@ class JitterInfoTable(QTableWidget):
             # Tx Preemphasis
             (isi_chnl, isi_tx, rej(isi_chnl, isi_tx)),
             (dcd_chnl, dcd_tx, rej(dcd_chnl, dcd_tx)),
-            (pj_chnl, pj_tx, float('nan')),
-            (rj_chnl, rj_tx, float('nan')),
+            (pj_chnl, pj_tx, float("nan")),
+            (rj_chnl, rj_tx, float("nan")),
             # CTLE (+ AMI DFE)
             (isi_tx, isi_ctle, rej(isi_tx, isi_ctle)),
             (dcd_tx, dcd_ctle, rej(dcd_tx, dcd_ctle)),
@@ -156,7 +153,9 @@ class JitterInfoTable(QTableWidget):
             # Output (ps)
             self.item(row, 3).setText(f"{output_val:6.3f}")
             # Rejection (dB)
-            if not (rejection is None or rejection != rejection or rejection == float('inf') or rejection == float('-inf')):
+            if not (
+                rejection is None or rejection != rejection or rejection == float("inf") or rejection == float("-inf")
+            ):
                 self.item(row, 4).setText(f"{10.0 * safe_log10(rejection):4.1f}")
             else:
                 self.item(row, 4).setText("n/a")

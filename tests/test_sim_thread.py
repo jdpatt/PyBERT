@@ -1,5 +1,5 @@
 from pybert.pybert import PyBERT
-from pybert.threads.sim import RunSimThread
+from pybert.threads.sim import SimulationThread
 
 
 def test_simulation_can_abort():
@@ -11,7 +11,7 @@ def test_simulation_can_abort():
     """
     app = PyBERT(run_simulation=False, gui=False)
 
-    sim = RunSimThread()
+    sim = SimulationThread()
     sim.the_pybert = app
     sim.start()  # Start the thread
     sim.stop()  # Abort the thread

@@ -25,7 +25,6 @@ from PySide6.QtWidgets import (
 
 from pybert.models.tx_tap import TxTapTuner
 from pybert.pybert import PyBERT
-from pybert.utility.debug import setattr
 
 
 class TxEqualizationWidget(QGroupBox):
@@ -134,7 +133,9 @@ class TxEqualizationWidget(QGroupBox):
 
     def connect_signals(self, pybert) -> None:
         """Connect signals to PyBERT instance."""
-        self.mode_group.buttonReleased.connect(lambda val: setattr(pybert, "tx_eq", "Native" if self.native_radio.isChecked() else "IBIS"))
+        self.mode_group.buttonReleased.connect(
+            lambda val: setattr(pybert, "tx_eq", "Native" if self.native_radio.isChecked() else "IBIS")
+        )
         self.ffe_table.itemChanged.connect(lambda item: setattr(pybert, "tx_taps", self.get_tap_values()))
 
     def _update_mode(self) -> None:
@@ -143,6 +144,11 @@ class TxEqualizationWidget(QGroupBox):
             self.stacked_layout.setCurrentWidget(self.ibis_group)
         else:
             self.stacked_layout.setCurrentWidget(self.native_group)
+
+    def switch_equalization_modes(self, has_ami: bool) -> None:
+        """Switch the equalization modes based on the presence of an AMI file."""
+        self.ibis_radio.setChecked(has_ami)
+        self._update_mode()
 
     def set_taps(self, tuners: list[TxTapTuner]) -> None:
         """Set the number of FFE taps.

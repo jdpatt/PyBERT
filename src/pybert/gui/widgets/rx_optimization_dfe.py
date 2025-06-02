@@ -19,7 +19,6 @@ from PySide6.QtWidgets import (
 )
 
 from pybert.models.tx_tap import TxTapTuner
-from pybert.utility.debug import setattr
 
 
 class RxOptimizationDFEWidget(QGroupBox):

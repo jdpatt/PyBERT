@@ -18,10 +18,10 @@ from PySide6.QtWidgets import (
 
 from pybert.constants import gMaxCTLEPeak
 from pybert.pybert import PyBERT
-from pybert.utility.debug import setattr
 from pybert.utility.logger import setup_logger
 
 logger = setup_logger("pybert")
+
 
 class RxOptimizationCTLEWidget(QGroupBox):
     """Widget for configuring receiver equalization."""
@@ -34,7 +34,6 @@ class RxOptimizationCTLEWidget(QGroupBox):
         """
         super().__init__("Rx CTLE", parent)
         self.pybert = pybert
-
 
         # Create main layout
         layout = QVBoxLayout()

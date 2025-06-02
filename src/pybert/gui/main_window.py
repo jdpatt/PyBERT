@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
 from pybert import __authors__, __copy__, __date__, __version__
 from pybert.configuration import CONFIG_LOAD_WILDCARD, CONFIG_SAVE_WILDCARD
 from pybert.constants import GETTING_STARTED_URL
+from pybert.gui.dialogs import warning_dialog
 from pybert.gui.tabs import ConfigTab, OptimizerTab, ResultsTab
 from pybert.gui.widgets import DebugConsoleWidget
 from pybert.pybert import PyBERT
@@ -38,7 +39,9 @@ logger = logging.getLogger("pybert")
 class MainWindow(QMainWindow):
     """Main window for the PyBERT application."""
 
-    def __init__(self, pybert: PyBERT | None = None, show_debug_console: bool = False, parent: Optional[QWidget] = None):
+    def __init__(
+        self, pybert: PyBERT | None = None, show_debug_console: bool = False, parent: Optional[QWidget] = None
+    ):
         """Initialize the main window.
 
         Args:
@@ -92,7 +95,7 @@ class MainWindow(QMainWindow):
         # Connect PyBERT signals if available
         if self.pybert:
             self.connect_signals()
-            self.pybert.simulate() # Populate the results tab with data
+            self.pybert.simulate()  # Populate the results tab with data
 
     def connect_signals(self):
         """Connect PyBERT signals to status bar update slots."""
@@ -159,7 +162,7 @@ class MainWindow(QMainWindow):
         self.pj_label.setText(f"Pj: {self.pybert.pj_dfe* 1.0e12:6.1f} ({self.pybert.pjDD_dfe * 1.0e12:6.1f}) ps")
         self.rj_label.setText(f"Rj: {self.pybert.rj_dfe* 1.0e12:6.1f} ({self.pybert.rjDD_dfe * 1.0e12:6.1f}) ps")
 
-    def create_menus(self, show_debug_console: bool=False):
+    def create_menus(self, show_debug_console: bool = False):
         """Create the application menus."""
         # File menu
         file_menu = self.menuBar().addMenu("&File")
@@ -318,6 +321,14 @@ class MainWindow(QMainWindow):
 
     def start_optimization(self):
         """Start the optimization."""
+        trials = self.pybert.calculate_optimization_trials()
+        if trials > 1_000_000:
+            usr_resp = warning_dialog(
+                "Large number of trials",
+                f"You've opted to run over {trials // 1_000_000} million trials!\nAre you sure?",
+            )
+            if not usr_resp:
+                return
         self.pybert.optimize()
 
     def stop_optimization(self):

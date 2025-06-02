@@ -18,7 +18,6 @@ from PySide6.QtWidgets import (
 
 from pybert.models.tx_tap import TxTapTuner
 from pybert.pybert import PyBERT
-from pybert.utility.debug import setattr
 
 
 class TxOptimizationWidget(QGroupBox):
@@ -120,7 +119,9 @@ class TxOptimizationWidget(QGroupBox):
             max_val = float(self.ffe_table.item(i, 3).text())
             step = float(self.ffe_table.item(i, 4).text())
             value = float(self.ffe_table.item(i, 5).text())
-            values.append(TxTapTuner(name=name, enabled=enabled, min_val=min_val, max_val=max_val, step=step, value=value))
+            values.append(
+                TxTapTuner(name=name, enabled=enabled, min_val=min_val, max_val=max_val, step=step, value=value)
+            )
         return values
 
     def set_tap_value(self, tap_index: int, value: float) -> None:

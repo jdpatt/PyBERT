@@ -28,12 +28,13 @@ from PySide6.QtWidgets import (
 
 MAX_CHANNEL_FILES = 5
 from pybert.pybert import PyBERT
-from pybert.utility.debug import setattr
 
 
 class FileGroupWidget(QWidget):
     """A widget representing a single file group (file selection, port options, remove button, and order number)."""
+
     text_changed = Signal()
+
     def __init__(self, order=1, remove_callback=None, parent=None, file_changed_callback=None):
         super().__init__(parent)
         self.order_label = QLabel(str(order))
@@ -231,7 +232,9 @@ class ChannelConfigWidget(QGroupBox):
 
     def connect_signals(self, pybert):
         """Connect signals to PyBERT instance."""
-        self.mode_group.buttonReleased.connect(lambda val: setattr(pybert, "channel_model", "Native" if self.native_radio.isChecked() else "From File"))
+        self.mode_group.buttonReleased.connect(
+            lambda val: setattr(pybert, "channel_model", "Native" if self.native_radio.isChecked() else "From File")
+        )
         self.use_window.toggled.connect(lambda val: setattr(pybert, "use_window", val))
         self.length.valueChanged.connect(lambda val: setattr(pybert, "l_ch", val))
         self.loss_tan.valueChanged.connect(lambda val: setattr(pybert, "Theta0", val))
@@ -282,17 +285,19 @@ class ChannelConfigWidget(QGroupBox):
             return
 
         item = QListWidgetItem()
+
         def remove():
             if self.file_list.count() > 1:
                 row = self.file_list.row(item)
                 self.file_list.takeItem(row)
                 self.update_file_group_orders()
                 self.update_add_btn_state()
+
         widget = FileGroupWidget(
             parent=self,
             order=self.file_list.count() + 1,
             remove_callback=remove,
-            file_changed_callback=self.update_add_btn_state
+            file_changed_callback=self.update_add_btn_state,
         )
         widget.text_changed.connect(lambda: setattr(self.pybert, "elements", self.get_channel_elements()))
         item.setSizeHint(widget.sizeHint())

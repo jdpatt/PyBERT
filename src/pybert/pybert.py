@@ -34,10 +34,10 @@ import skrf as rf
 from numpy import arange, array, cos, exp, pad, pi, sinc, where, zeros
 from numpy.fft import irfft, rfft  # type: ignore
 from numpy.random import randint  # type: ignore
+from pyibisami import IBISModel
 from pyibisami import __version__ as PyAMI_VERSION  # type: ignore
 from pyibisami.ami.model import AMIModel
 from pyibisami.ami.parser import AMIParamConfigurator
-from pyibisami.ibis.file import IBISModel
 from PySide6.QtCore import QObject, QTimer, Signal
 from scipy.interpolate import interp1d
 
@@ -45,7 +45,6 @@ from pybert import __version__ as VERSION
 from pybert.bert import my_run_simulation
 from pybert.configuration import InvalidFileType, PyBertCfg
 from pybert.constants import gPeakFreq, gPeakMag
-from pybert.gui.dialogs import warning
 from pybert.models.stimulus import BitPattern, ModulationType
 from pybert.models.tx_tap import TxTapTuner
 from pybert.optimization import OptThread
@@ -64,6 +63,7 @@ from pybert.utility.logger import setup_logger
 
 logger = setup_logger("pybert")
 
+
 class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
     """A serial communication link bit error rate tester (BERT) simulator with
     a GUI interface.
@@ -73,12 +73,12 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
     """
 
     # QT Signals - Most are emitted from the `handle_results()` method
-    sim_complete = Signal(object, object) # Simulation complete signal, update all the plots
-    opt_complete = Signal(object) # Optimization complete signal, update the boost and plot
-    opt_loop_complete = Signal(object) # Optimization loop complete signal
-    status_update = Signal(str) # Tells the GUI to update the status bar but do not use the logger instance.
-    new_tx_model = Signal() # New Tx model (an ibis file was loaded and potentially an AMI/DLL file was loaded)
-    new_rx_model = Signal() # New Rx model (an ibis file was loaded and potentially an AMI/DLL file was loaded)
+    sim_complete = Signal(object, object)  # Simulation complete signal, update all the plots
+    opt_complete = Signal(object)  # Optimization complete signal, update the boost and plot
+    opt_loop_complete = Signal(object)  # Optimization loop complete signal
+    status_update = Signal(str)  # Tells the GUI to update the status bar but do not use the logger instance.
+    new_tx_model = Signal()  # New Tx model (an ibis file was loaded and potentially an AMI/DLL file was loaded)
+    new_rx_model = Signal()  # New Rx model (an ibis file was loaded and potentially an AMI/DLL file was loaded)
 
     def __init__(self, run_simulation: bool = True) -> None:
         """Initialize the PyBERT class.
@@ -96,8 +96,8 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
         # Independent variables
 
         # - Simulation Control
-        self.bit_rate: float = 10.0   #: (Gbps)
-        self.nbits: int = 15000     #: Number of bits to simulate.
+        self.bit_rate: float = 10.0  #: (Gbps)
+        self.nbits: int = 15000  #: Number of bits to simulate.
         self.eye_bits: int = 10160  #: Number of bits used to form eye.
         self.pattern: BitPattern = BitPattern.PRBS7  #: Pattern to use for simulation.
         self.seed: int = 1  # LFSR seed. 0 means regenerate bits, using a new random seed, each run.
@@ -127,13 +127,13 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
         # - EQ Tune
         self.tx_eq: str = "Native"
         self.tx_tap_tuners: list[TxTapTuner] = [
-            TxTapTuner(name="Pre-tap3",  pos=-3, enabled=True, min_val=-0.05, max_val=0.05, step=0.025),
-                TxTapTuner(name="Pre-tap2",  pos=-2, enabled=True, min_val=-0.1,  max_val=0.1,  step=0.05),
-                TxTapTuner(name="Pre-tap1",  pos=-1, enabled=True, min_val=-0.2,  max_val=0.2,  step=0.1),
-                TxTapTuner(name="Post-tap1", pos=1,  enabled=True, min_val=-0.2,  max_val=0.2,  step=0.1),
-                TxTapTuner(name="Post-tap2", pos=2,  enabled=True, min_val=-0.1,  max_val=0.1,  step=0.05),
-                TxTapTuner(name="Post-tap3", pos=3,  enabled=True, min_val=-0.05, max_val=0.05, step=0.025),
-            ] #: EQ optimizer list of TxTapTuner objects.
+            TxTapTuner(name="Pre-tap3", pos=-3, enabled=True, min_val=-0.05, max_val=0.05, step=0.025),
+            TxTapTuner(name="Pre-tap2", pos=-2, enabled=True, min_val=-0.1, max_val=0.1, step=0.05),
+            TxTapTuner(name="Pre-tap1", pos=-1, enabled=True, min_val=-0.2, max_val=0.2, step=0.1),
+            TxTapTuner(name="Post-tap1", pos=1, enabled=True, min_val=-0.2, max_val=0.2, step=0.1),
+            TxTapTuner(name="Post-tap2", pos=2, enabled=True, min_val=-0.1, max_val=0.1, step=0.05),
+            TxTapTuner(name="Post-tap3", pos=3, enabled=True, min_val=-0.05, max_val=0.05, step=0.025),
+        ]  #: EQ optimizer list of TxTapTuner objects.
         self.rx_bw_tune: float = 12.0  #: EQ optimizer CTLE bandwidth (GHz).
         self.peak_freq_tune: float = gPeakFreq  #: EQ optimizer CTLE peaking freq. (GHz).
         self.peak_mag_tune: float = gPeakMag  #: EQ optimizer CTLE peaking mag. (dB).
@@ -141,29 +141,28 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
         self.max_mag_tune: float = 12  #: EQ optimizer CTLE peaking mag. max. (dB).
         self.step_mag_tune: float = 1  #: EQ optimizer CTLE peaking mag. step (dB).
         self.ctle_enable_tune: bool = True  #: EQ optimizer CTLE enable
-        self.dfe_tap_tuners: list[TxTapTuner]  = [
-            TxTapTuner(name="Tap1",  enabled=True,  min_val=0.1,   max_val=0.4,  value=0.1),
-            TxTapTuner(name="Tap2",  enabled=True,  min_val=-0.15, max_val=0.15, value=0.0),
-            TxTapTuner(name="Tap3",  enabled=True,  min_val=-0.05, max_val=0.1,  value=0.0),
-            TxTapTuner(name="Tap4",  enabled=True,  min_val=-0.05, max_val=0.1,  value=0.0),
-            TxTapTuner(name="Tap5",  enabled=True,  min_val=-0.05, max_val=0.1,  value=0.0),
-            TxTapTuner(name="Tap6",  enabled=False, min_val=-0.05, max_val=0.1,  value=0.0),
-            TxTapTuner(name="Tap7",  enabled=False, min_val=-0.05, max_val=0.1,  value=0.0),
-            TxTapTuner(name="Tap8",  enabled=False, min_val=-0.05, max_val=0.1,  value=0.0),
-            TxTapTuner(name="Tap9",  enabled=False, min_val=-0.05, max_val=0.1,  value=0.0),
-            TxTapTuner(name="Tap10", enabled=False, min_val=-0.05, max_val=0.1,  value=0.0),
-            TxTapTuner(name="Tap11", enabled=False, min_val=-0.05, max_val=0.1,  value=0.0),
-            TxTapTuner(name="Tap12", enabled=False, min_val=-0.05, max_val=0.1,  value=0.0),
-            TxTapTuner(name="Tap13", enabled=False, min_val=-0.05, max_val=0.1,  value=0.0),
-            TxTapTuner(name="Tap14", enabled=False, min_val=-0.05, max_val=0.1,  value=0.0),
-            TxTapTuner(name="Tap15", enabled=False, min_val=-0.05, max_val=0.1,  value=0.0),
-            TxTapTuner(name="Tap16", enabled=False, min_val=-0.05, max_val=0.1,  value=0.0),
-            TxTapTuner(name="Tap17", enabled=False, min_val=-0.05, max_val=0.1,  value=0.0),
-            TxTapTuner(name="Tap18", enabled=False, min_val=-0.05, max_val=0.1,  value=0.0),
-            TxTapTuner(name="Tap19", enabled=False, min_val=-0.05, max_val=0.1,  value=0.0),
-            TxTapTuner(name="Tap20", enabled=False, min_val=-0.05, max_val=0.1,  value=0.0),
-        ] #: EQ optimizer list of DFE tap tuner objects.
-
+        self.dfe_tap_tuners: list[TxTapTuner] = [
+            TxTapTuner(name="Tap1", enabled=True, min_val=0.1, max_val=0.4, value=0.1),
+            TxTapTuner(name="Tap2", enabled=True, min_val=-0.15, max_val=0.15, value=0.0),
+            TxTapTuner(name="Tap3", enabled=True, min_val=-0.05, max_val=0.1, value=0.0),
+            TxTapTuner(name="Tap4", enabled=True, min_val=-0.05, max_val=0.1, value=0.0),
+            TxTapTuner(name="Tap5", enabled=True, min_val=-0.05, max_val=0.1, value=0.0),
+            TxTapTuner(name="Tap6", enabled=False, min_val=-0.05, max_val=0.1, value=0.0),
+            TxTapTuner(name="Tap7", enabled=False, min_val=-0.05, max_val=0.1, value=0.0),
+            TxTapTuner(name="Tap8", enabled=False, min_val=-0.05, max_val=0.1, value=0.0),
+            TxTapTuner(name="Tap9", enabled=False, min_val=-0.05, max_val=0.1, value=0.0),
+            TxTapTuner(name="Tap10", enabled=False, min_val=-0.05, max_val=0.1, value=0.0),
+            TxTapTuner(name="Tap11", enabled=False, min_val=-0.05, max_val=0.1, value=0.0),
+            TxTapTuner(name="Tap12", enabled=False, min_val=-0.05, max_val=0.1, value=0.0),
+            TxTapTuner(name="Tap13", enabled=False, min_val=-0.05, max_val=0.1, value=0.0),
+            TxTapTuner(name="Tap14", enabled=False, min_val=-0.05, max_val=0.1, value=0.0),
+            TxTapTuner(name="Tap15", enabled=False, min_val=-0.05, max_val=0.1, value=0.0),
+            TxTapTuner(name="Tap16", enabled=False, min_val=-0.05, max_val=0.1, value=0.0),
+            TxTapTuner(name="Tap17", enabled=False, min_val=-0.05, max_val=0.1, value=0.0),
+            TxTapTuner(name="Tap18", enabled=False, min_val=-0.05, max_val=0.1, value=0.0),
+            TxTapTuner(name="Tap19", enabled=False, min_val=-0.05, max_val=0.1, value=0.0),
+            TxTapTuner(name="Tap20", enabled=False, min_val=-0.05, max_val=0.1, value=0.0),
+        ]  #: EQ optimizer list of DFE tap tuner objects.
 
         # - Tx
         self.tx_model: str = "Native"
@@ -174,13 +173,13 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
         self.pn_freq: float = 11  #: Periodic noise frequency (MHz).
         self.rn: float = 0.1  #: Standard deviation of Gaussian random noise (V).
         self.tx_taps: list[TxTapTuner] = [
-                TxTapTuner(name="Pre-tap3",  pos=-3, enabled=True, min_val=-0.05, max_val=0.05),
-                TxTapTuner(name="Pre-tap2",  pos=-2, enabled=True, min_val=-0.1,  max_val=0.1),
-                TxTapTuner(name="Pre-tap1",  pos=-1, enabled=True, min_val=-0.2,  max_val=0.2),
-                TxTapTuner(name="Post-tap1", pos=1,  enabled=True, min_val=-0.2,  max_val=0.2),
-                TxTapTuner(name="Post-tap2", pos=2,  enabled=True, min_val=-0.1,  max_val=0.1),
-                TxTapTuner(name="Post-tap3", pos=3,  enabled=True, min_val=-0.05, max_val=0.05),
-            ] #: List of TxTapTuner objects.
+            TxTapTuner(name="Pre-tap3", pos=-3, enabled=True, min_val=-0.05, max_val=0.05),
+            TxTapTuner(name="Pre-tap2", pos=-2, enabled=True, min_val=-0.1, max_val=0.1),
+            TxTapTuner(name="Pre-tap1", pos=-1, enabled=True, min_val=-0.2, max_val=0.2),
+            TxTapTuner(name="Post-tap1", pos=1, enabled=True, min_val=-0.2, max_val=0.2),
+            TxTapTuner(name="Post-tap2", pos=2, enabled=True, min_val=-0.1, max_val=0.1),
+            TxTapTuner(name="Post-tap3", pos=3, enabled=True, min_val=-0.05, max_val=0.05),
+        ]  #: List of TxTapTuner objects.
         self.rel_power: float = 1.0  #: Tx power dissipation (W).
         self.tx_use_ami: bool = False  #: (Bool)
         self.tx_has_ts4: bool = False  #: (Bool)
@@ -240,7 +239,6 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
         self.cfg_file: str = ""  #: PyBERT configuration data storage file (File).
         self.data_file: str = ""  #: PyBERT results data storage file (File).
 
-
         # Status
         self.len_h: float = 0
         self.chnl_dly: float = 0.0  #: Estimated channel delay (s).
@@ -282,7 +280,6 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
         self.pjDD_dfe = 0
         self.rjDD_dfe = 0
 
-
         # Threading and Processing
         self.simulation_thread: Optional[SimulationThread] = None
         self.opt_thread: Optional[OptThread] = None  #: EQ optimization thread.
@@ -295,7 +292,6 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
 
         if run_simulation:
             self.simulate()
-
 
     # Dependent variable definitions
     @property
@@ -323,7 +319,7 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
         Calculate the frequency vector for channel model construction.
         """
         fstep = self.f_step * 1e6
-        fmax  = self.f_max  * 1e9
+        fmax = self.f_max * 1e9
         return arange(0, fmax + fstep, fstep)  # "+fstep", so fmax gets included
 
     @property
@@ -419,12 +415,14 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
         elif ideal_type == 2:  # raised cosine
             ideal_h = (cos(pi * t / (ui / 2.0)) + 1.0) / 2.0
             ideal_h = where(t < -ui / 2.0, zeros(len(t)), ideal_h)
-            ideal_h = where(t >  ui / 2.0, zeros(len(t)), ideal_h)
+            ideal_h = where(t > ui / 2.0, zeros(len(t)), ideal_h)
         else:
             raise ValueError("PyBERT._get_ideal_h(): ERROR: Unrecognized ideal impulse response type.")
 
-        if mod_type == ModulationType.DUO:  # Duo-binary relies upon the total link impulse response to perform the required addition.
-            ideal_h = 0.5 * (ideal_h + pad(ideal_h[:-1 * nspui], (nspui, 0), "constant", constant_values=(0, 0)))
+        if (
+            mod_type == ModulationType.DUO
+        ):  # Duo-binary relies upon the total link impulse response to perform the required addition.
+            ideal_h = 0.5 * (ideal_h + pad(ideal_h[: -1 * nspui], (nspui, 0), "constant", constant_values=(0, 0)))
 
         return ideal_h
 
@@ -480,31 +478,22 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
 
         return taps
 
-
-    def load_new_tx_ibis_file(self, new_value):
-        self.status = f"Parsing IBIS file: {new_value}"
-        dName = ""
+    def load_new_tx_ibis_file(self, filepath: Path | str):
+        logger.info(f"Parsing IBIS file: {filepath}")
         try:
             self.tx_ibis_valid = False
             self.tx_use_ami = False
-            logger.info(f"Parsing Tx IBIS file, '{new_value}'...")
-            ibis = IBISModel(new_value, is_tx=True)
-            logger.info(f"  Result:\n{ibis.ibis_parsing_errors}")
+            ibis = IBISModel.from_file(filepath, is_tx=True)
+            self._tx_ibis_dir = ibis.filepath.parent
+            self.tx_dll_file = ibis.dll_file
+            self.tx_ami_file = ibis.ami_file
             self._tx_ibis = ibis
             self.tx_ibis_valid = True
-            dName = dirname(new_value)
-            if self._tx_ibis.dll_file and self._tx_ibis.ami_file:
-                self.tx_dll_file = join(dName, self._tx_ibis.dll_file)
-                self.tx_ami_file = join(dName, self._tx_ibis.ami_file)
-            else:
-                self.tx_dll_file = ""
-                self.tx_ami_file = ""
+            logger.info("Done.")
+            return ibis
         except Exception as err:  # pylint: disable=broad-exception-caught
-            self.status = "IBIS file parsing error!"
             error_message = f"Failed to open and/or parse IBIS file!\n{err}"
             logger.exception(error_message)
-        self._tx_ibis_dir = dName
-        self.status = "Done."
 
     def tx_ami_file_changed(self, new_value):
         try:
@@ -543,31 +532,22 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
             error_message = f"Failed to open DLL/SO file!\n{err}"
             logger.exception(error_message)
 
-    def load_new_rx_ibis_file(self, new_value):
-        self.status = f"Parsing IBIS file: {new_value}"
-        dName = ""
+    def load_new_rx_ibis_file(self, filepath: Path | str):
+        logger.info(f"Parsing IBIS file: {filepath}")
         try:
             self.rx_ibis_valid = False
             self.rx_use_ami = False
-            logger.info(f"Parsing Rx IBIS file, '{new_value}'...")
-            ibis = IBISModel(new_value, is_tx=False)
-            logger.info(f"  Result:\n{ibis.ibis_parsing_errors}")
+            ibis = IBISModel.from_file(filepath, is_tx=False)
+            self._rx_ibis_dir = ibis.filepath.parent
+            self.rx_dll_file = ibis.dll_file
+            self.rx_ami_file = ibis.ami_file
             self._rx_ibis = ibis
             self.rx_ibis_valid = True
-            dName = dirname(new_value)
-            if self._rx_ibis.dll_file and self._rx_ibis.ami_file:
-                self.rx_dll_file = join(dName, self._rx_ibis.dll_file)
-                self.rx_ami_file = join(dName, self._rx_ibis.ami_file)
-            else:
-                self.rx_dll_file = ""
-                self.rx_ami_file = ""
+            logger.info("Done.")
+            return ibis
         except Exception as err:  # pylint: disable=broad-exception-caught
-            self.status = "IBIS file parsing error!"
             error_message = f"Failed to open and/or parse IBIS file!\n{err}"
             logger.exception(error_message)
-            raise
-        self._rx_ibis_dir = dName
-        self.status = "Done."
 
     def rx_ami_file_changed(self, new_value):
         try:
@@ -604,7 +584,6 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
         except Exception as err:  # pylint: disable=broad-exception-caught
             error_message = f"Failed to open DLL/SO file!\n{err}"
             logger.exception(error_message)
-
 
     # This function has been pulled outside of the standard Traits/UI "depends_on / @property" mechanism,
     # in order to more tightly control when it executes. I wasn't able to get truly lazy evaluation, and
@@ -693,8 +672,11 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
             ts4N = rf.Network(ts4f)  # Grab the 4-port single-ended on-die network.
             ntwk = sdd_21(ts4N)  # Convert it to a differential, 2-port network.
             # Interpolate to system freqs.
-            ntwk2 = ntwk.extrapolate_to_dc().windowed(normalize=False).interpolate(
-                s2p.f, coords='polar', bounds_error=False, fill_value='extrapolate')
+            ntwk2 = (
+                ntwk.extrapolate_to_dc()
+                .windowed(normalize=False)
+                .interpolate(s2p.f, coords="polar", bounds_error=False, fill_value="extrapolate")
+            )
             if isRx:
                 res = s2p**ntwk2
             else:  # Tx
@@ -745,8 +727,7 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
             chnl_h = irfft(raised_cosine(chnl_H))
         else:
             chnl_h = irfft(chnl_H)
-        krnl = interp1d(t_irfft, chnl_h, kind="cubic",
-                        bounds_error=False, fill_value=0, assume_sorted=True)
+        krnl = interp1d(t_irfft, chnl_h, kind="cubic", bounds_error=False, fill_value=0, assume_sorted=True)
         temp = krnl(t)
         chnl_h = temp * t[1] / t_irfft[1]
         chnl_dly = where(chnl_h == max(chnl_h))[0][0] * ts
@@ -755,14 +736,14 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
         max_len = 100 * nspui
         if impulse_length:
             min_len = max_len = int(impulse_length / ts)
-        chnl_h, start_ix = trim_impulse(chnl_h, min_len=min_len, max_len=max_len,
-                                        front_porch=True, kept_energy=0.999)
-        krnl = interp1d(t[:len(chnl_h)], chnl_h, kind="cubic",
-                        bounds_error=False, fill_value=0, assume_sorted=True)
+        chnl_h, start_ix = trim_impulse(chnl_h, min_len=min_len, max_len=max_len, front_porch=True, kept_energy=0.999)
+        krnl = interp1d(t[: len(chnl_h)], chnl_h, kind="cubic", bounds_error=False, fill_value=0, assume_sorted=True)
         chnl_trimmed_H = rfft(krnl(t_irfft)) * t_irfft[1] / t[1]
 
         chnl_s = chnl_h.cumsum()
-        chnl_p = chnl_s - pad(chnl_s[:-nspui], (nspui, 0), "constant", constant_values=(0, 0))  # pylint: disable=invalid-unary-operand-type
+        chnl_p = chnl_s - pad(
+            chnl_s[:-nspui], (nspui, 0), "constant", constant_values=(0, 0)
+        )  # pylint: disable=invalid-unary-operand-type
 
         self.chnl_h = chnl_h
         self.len_h = len(chnl_h)
@@ -771,13 +752,11 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
         self.chnl_H_raw = H
         self.chnl_trimmed_H = chnl_trimmed_H
         self.start_ix = start_ix
-        self.t_ns_chnl = array(t[start_ix: start_ix + len(chnl_h)]) * 1.0e9
+        self.t_ns_chnl = array(t[start_ix : start_ix + len(chnl_h)]) * 1.0e9
         self.chnl_s = chnl_s
         self.chnl_p = chnl_p
 
         return chnl_h
-
-
 
     def load_configuration(self, filepath: Path):
         """Load in a configuration into pybert.
@@ -788,7 +767,7 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
         try:
             PyBertCfg.load_from_file(filepath, self)
             self.cfg_file = filepath
-            self.status = "Loaded configuration."
+            logger.info("Loaded configuration.")
         except InvalidFileType:
             logger.error("This filetype is not currently supported.")
         except Exception as err:  # pylint: disable=broad-exception-caught
@@ -804,7 +783,7 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
         try:
             PyBertCfg(self, time.asctime(), VERSION).save(filepath)
             self.cfg_file = filepath
-            self.status = "Configuration saved."
+            logger.info("Configuration saved.")
         except InvalidFileType:
             logger.error("This filetype is not currently supported. Please try again as a yaml file.")
         except Exception as err:  # pylint: disable=broad-exception-caught
@@ -819,7 +798,7 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
         try:
             PyBertData.load_from_file(filepath, self)
             self.data_file = filepath
-            self.status = "Loaded results."
+            logger.info("Loaded results.")
         except Exception as err:  # pylint: disable=broad-exception-caught
             logger.error("Failed to load results from file. See the console for more detail.")
             logger.exception(str(err))
@@ -833,7 +812,7 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
         try:
             PyBertData(self, time.asctime(), VERSION).save(filepath)
             self.data_file = filepath
-            self.status = "Saved results."
+            logger.info("Saved results.")
         except Exception as err:  # pylint: disable=broad-exception-caught
             logger.error("Failed to save results to file. See the console for more detail.")
             logger.exception(str(err))
@@ -845,6 +824,13 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
         self.sim_complete.emit(results, perf)
         return results
 
+    def calculate_optimization_trials(self):
+        """Calculate the number of trials for the optimization."""
+        n_trials = int((self.max_mag_tune - self.min_mag_tune) / self.step_mag_tune)
+        for tuner in self.tx_tap_tuners:
+            n_trials *= int((tuner.max_val - tuner.min_val) / tuner.step)
+        return n_trials
+
     def optimize(self):
         """Start the optimization process using the tuner values.
 
@@ -854,13 +840,6 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
         if self.opt_thread and self.opt_thread.is_alive():
             pass
         else:
-            n_trials = int((self.max_mag_tune - self.min_mag_tune) / self.step_mag_tune)
-            for tuner in self.tx_tap_tuners:
-                n_trials *= int((tuner.max_val - tuner.min_val) / tuner.step)
-            if n_trials > 1_000_000:
-                usr_resp = warning(f"You've opted to run over {n_trials // 1_000_000} million trials!\nAre you sure?")
-                if not usr_resp:
-                    return
             self.opt_thread = OptThread()
             self.opt_thread.pybert = self
             self.opt_thread.start()
@@ -876,7 +855,7 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
         """Reset the optimization back to what the current configuration is."""
         logger.info("Resetting optimization.")
         for i, tap in enumerate(self.tx_taps):
-            self.tx_tap_tuners[i].value   = tap.value
+            self.tx_tap_tuners[i].value = tap.value
             self.tx_tap_tuners[i].enabled = tap.enabled
         self.peak_freq_tune = self.peak_freq
         self.peak_mag_tune = self.peak_mag
@@ -887,7 +866,7 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
         """Apply the optimization to the current configuration."""
         logger.info("Applying optimization.")
         for i, tap in enumerate(self.tx_tap_tuners):
-            self.tx_taps[i].value   = tap.value
+            self.tx_taps[i].value = tap.value
             self.tx_taps[i].enabled = tap.enabled
         self.peak_freq = self.peak_freq_tune
         self.peak_mag = self.peak_mag_tune

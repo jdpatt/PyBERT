@@ -23,8 +23,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from pybert.gui.dialogs import select_file
-from pybert.utility.debug import setattr
+from pybert.gui.dialogs import select_file_dialog
 
 
 class RxEqualizationWidget(QGroupBox):
@@ -298,7 +297,9 @@ class RxEqualizationWidget(QGroupBox):
 
     def connect_signals(self, pybert) -> None:
         """Connect signals to PyBERT instance."""
-        self.mode_group.buttonReleased.connect(lambda val: setattr(pybert, "rx_eq", "Native" if self.native_radio.isChecked() else "IBIS"))
+        self.mode_group.buttonReleased.connect(
+            lambda val: setattr(pybert, "rx_eq", "Native" if self.native_radio.isChecked() else "IBIS")
+        )
         # CTLE
         self.ctle_enable.toggled.connect(lambda val: setattr(pybert, "ctle_enable", val))
         self.ctle_file_radio.toggled.connect(lambda val: setattr(pybert, "rx_ctle_model", "File"))
@@ -320,13 +321,17 @@ class RxEqualizationWidget(QGroupBox):
         self.sum_bw.valueChanged.connect(lambda val: setattr(pybert, "sum_bw", val))
         self.sum_ideal.toggled.connect(lambda val: setattr(pybert, "sum_ideal", val))
 
-
     def _update_mode(self) -> None:
         """Show only the selected group (IBIS or Native) using stacked layout."""
         if self.ibis_radio.isChecked():
             self.stacked_layout.setCurrentWidget(self.ibis_group)
         else:
             self.stacked_layout.setCurrentWidget(self.native_group)
+
+    def switch_equalization_modes(self, has_ami: bool) -> None:
+        """Switch the equalization modes based on the presence of an AMI file."""
+        self.ibis_radio.setChecked(has_ami)
+        self._update_mode()
 
     def _update_ctle_mode(self) -> None:
         """Show only the selected CTLE mode (File or Model) using stacked layout."""
@@ -337,7 +342,7 @@ class RxEqualizationWidget(QGroupBox):
 
     def _browse_ctle(self) -> None:
         """Open file dialog to select CTLE file."""
-        filename = select_file(self, "Select CTLE File", "CSV Files (*.csv);;All Files (*.*)")
+        filename = select_file_dialog(self, "Select CTLE File", "CSV Files (*.csv);;All Files (*.*)")
         if filename:
             self.ctle_file.setText(filename)
 

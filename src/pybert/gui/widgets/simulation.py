@@ -19,12 +19,13 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from pybert.gui.dialogs import warning
+from pybert.gui.dialogs import warning_dialog
 from pybert.models.stimulus import BitPattern, ModulationType
 from pybert.pybert import PyBERT
-from pybert.utility.debug import setattr
 
 logger = logging.getLogger("pybert")
+
+
 class SimulationControlWidget(QGroupBox):
     """Widget for controlling simulation parameters."""
 
@@ -40,8 +41,6 @@ class SimulationControlWidget(QGroupBox):
         # Create main layout
         layout = QHBoxLayout()
         self.setLayout(layout)
-
-
 
         # Rate & Modulation group
         rate_group = QGroupBox("Rate && Modulation")
@@ -164,7 +163,6 @@ class SimulationControlWidget(QGroupBox):
 
         layout.addWidget(level_group)
 
-
         # --- Analysis Parameters Group ---
         analysis_group = QGroupBox("Analysis Parameters")
         analysis_layout = QGridLayout()
@@ -261,7 +259,9 @@ class SimulationControlWidget(QGroupBox):
         setattr(self.pybert, "pattern", new_pattern)
 
     def update_f_max(self, new_value: float) -> None:
-        fmax = self.nyquist_ghz(self.pybert.ui, self.nspui.value()) # Nyquist frequency, given our sampling rate (GHz).
+        fmax = self.nyquist_ghz(
+            self.pybert.ui, self.nspui.value()
+        )  # Nyquist frequency, given our sampling rate (GHz).
         if new_value > fmax:
             self.f_max.setValue(fmax)
             logger.warning("`fMax` has been held at the Nyquist frequency.")
@@ -278,10 +278,14 @@ class SimulationControlWidget(QGroupBox):
         """Validate chosen pattern length against number of bits being run."""
         pat_len = 2 * pow(2, max(pattern.value))  # "2 *", to accommodate PAM-4.
         if eye_bits < 5 * pat_len:
-            warning("Configuration Warning",
-                "\n".join([
-                "Accurate jitter decomposition may not be possible with the current configuration!",
-                "Try to keep `EyeBits` > 10 * 2^n, where `n` comes from `PRBS-n`.",]),
+            warning_dialog(
+                "Configuration Warning",
+                "\n".join(
+                    [
+                        "Accurate jitter decomposition may not be possible with the current configuration!",
+                        "Try to keep `EyeBits` > 10 * 2^n, where `n` comes from `PRBS-n`.",
+                    ]
+                ),
             )
 
     @staticmethod
