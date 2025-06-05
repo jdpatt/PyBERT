@@ -9,6 +9,7 @@ Copyright (c) 2024 David Banas; all rights reserved World wide.
 A partial extraction of the old `pybert/utility.py`, as part of a refactoring.
 """
 
+import logging
 from typing import Optional
 
 import numpy as np
@@ -41,7 +42,8 @@ from ..constants import Rvec
 from .math import gaus_pdf
 from .sigproc import moving_average
 
-debug          = False
+debug = False
+logger = logging.getLogger("pybert.utils")
 
 
 def find_crossing_times(  # pylint: disable=too-many-arguments,too-many-positional-arguments
@@ -88,7 +90,7 @@ def find_crossing_times(  # pylint: disable=too-many-arguments,too-many-position
     try:
         max_mag_x = np.max(abs(x))
     except Exception:  # pylint: disable=broad-exception-caught
-        print("len(x):", len(x))
+        logger.error(f"len(x): {len(x)}")
         raise
     min_mag_x = min_init_dev * max_mag_x
     i = 0
@@ -115,22 +117,21 @@ def find_crossing_times(  # pylint: disable=too-many-arguments,too-many-position
         while xings[i] < min_delay:
             i += 1
 
-    if debug:
-        print(f"min_delay: {min_delay}")
-        print(f"rising_first: {rising_first}")
-        print(f"i: {i}")
-        print(f"max_mag_x: {max_mag_x}")
-        print(f"min_mag_x: {min_mag_x}")
-        print(f"xings[0]: {xings[0]}")
-        print(f"xings[i]: {xings[i]}")
+    logger.debug(f"min_delay: {min_delay}")
+    logger.debug(f"rising_first: {rising_first}")
+    logger.debug(f"i: {i}")
+    logger.debug(f"max_mag_x: {max_mag_x}")
+    logger.debug(f"min_mag_x: {min_mag_x}")
+    logger.debug(f"xings[0]: {xings[0]}")
+    logger.debug(f"xings[i]: {xings[i]}")
 
     try:
         if rising_first and diff_sign_x[xing_ix[i]] < 0.0:
             i += 1
     except Exception:  # pylint: disable=broad-exception-caught
-        print("len(diff_sign_x):", len(diff_sign_x))
-        print("len(xing_ix):", len(xing_ix))
-        print("i:", i)
+        logger.error(f"len(diff_sign_x): {len(diff_sign_x)}")
+        logger.error(f"len(xing_ix): {len(xing_ix)}")
+        logger.error(f"i: {i}")
         raise
 
     return array(xings[i:])
@@ -143,7 +144,7 @@ def find_crossings(  # pylint: disable=too-many-arguments,too-many-positional-ar
     min_delay: float = 0.0,
     rising_first: bool = True,
     min_init_dev: float = 0.1,
-    mod_type: ModulationType = ModulationType.NRZ
+    mod_type: ModulationType = ModulationType.NRZ,
 ) -> Rvec:
     """
     Find the crossing times in a signal, according to the modulation type.
@@ -206,7 +207,9 @@ def find_crossings(  # pylint: disable=too-many-arguments,too-many-positional-ar
                 thresh=(0.5 * amplitude),
             )
         )
-    elif mod_type == ModulationType.PAM4:  # PAM-4 (Enabling the +/-0.67 cases yields multiple ideal crossings at the same edge.)
+    elif (
+        mod_type == ModulationType.PAM4
+    ):  # PAM-4 (Enabling the +/-0.67 cases yields multiple ideal crossings at the same edge.)
         xings.append(
             find_crossing_times(
                 t,
@@ -224,11 +227,19 @@ def find_crossings(  # pylint: disable=too-many-arguments,too-many-positional-ar
 
 
 def calc_jitter(  # pylint: disable=too-many-arguments,too-many-locals,too-many-branches,too-many-statements,too-many-positional-arguments
-    ui: float, nui: int, pattern_len: int, ideal_xings: Rvec, actual_xings: Rvec,
-    rel_thresh: float = 3.0, num_bins: int = 101,
-    zero_mean: bool = True, dbg_obj: Optional[object] = None, smooth_width: int = 5
-) -> tuple[Rvec, Rvec, float, float, float, float, float, float,
-           Rvec, Rvec, Rvec, Rvec, Rvec, Rvec, Rvec, Rvec, float, float]:
+    ui: float,
+    nui: int,
+    pattern_len: int,
+    ideal_xings: Rvec,
+    actual_xings: Rvec,
+    rel_thresh: float = 3.0,
+    num_bins: int = 101,
+    zero_mean: bool = True,
+    dbg_obj: Optional[object] = None,
+    smooth_width: int = 5,
+) -> tuple[
+    Rvec, Rvec, float, float, float, float, float, float, Rvec, Rvec, Rvec, Rvec, Rvec, Rvec, Rvec, Rvec, float, float
+]:
     """
     Calculate the jitter in a set of actual zero crossings,
     given the ideal crossings and unit interval.
@@ -288,15 +299,25 @@ def calc_jitter(  # pylint: disable=too-many-arguments,too-many-locals,too-many-
 
     num_patterns = nui // pattern_len
     if num_patterns == 0:
-        raise ValueError("\n".join([
-            "Need at least one full pattern repetition!",
-            f"(pattern_len: {pattern_len}; nui: {nui})",]))
+        raise ValueError(
+            "\n".join(
+                [
+                    "Need at least one full pattern repetition!",
+                    f"(pattern_len: {pattern_len}; nui: {nui})",
+                ]
+            )
+        )
     xings_per_pattern = where(ideal_xings > (pattern_len * ui))[0][0]
     if xings_per_pattern % 2 or not xings_per_pattern:
-        raise ValueError("\n".join([
-            "pybert.utility.calc_jitter(): Odd number of (or, no) crossings per pattern detected!",
-            f"xings_per_pattern: {xings_per_pattern}",
-            f"min(ideal_xings): {min(ideal_xings)}",]))
+        raise ValueError(
+            "\n".join(
+                [
+                    "pybert.utility.calc_jitter(): Odd number of (or, no) crossings per pattern detected!",
+                    f"xings_per_pattern: {xings_per_pattern}",
+                    f"min(ideal_xings): {min(ideal_xings)}",
+                ]
+            )
+        )
 
     # Assemble the TIE track.
     i = 0
@@ -318,7 +339,7 @@ def calc_jitter(  # pylint: disable=too-many-arguments,too-many-locals,too-many-
         if i == len(actual_xings):  # We've exhausted the list of actual crossings; we're done.
             break
         if actual_xings[i] > max_t:  # Means the xing we're looking for didn't occur, in the actual signal.
-            jitterL.append( 3.0 * ui / 4.0)  # Pad the jitter w/ alternating +/- 3UI/4.  # noqa: E201
+            jitterL.append(3.0 * ui / 4.0)  # Pad the jitter w/ alternating +/- 3UI/4.  # noqa: E201
             jitterL.append(-3.0 * ui / 4.0)  # (Will get pulled into [-UI/2, UI/2], later.
             skip_next_ideal_xing = True  # If we missed one, we missed two.
         else:  # Noise may produce several crossings.
@@ -334,26 +355,25 @@ def calc_jitter(  # pylint: disable=too-many-arguments,too-many-locals,too-many-
 
     # ToDo: Report this in the status bar.
     if len(jitter) == 0 or len(t_jitter) == 0:
-        print("No crossings found!", flush=True)
+        logger.error("No crossings found!")
 
-    if debug:
-        print("mean(jitter):", mean(jitter))
-        print("len(jitter):", len(jitter))
+    logger.debug("mean(jitter): %s", mean(jitter))
+    logger.debug("len(jitter): %s", len(jitter))
 
     if zero_mean:
         jitter -= mean(jitter)
 
     # Do the jitter decomposition.
     # - Separate the rising and falling edges, shaped appropriately for averaging over the pattern period.
-    tie_risings  = jitter.take(list(range(0, len(jitter), 2)))  # type: ignore
+    tie_risings = jitter.take(list(range(0, len(jitter), 2)))  # type: ignore
     tie_fallings = jitter.take(list(range(1, len(jitter), 2)))  # type: ignore
     tie_risings.resize(num_patterns * xings_per_pattern // 2, refcheck=False)  # type: ignore
     tie_fallings.resize(num_patterns * xings_per_pattern // 2, refcheck=False)  # type: ignore
-    tie_risings  = reshape(tie_risings, (num_patterns, xings_per_pattern // 2))
+    tie_risings = reshape(tie_risings, (num_patterns, xings_per_pattern // 2))
     tie_fallings = reshape(tie_fallings, (num_patterns, xings_per_pattern // 2))
 
     # - Use averaging to remove the uncorrelated components, before calculating data dependent components.
-    tie_risings_ave  = tie_risings.mean(axis=0)
+    tie_risings_ave = tie_risings.mean(axis=0)
     tie_fallings_ave = tie_fallings.mean(axis=0)
     isi = max(np.ptp(tie_risings_ave), np.ptp(tie_fallings_ave))
     isi = min(isi, ui)  # Cap the ISI at the unit interval.
@@ -370,13 +390,13 @@ def calc_jitter(  # pylint: disable=too-many-arguments,too-many-locals,too-many-
 
     # - Calculate the total and data-independent jitter spectrums, for display purposes only.
     # -- Calculate the relevant time/frequency vectors.
-    osf = 1                                             # jitter oversampling factor
-    t0  = ui / osf                                      # jitter sampling period
-    t   = array([n * t0 for n in range(nui * osf)])  # jitter samples time vector
-    f0  = 1.0 / (ui * nui)                              # jitter samples fundamental frequency
-    _f   = [n * f0 for n in range(len(t) // 2)]          # [0:f0:fNyquist)
-    f   = array(_f + [1 / (2 * t0)] + list(-1 * flip(array(_f[1:]))))  # [0:f0:fN) ++ [fN:-f0:0)
-    half_len = len(f) // 2                              # for spectrum plotting convenience
+    osf = 1  # jitter oversampling factor
+    t0 = ui / osf  # jitter sampling period
+    t = array([n * t0 for n in range(nui * osf)])  # jitter samples time vector
+    f0 = 1.0 / (ui * nui)  # jitter samples fundamental frequency
+    _f = [n * f0 for n in range(len(t) // 2)]  # [0:f0:fNyquist)
+    f = array(_f + [1 / (2 * t0)] + list(-1 * flip(array(_f[1:]))))  # [0:f0:fN) ++ [fN:-f0:0)
+    half_len = len(f) // 2  # for spectrum plotting convenience
 
     # -- Make TIE vector uniformly sampled in time, via interpolation, for use as input to `fft()`.
     # spl = UnivariateSpline(t_jitter, jitter)  # Way of the future, but does funny things. :(
@@ -386,11 +406,11 @@ def calc_jitter(  # pylint: disable=too-many-arguments,too-many-locals,too-many-
         y = fft(tie_interp)
         jitter_spectrum = abs(y[:half_len])
     except Exception as err:  # pylint: disable=broad-exception-caught
-        print(f"t_jitter: {t_jitter}")
-        print(f"jitter: {jitter}")
-        print(f"Error calculating data dependent TIE: {err}", flush=True)
+        logger.error(f"t_jitter: {t_jitter}")
+        logger.error(f"jitter: {jitter}")
+        logger.error(f"Error calculating data dependent TIE: {err}", flush=True)
         jitter_spectrum = zeros(half_len)
-    jitter_freqs    = f[:half_len]
+    jitter_freqs = f[:half_len]
 
     # -- Repeat for data-independent jitter.
     try:
@@ -400,9 +420,9 @@ def calc_jitter(  # pylint: disable=too-many-arguments,too-many-locals,too-many-
         y_mag = abs(y)
         tie_ind_spectrum = y_mag[:half_len]
     except Exception as err:  # pylint: disable=broad-exception-caught
-        print(f"t_jitter: {t_jitter}")
-        print(f"tie_ind: {tie_ind}")
-        print(f"Error calculating data independent TIE: {err}", flush=True)
+        logger.error(f"t_jitter: {t_jitter}")
+        logger.error(f"tie_ind: {tie_ind}")
+        logger.error(f"Error calculating data independent TIE: {err}", flush=True)
         y = zeros(half_len)  # type: ignore
         y_mag = zeros(half_len)
         tie_ind_spectrum = zeros(half_len)
@@ -410,16 +430,16 @@ def calc_jitter(  # pylint: disable=too-many-arguments,too-many-locals,too-many-
     # -- Perform spectral extraction of Pj from the data independent jitter,
     # -- using a threshold based on a moving average to identify the periodic components.
     win_width = 100
-    y_mean    = moving_average(y_mag,                 n=win_width)
-    y_var     = moving_average((y_mag - y_mean) ** 2, n=win_width)
-    y_sigma   = sqrt(y_var)
-    thresh    = y_mean + rel_thresh * y_sigma
-    y_per     = where(y_mag > thresh, y, zeros(len(y)))  # Periodic components are those lying above the threshold.
-    y_rnd     = where(y_mag > thresh, zeros(len(y)), y)  # Random components are those lying below.
-    tie_per   = real(ifft(y_per))
-    pj        = np.ptp(tie_per)
-    tie_rnd   = real(ifft(y_rnd))
-    rj        = sqrt(mean((tie_rnd - tie_rnd.mean())**2))
+    y_mean = moving_average(y_mag, n=win_width)
+    y_var = moving_average((y_mag - y_mean) ** 2, n=win_width)
+    y_sigma = sqrt(y_var)
+    thresh = y_mean + rel_thresh * y_sigma
+    y_per = where(y_mag > thresh, y, zeros(len(y)))  # Periodic components are those lying above the threshold.
+    y_rnd = where(y_mag > thresh, zeros(len(y)), y)  # Random components are those lying below.
+    tie_per = real(ifft(y_per))
+    pj = np.ptp(tie_per)
+    tie_rnd = real(ifft(y_rnd))
+    rj = sqrt(mean((tie_rnd - tie_rnd.mean()) ** 2))
 
     # -- Do dual Dirac fitting of the data-independent jitter histogram, to determine Pj/Rj.
     # --- Generate a smoothed version of the TIE histogram, for better peak identification.
@@ -434,30 +454,29 @@ def calc_jitter(  # pylint: disable=too-many-arguments,too-many-locals,too-many-
         [-UI, -UI/2] into the first bin, and everything in [UI/2, UI]
         into the last bin.
         """
-        bin_edges   = array([-ui] + [-ui / 2.0 + i * ui / (num_bins - 2) for i in range(num_bins - 1)] + [ui])
+        bin_edges = array([-ui] + [-ui / 2.0 + i * ui / (num_bins - 2) for i in range(num_bins - 1)] + [ui])
         bin_centers = [-ui / 2] + list((bin_edges[1:-2] + bin_edges[2:-1]) / 2) + [ui / 2]
-        hist, _     = histogram(x, bin_edges)
-        hist        = hist / hist.sum()  # PMF
+        hist, _ = histogram(x, bin_edges)
+        hist = hist / hist.sum()  # PMF
         if density:
             hist /= diff(bin_edges)
         return (hist, bin_centers, bin_edges)
 
     if use_my_hist:
         hist_ind, centers, edges = my_hist(tie_ind, density=True)
-        hist_tot, _, _ = my_hist(jitter,  density=True)
+        hist_tot, _, _ = my_hist(jitter, density=True)
         centers = array(centers)
     else:
         hist_ind, edges = histogram(tie_ind, bins=num_bins, density=True)
-        hist_tot, _     = histogram(jitter,  bins=num_bins, density=True)
-        centers         = (edges[:-1] + edges[1:]) / 2
+        hist_tot, _ = histogram(jitter, bins=num_bins, density=True)
+        centers = (edges[:-1] + edges[1:]) / 2
     hist_ind_smooth = array(moving_average(hist_ind, n=smooth_width))
     hist_tot_smooth = array(moving_average(hist_tot, n=smooth_width))
     hist_dd = hist_tot_smooth
 
     # Trying to avoid any residual peak at zero, which can confuse the algorithm:
     center_ix = (num_bins - 1) / 2  # May be fractional.
-    peak_ixs  = array(list(filter(lambda x: abs(x - center_ix) > 1,
-                                  where(diff(sign(diff(hist_dd))) < 0)[0] + 1)))
+    peak_ixs = array(list(filter(lambda x: abs(x - center_ix) > 1, where(diff(sign(diff(hist_dd))) < 0)[0] + 1)))
     neg_peak_ixs = list(filter(lambda x: x < center_ix, peak_ixs))
     if neg_peak_ixs:
         neg_peak_loc = neg_peak_ixs[argmax(hist_dd[neg_peak_ixs])]
@@ -473,46 +492,56 @@ def calc_jitter(  # pylint: disable=too-many-arguments,too-many-locals,too-many-
     # --- Stash debugging info if an object was provided.
     if dbg_obj:
         dbg_obj.hist_ind_smooth = hist_ind_smooth  # type: ignore
-        dbg_obj.centers         = centers  # type: ignore
-        dbg_obj.hist_ind        = hist_ind  # type: ignore
-        dbg_obj.peak_ixs        = peak_ixs  # type: ignore
-        dbg_obj.neg_peak_ixs    = neg_peak_ixs  # type: ignore
-        dbg_obj.pos_peak_ixs    = pos_peak_ixs  # type: ignore
+        dbg_obj.centers = centers  # type: ignore
+        dbg_obj.hist_ind = hist_ind  # type: ignore
+        dbg_obj.peak_ixs = peak_ixs  # type: ignore
+        dbg_obj.neg_peak_ixs = neg_peak_ixs  # type: ignore
+        dbg_obj.pos_peak_ixs = pos_peak_ixs  # type: ignore
 
     # --- Fit the tails and average the results, to determine Rj.
     pos_max = hist_dd[pos_peak_loc]
     neg_max = hist_dd[neg_peak_loc]
-    dd_soltn = [[pos_max, neg_max],]
+    dd_soltn = [
+        [pos_max, neg_max],
+    ]
     pos_tail_ixs = where(hist_dd[pos_peak_loc:] < pos_max / 2)[0]
     neg_tail_ixs = where(hist_dd[:neg_peak_loc] < neg_max / 2)[0]
     if len(pos_tail_ixs) > 0 and len(neg_tail_ixs) > 0:
         pos_tail_ix = pos_tail_ixs[0] + pos_peak_loc  # index of first  piece of right tail
-        neg_tail_ix = neg_tail_ixs[-1]                # index of last piece of left tail
+        neg_tail_ix = neg_tail_ixs[-1]  # index of last piece of left tail
         dd_soltn[0].append(pos_tail_ix)
         dd_soltn[0].append(neg_tail_ix)
         # Don't send first or last histogram elements to curve fitter, due to their special nature.
         try:
             popt, pcov = curve_fit(gaus_pdf, centers[pos_tail_ix:-1] * 1e12, hist_dd[pos_tail_ix:-1] * 1e-12)
             mu_pos, sigma_pos = popt
-            mu_pos    *= 1e-12  # back to (s)
+            mu_pos *= 1e-12  # back to (s)
             sigma_pos *= 1e-12
-            err_pos    = sqrt(diag(pcov)) * 1e-12
-            dd_soltn  += [[mu_pos, sigma_pos, err_pos],]
+            err_pos = sqrt(diag(pcov)) * 1e-12
+            dd_soltn += [
+                [mu_pos, sigma_pos, err_pos],
+            ]
         except Exception as err:  # pylint: disable=broad-exception-caught
             mu_pos = 0
             sigma_pos = 0
-            dd_soltn += [[err],]
+            dd_soltn += [
+                [err],
+            ]
         try:
             popt, pcov = curve_fit(gaus_pdf, centers[1:neg_tail_ix] * 1e12, hist_dd[1:neg_tail_ix] * 1e-12)
             mu_neg, sigma_neg = popt
-            mu_neg    *= 1e-12  # back to (s)
+            mu_neg *= 1e-12  # back to (s)
             sigma_neg *= 1e-12
-            err_neg    = sqrt(diag(pcov)) * 1e-12
-            dd_soltn  += [[mu_neg, sigma_neg, err_neg],]
+            err_neg = sqrt(diag(pcov)) * 1e-12
+            dd_soltn += [
+                [mu_neg, sigma_neg, err_neg],
+            ]
         except Exception as err:  # pylint: disable=broad-exception-caught
             mu_neg = 0
             sigma_neg = 0
-            dd_soltn += [[err],]
+            dd_soltn += [
+                [err],
+            ]
     else:
         mu_pos = 0
         sigma_pos = 0
@@ -540,5 +569,5 @@ def calc_jitter(  # pylint: disable=too-many-arguments,too-many-locals,too-many-
         hist_ind_smooth,
         centers,  # Returning just one requires `use_my_hist` True.
         mu_pos,
-        mu_neg
+        mu_neg,
     )

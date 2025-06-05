@@ -11,10 +11,16 @@ configuration could be saved and later restored.
 
 Copyright (c) 2017 by David Banas; All rights reserved World wide.
 """
+
 import pickle
 import warnings
 from pathlib import Path
-from typing import Union
+from typing import TYPE_CHECKING, Union
+
+from pybert.models.stimulus import BitPattern, ModulationType
+
+if TYPE_CHECKING:
+    from pybert.pybert import PyBERT
 
 import yaml
 
@@ -52,7 +58,7 @@ class PyBertCfg:  # pylint: disable=too-many-instance-attributes
     clicks the "Save Config." button.
     """
 
-    def __init__(self, the_PyBERT, date_created: str, version: str):  # pylint: disable=too-many-statements
+    def __init__(self, the_PyBERT: "PyBERT", date_created: str, version: str):  # pylint: disable=too-many-statements
         """Copy just that subset of the supplied PyBERT instance's __dict__,
         which should be saved."""
 
@@ -63,12 +69,11 @@ class PyBertCfg:  # pylint: disable=too-many-instance-attributes
         # Simulation Control
         self.bit_rate = the_PyBERT.bit_rate
         self.nbits = the_PyBERT.nbits
-        self.pattern = the_PyBERT.pattern
+        self.pattern = the_PyBERT.pattern.name
         self.seed = the_PyBERT.seed
         self.nspui = the_PyBERT.nspui
         self.eye_bits = the_PyBERT.eye_bits
-        self.mod_type = list(the_PyBERT.mod_type)  # See Issue #95 and PR #98 (jdpatt)
-        self.debug = the_PyBERT.debug
+        self.mod_type = the_PyBERT.mod_type.value
         self.f_max = the_PyBERT.f_max
         self.f_step = the_PyBERT.f_step
 
@@ -156,7 +161,7 @@ class PyBertCfg:  # pylint: disable=too-many-instance-attributes
             self.dfe_tap_tuners.append((tap.enabled, tap.min_val, tap.max_val))
 
     @staticmethod
-    def load_from_file(filepath: Union[str, Path], pybert):  # pylint: disable=too-many-branches
+    def load_from_file(filepath: str | Path, pybert):  # pylint: disable=too-many-branches
         """Apply all of the configuration settings to the pybert instance.
 
         Confirms that the file actually exists, is the correct extension and
@@ -212,10 +217,14 @@ class PyBertCfg:  # pylint: disable=too-many-instance-attributes
                     setattr(pybert.dfe_tap_tuners[count], "max_val", max_val)
             elif prop in ("version", "date_created"):
                 pass  # Just including it for some good housekeeping.  Not currently used.
+            elif prop == "mod_type":
+                setattr(pybert, prop, ModulationType(value))
+            elif prop == "pattern":
+                setattr(pybert, prop, BitPattern[value])
             else:
                 setattr(pybert, prop, value)
 
-    def save(self, filepath: Union[str, Path]):
+    def save(self, filepath: str | Path):
         """Save out pybert's current configuration to a file.
 
         The extension must match a yaml file extension or it will still raise

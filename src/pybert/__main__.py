@@ -4,6 +4,7 @@ This is now largely for debug or if users want to use the python
 -m option since calling `pybert` will instead point to cli.py.
 """
 
+import logging
 import sys
 
 import pyibisami.ibis.gui
@@ -37,16 +38,22 @@ for mod in [
 ]:
     mod.setattr = setattr
 
-from pybert.gui import MainWindow
+
+from pybert.gui import PyBERTGUI
 from pybert.pybert import PyBERT
 from pybert.utility.logger import setup_logger
+
+# If you are in development mode, you can set the logging level to DEBUG for all the utility modules by uncommenting the line below.
+# logging.getLogger("pybert.utils").setLevel(logging.DEBUG)
 
 
 def main():
     "Run the PyBERT GUI."
-    setup_logger()
+    setup_logger(logging.DEBUG)
     app = QApplication()
-    main_window = MainWindow(pybert=PyBERT(), show_debug_console=True)
+    main_window = PyBERTGUI(pybert=PyBERT(run_simulation=True), show_debug=True)
+    # TODO: Fix two warnings on startup with overflow in matmul and pyqtgraph connects.
+    #! https://github.com/pyqtgraph/pyqtgraph/issues/3273 - Fix has been merged but not released yet.
     main_window.show()
     sys.exit(app.exec())
 

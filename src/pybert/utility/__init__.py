@@ -31,3 +31,9 @@ __all__ = [
     "sparam",
     "logger",
 ]
+
+# Set logging level for pybert.utils to INFO
+# If you are in development mode, you can set the logging level to DEBUG.  See the commented out lines in __main__.py
+import logging
+
+logging.getLogger("pybert.utils").setLevel(logging.INFO)

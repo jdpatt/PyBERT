@@ -33,20 +33,16 @@ from pybert.utility.logger import QStatusBarHandler
 
 logger = logging.getLogger("pybert")
 
-# TODO: Fix the temporary window pop-up issue with how the widgets are created.
 
-
-class MainWindow(QMainWindow):
+class PyBERTGUI(QMainWindow):
     """Main window for the PyBERT application."""
 
-    def __init__(
-        self, pybert: PyBERT | None = None, show_debug_console: bool = False, parent: Optional[QWidget] = None
-    ):
+    def __init__(self, pybert: PyBERT | None = None, show_debug: bool = False, parent: Optional[QWidget] = None):
         """Initialize the main window.
 
         Args:
             pybert: PyBERT model instance
-            show_debug_console: Whether to show the debug console
+            show_debug: Whether to show additional debug information
             parent: Optional parent widget
         """
         super().__init__(parent)
@@ -80,14 +76,10 @@ class MainWindow(QMainWindow):
         self.tab_widget.addTab(self.results_tab, "Results")
 
         # Create the dock widget/debug console
-        self.debug_console = DebugConsoleWidget(self)
+        self.debug_console = DebugConsoleWidget(self, show_debug)
         self.addDockWidget(Qt.BottomDockWidgetArea, self.debug_console)
-        if show_debug_console:
-            self.debug_console.show()
-        else:
-            self.debug_console.hide()
 
-        self.create_menus(show_debug_console)
+        self.create_menus(show_debug)
         self.create_status_bar()
 
         self.last_config_filepath = None
@@ -149,7 +141,9 @@ class MainWindow(QMainWindow):
         self.status_bar.addPermanentWidget(self.rj_label)
 
         # Add the status bar handler for logging
-        logger.addHandler(QStatusBarHandler(self.status_bar))
+        status_bar_handler = QStatusBarHandler()
+        logger.addHandler(status_bar_handler)
+        status_bar_handler.new_record.connect(self.status_bar.showMessage)
 
     def update_status_bar(self, results, perf):
         """Update the status bar with the performance metrics."""
@@ -162,7 +156,7 @@ class MainWindow(QMainWindow):
         self.pj_label.setText(f"Pj: {self.pybert.pj_dfe* 1.0e12:6.1f} ({self.pybert.pjDD_dfe * 1.0e12:6.1f}) ps")
         self.rj_label.setText(f"Rj: {self.pybert.rj_dfe* 1.0e12:6.1f} ({self.pybert.rjDD_dfe * 1.0e12:6.1f}) ps")
 
-    def create_menus(self, show_debug_console: bool = False):
+    def create_menus(self, show_debug: bool = False):
         """Create the application menus."""
         # File menu
         file_menu = self.menuBar().addMenu("&File")
@@ -203,14 +197,31 @@ class MainWindow(QMainWindow):
 
         debug_console_action = QAction("Debug Console", self)
         debug_console_action.setShortcut("Ctrl+`")
-        debug_console_action.setChecked(show_debug_console)
+        debug_console_action.setChecked(show_debug)
         debug_console_action.triggered.connect(self.toggle_console_view)
-
-        clear_waveforms_action = QAction("Clear Waveforms", self)
-        clear_waveforms_action.triggered.connect(self.clear_waveforms)
-
         view_menu.addAction(debug_console_action)
-        view_menu.addAction(clear_waveforms_action)
+
+        # Add logging level submenu
+        logging_menu = view_menu.addMenu("Set Logging Level")
+
+        # Create logging level actions
+        normal_action = QAction("Normal", self)
+        normal_action.setCheckable(True)
+        normal_action.triggered.connect(lambda: self.set_logging_level(logging.INFO))
+
+        debug_action = QAction("Debug", self)
+        debug_action.setCheckable(True)
+        debug_action.setChecked(True) if show_debug else normal_action.setChecked(True)
+        debug_action.triggered.connect(lambda: self.set_logging_level(logging.DEBUG))
+
+        # Add actions to logging menu
+        logging_menu.addAction(normal_action)
+        logging_menu.addAction(debug_action)
+
+        # Store actions for later use
+        self._logging_actions = {logging.INFO: normal_action, logging.DEBUG: debug_action}
+
+        # view_menu.addSeparator()
 
         # Simulation menu
         sim_menu = self.menuBar().addMenu("Simulate")
@@ -364,3 +375,20 @@ class MainWindow(QMainWindow):
             "Website: <a href='https://github.com/capn-freako/PyBERT'>https://github.com/capn-freako/PyBERT</a><br>"
         )
         about_box.exec()
+
+    def set_logging_level(self, level: int):
+        """Set the logging level for both the debug console and status bar.
+
+        Args:
+            level: The logging level to set (either logging.DEBUG or logging.INFO)
+        """
+        # Update logger level
+        logger.setLevel(level)
+
+        # Update action check states
+        for log_level, action in self._logging_actions.items():
+            action.setChecked(log_level == level)
+
+        # Update debug console if it exists
+        if hasattr(self, "debug_console"):
+            self.debug_console.set_logging_level(level)

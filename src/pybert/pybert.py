@@ -21,6 +21,7 @@ ToDo:
     2. Add eye contour plots.
 """
 
+import logging
 import platform
 import queue
 import time
@@ -34,22 +35,19 @@ import skrf as rf
 from numpy import arange, array, cos, exp, pad, pi, sinc, where, zeros
 from numpy.fft import irfft, rfft  # type: ignore
 from numpy.random import randint  # type: ignore
-from pyibisami import IBISModel
+from pyibisami import AMIModel, AMIParamConfigurator, IBISModel
 from pyibisami import __version__ as PyAMI_VERSION  # type: ignore
-from pyibisami.ami.model import AMIModel
-from pyibisami.ami.parser import AMIParamConfigurator
 from PySide6.QtCore import QObject, QTimer, Signal
 from scipy.interpolate import interp1d
 
 from pybert import __version__ as VERSION
-from pybert.bert import my_run_simulation
+from pybert.bert import SimulationThread
 from pybert.configuration import InvalidFileType, PyBertCfg
 from pybert.constants import gPeakFreq, gPeakMag
 from pybert.models.stimulus import BitPattern, ModulationType
 from pybert.models.tx_tap import TxTapTuner
 from pybert.optimization import OptThread
 from pybert.results import PyBertData
-from pybert.threads.sim import SimulationThread
 from pybert.utility import (
     calc_gamma,
     import_channel,
@@ -59,17 +57,14 @@ from pybert.utility import (
     sdd_21,
     trim_impulse,
 )
-from pybert.utility.logger import setup_logger
 
-logger = setup_logger("pybert")
+logger = logging.getLogger("pybert")
 
 
 class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
-    """A serial communication link bit error rate tester (BERT) simulator with
-    a GUI interface.
+    """A serial communication link bit error rate tester (BERT) simulator with a GUI interface.
 
-    Useful for exploring the concepts of serial communication link
-    design.
+    Useful for exploring the concepts of serial communication link design.
     """
 
     # QT Signals - Most are emitted from the `handle_results()` method
@@ -80,7 +75,7 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
     new_tx_model = Signal()  # New Tx model (an ibis file was loaded and potentially an AMI/DLL file was loaded)
     new_rx_model = Signal()  # New Rx model (an ibis file was loaded and potentially an AMI/DLL file was loaded)
 
-    def __init__(self, run_simulation: bool = True) -> None:
+    def __init__(self, run_simulation: bool = False) -> None:
         """Initialize the PyBERT class.
 
         Args:
@@ -281,7 +276,7 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
         self.rjDD_dfe = 0
 
         # Threading and Processing
-        self.simulation_thread: Optional[SimulationThread] = None
+        self.simulation_thread: Optional[SimulationThread] = None  # Simulation Thread
         self.opt_thread: Optional[OptThread] = None  #: EQ optimization thread.
 
         # Setup a threading Queue to share results between threads
@@ -289,6 +284,8 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
         self.result_timer: QTimer = QTimer()
         self.result_timer.timeout.connect(self.poll_results)
         self.result_timer.start(100)  # Poll every 100 ms
+
+        self.last_results = None
 
         if run_simulation:
             self.simulate()
@@ -479,111 +476,99 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
         return taps
 
     def load_new_tx_ibis_file(self, filepath: Path | str):
-        logger.info(f"Parsing IBIS file: {filepath}")
+        logger.info("Parsing IBIS file: %s", str(filepath))
         try:
-            self.tx_ibis_valid = False
-            self.tx_use_ami = False
+            # TODO: Some models are very large, we should lazy load them.
             ibis = IBISModel.from_file(filepath, is_tx=True)
-            self._tx_ibis_dir = ibis.filepath.parent
-            self.tx_dll_file = ibis.dll_file
-            self.tx_ami_file = ibis.ami_file
+            logger.info("Loaded new Tx IBIS file. Tx switching to IBIS mode.")
             self._tx_ibis = ibis
-            self.tx_ibis_valid = True
-            logger.info("Done.")
+            self.tx_use_ibis = True
+            if ibis.has_algorithmic_model:  # If the IBIS has both a valid .ami and .dll/so file
+                # TODO: Create a new class IbisAmiModel that initializes this directly vs pybert managing it.
+                pcfg = self.load_ami_model(ibis.ami_file)
+                model = self.load_dll_model(ibis.dll_file)
+                if pcfg and model:
+                    logger.info("Loaded new Tx AMI file. Tx switching to AMI equalization mode.")
+                    self._tx_cfg = pcfg
+                    self._tx_model = model
+                    self.tx_has_ts4 = pcfg.ts4file is not None
+                    self.tx_use_ami = True
+                else:
+                    logger.warning("Failed to load AMI file for Tx IBIS file. Tx will use native equalization.")
+                    self.tx_use_ami = False
+            else:
+                logger.warning("No AMI file found for Tx IBIS file. Tx will use native equalization.")
+                self.tx_use_ami = False
+            self.new_tx_model.emit()  # Alert the GUI that a new IBIS file has been loaded and potentially an AMI file and Model.
             return ibis
         except Exception as err:  # pylint: disable=broad-exception-caught
             error_message = f"Failed to open and/or parse IBIS file!\n{err}"
-            logger.exception(error_message)
-
-    def tx_ami_file_changed(self, new_value):
-        try:
-            self.tx_ami_valid = False
-            if new_value:
-                logger.info(f"Parsing Tx AMI file, '{new_value}'...")
-                with open(new_value, mode="r", encoding="utf-8") as pfile:
-                    pcfg = AMIParamConfigurator(pfile.read())
-                if pcfg.ami_parsing_errors:
-                    logger.warning(f"Non-fatal parsing errors:\n{pcfg.ami_parsing_errors}")
-                else:
-                    logger.info("Success.")
-                self.tx_has_getwave = pcfg.fetch_param_val(["Reserved_Parameters", "GetWave_Exists"])
-                _tx_returns_impulse = pcfg.fetch_param_val(["Reserved_Parameters", "Init_Returns_Impulse"])
-                if not _tx_returns_impulse:
-                    self.tx_use_getwave = True
-                if pcfg.fetch_param_val(["Reserved_Parameters", "Ts4file"]):
-                    self.tx_has_ts4 = True
-                else:
-                    self.tx_has_ts4 = False
-                self._tx_cfg = pcfg
-                self.tx_ami_valid = True
-        except Exception as err:  # pylint: disable=broad-exception-caught
-            error_message = f"Failed to open and/or parse AMI file!\n{err}"
-            logger.exception(error_message)
-            raise
-
-    def tx_dll_file_changed(self, new_value):
-        try:
-            self.tx_dll_valid = False
-            if new_value:
-                model = AMIModel(str(new_value))
-                self._tx_model = model
-                self.tx_dll_valid = True
-        except Exception as err:  # pylint: disable=broad-exception-caught
-            error_message = f"Failed to open DLL/SO file!\n{err}"
             logger.exception(error_message)
 
     def load_new_rx_ibis_file(self, filepath: Path | str):
-        logger.info(f"Parsing IBIS file: {filepath}")
+        logger.info("Parsing IBIS file: %s", str(filepath))
         try:
-            self.rx_ibis_valid = False
-            self.rx_use_ami = False
             ibis = IBISModel.from_file(filepath, is_tx=False)
-            self._rx_ibis_dir = ibis.filepath.parent
-            self.rx_dll_file = ibis.dll_file
-            self.rx_ami_file = ibis.ami_file
+            logger.info("Loaded new Rx IBIS file. Rx switching to IBIS mode.")
             self._rx_ibis = ibis
-            self.rx_ibis_valid = True
-            logger.info("Done.")
+            self.rx_use_ibis = True
+            if ibis.has_algorithmic_model:  # If the IBIS has both a valid .ami and .dll/so file
+                # TODO: Create a new class IbisAmiModel that initializes this directly vs pybert managing it.
+                # TODO: ami/dll are under the current model and can change.
+                pcfg = self.load_ami_model(ibis.ami_file)
+                model = self.load_dll_model(ibis.dll_file)
+                if pcfg and model:
+                    logger.info("Loaded new Rx AMI file. Rx switching to AMI equalization mode.")
+                    self._rx_cfg = pcfg
+                    self._rx_model = model
+                    self.rx_has_ts4 = pcfg.ts4file is not None
+                    self.rx_use_ami = True
+                else:
+                    logger.warning("Failed to load AMI file for Rx IBIS file. Rx will use native equalization.")
+                    self.rx_use_ami = False
+            else:
+                logger.warning("No AMI file found for Rx IBIS file. Rx will use native equalization.")
+                self.rx_use_ami = False
+            self.new_rx_model.emit()  # Alert the GUI that a new IBIS file has been loaded and potentially an AMI file and Model.
             return ibis
         except Exception as err:  # pylint: disable=broad-exception-caught
             error_message = f"Failed to open and/or parse IBIS file!\n{err}"
             logger.exception(error_message)
 
-    def rx_ami_file_changed(self, new_value):
+    @staticmethod
+    def load_ami_model(ami_file: Path | str):
+        """Load the AMI file and return the AMIParamConfigurator object."""
         try:
-            self.rx_ami_valid = False
-            if new_value:
-                with open(new_value, mode="r", encoding="utf-8") as pfile:
-                    pcfg = AMIParamConfigurator(pfile.read())
-                logger.info(f"Parsing Rx AMI file, '{new_value}'...")
-                if pcfg.ami_parsing_errors:
-                    logger.warning(f"Encountered the following errors:\n{pcfg.ami_parsing_errors}")
-                else:
-                    logger.info("Success!")
-                self.rx_has_getwave = pcfg.fetch_param_val(["Reserved_Parameters", "GetWave_Exists"])
-                _rx_returns_impulse = pcfg.fetch_param_val(["Reserved_Parameters", "Init_Returns_Impulse"])
-                if not _rx_returns_impulse:
-                    self.rx_use_getwave = True
-                if pcfg.fetch_param_val(["Reserved_Parameters", "Ts4file"]):
-                    self.rx_has_ts4 = True
-                else:
-                    self.rx_has_ts4 = False
-                self._rx_cfg = pcfg
-                self.rx_ami_valid = True
+            logger.info("Parsing AMI file, '%s'...", str(ami_file))
+            pcfg = AMIParamConfigurator.from_file(ami_file)
+            # TODO: Move all of this into the AMIParamConfigurator class, pybert.py should just call the methods.
+            # if pcfg.ami_parsing_errors:
+            #     logger.warning(f"Non-fatal parsing errors:\n{pcfg.ami_parsing_errors}")
+            # else:
+            #     logger.info("Success.")
+            # self.tx_has_getwave = pcfg.fetch_param_val(["Reserved_Parameters", "GetWave_Exists"])
+            # _tx_returns_impulse = pcfg.fetch_param_val(["Reserved_Parameters", "Init_Returns_Impulse"])
+            # if not _tx_returns_impulse:
+            #     self.tx_use_getwave = True
+            # if pcfg.fetch_param_val(["Reserved_Parameters", "Ts4file"]):
+            #     self.tx_has_ts4 = True
+            # else:
+            #     self.tx_has_ts4 = False
+
+            # self._tx_cfg = pcfg
+            # self.tx_ami_valid = True
+            return pcfg
         except Exception as err:  # pylint: disable=broad-exception-caught
             error_message = f"Failed to open and/or parse AMI file!\n{err}"
             logger.exception(error_message)
 
-    def rx_dll_file_changed(self, new_value):
+    @staticmethod
+    def load_dll_model(dll_file: Path | str):
+        """Load the DLL/SO file and return the AMIModel object."""
         try:
-            self.rx_dll_valid = False
-            if new_value:
-                model = AMIModel(str(new_value))
-                self._rx_model = model
-                self.rx_dll_valid = True
+            return AMIModel(dll_file)
         except Exception as err:  # pylint: disable=broad-exception-caught
-            error_message = f"Failed to open DLL/SO file!\n{err}"
-            logger.exception(error_message)
+            logger.exception("Failed to open DLL/SO file! %s", err)
 
     # This function has been pulled outside of the standard Traits/UI "depends_on / @property" mechanism,
     # in order to more tightly control when it executes. I wasn't able to get truly lazy evaluation, and
@@ -684,8 +669,8 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
             return (res, ts4N, ntwk2)
 
         if self.tx_use_ibis:
-            model = self._tx_ibis.model
-            Rs = model.zout * 2
+            model = self._tx_ibis.current_model
+            Rs = model.impedance * 2
             Cs = model.ccomp[0] / 2  # They're in series.
             self.Rs = Rs  # Primarily for debugging.
             self.Cs = Cs
@@ -695,12 +680,12 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
                 self.ts4N = ts4N
                 self.ntwk = ntwk
         if self.rx_use_ibis:
-            model = self._rx_ibis.model
-            RL = model.zin * 2
+            model = self._rx_ibis.current_model
+            RL = model.impedance * 2
             Cp = model.ccomp[0] / 2
             self.RL = RL  # Primarily for debugging.
             self.Cp = Cp
-            logger.debug(f"RL: {RL}, Cp: {Cp}")
+            logger.debug(f"RL: {round(RL, 2)}, Cp: {round(Cp, 2)}")
             if self.rx_use_ts4:
                 fname = join(self._rx_ibis_dir, self._rx_cfg.fetch_param_val(["Reserved_Parameters", "Ts4file"]))
                 ch_s2p, ts4N, ntwk = add_ondie_s(ch_s2p, fname, isRx=True)
@@ -758,7 +743,7 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
 
         return chnl_h
 
-    def load_configuration(self, filepath: Path):
+    def load_configuration(self, filepath: Path | str):
         """Load in a configuration into pybert.
 
         Args:
@@ -774,7 +759,7 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
             logger.error("Failed to load configuration. See the console for more detail.")
             logger.exception(str(err))
 
-    def save_configuration(self, filepath: Path):
+    def save_configuration(self, filepath: Path | str):
         """Save out a configuration from pybert.
 
         Args:
@@ -819,10 +804,20 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
 
     def simulate(self):
         """Start a simulation of the current configuration in a separate thread."""
-        # TODO: This should be run in a separate thread or process to avoid blocking the GUI.
-        results, perf = my_run_simulation(self, initial_run=False, update_plots=False)
-        self.sim_complete.emit(results, perf)
-        return results
+        logger.info("Starting simulation.")
+        if self.simulation_thread and self.simulation_thread.is_alive():
+            pass
+        else:
+            self.simulation_thread = SimulationThread()
+            self.simulation_thread.pybert = self
+            self.simulation_thread.start()
+
+    def stop_simulation(self):
+        """Stop the running simulation."""
+        logger.info("Stopping simulation.")
+        if self.simulation_thread and self.simulation_thread.is_alive():
+            self.simulation_thread.stop()
+            self.simulation_thread.join(10)
 
     def calculate_optimization_trials(self):
         """Calculate the number of trials for the optimization."""
@@ -894,26 +889,20 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
         """
         # The optimizer will put the end results in the queue if complete and valid.
         if result.get("type") == "optimization":
-            if result.get("valid"):
-                tx_weights = result.get("tx_weights", [])
-                rx_peaking = result.get("rx_peaking", 0)
-                fom = result.get("fom", 0)
-                for k, tx_weight in enumerate(tx_weights):
-                    self.tx_tap_tuners[k].value = tx_weight
-                self.peak_mag_tune = rx_peaking
-                self.opt_complete.emit(self.peak_mag_tune)
-                logger.info("Optimization complete. (SNR: %5.1f dB)", 20 * np.log10(fom))
-            else:
-                logger.error("Optimization failed.")
+            tx_weights = result.get("tx_weights", [])
+            rx_peaking = result.get("rx_peaking", 0)
+            fom = result.get("fom", 0)
+            for k, tx_weight in enumerate(tx_weights):
+                self.tx_tap_tuners[k].value = tx_weight
+            self.peak_mag_tune = rx_peaking
+            self.opt_complete.emit(self.peak_mag_tune)
         # This is used to update the plots during the optimization loop.
         elif result.get("type") == "opt_loop_complete":
             self.opt_loop_complete.emit(result)
-        # This is used to log messages to the filehandler, debug console and status bar.
-        elif result.get("type") == "message":
-            logger.log(result.get("level"), result.get("message"))
         # This is used to update only the status bar this is for something that has a progress or a lot of updates
         elif result.get("type") == "status_update":
             self.status_update.emit(result.get("message"))
         # This is used to update the plots and the results after a simulation is complete.
         elif result.get("type") == "simulation_complete":
-            self.sim_complete.emit(result)
+            self.last_results = result
+            self.sim_complete.emit(result["results"], result["performance"])

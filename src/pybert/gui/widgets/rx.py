@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
 from pybert.gui import dialogs
 from pybert.gui.dialogs import select_file_dialog
 from pybert.gui.widgets.rx_equalization import RxEqualizationWidget
+from pybert.gui.widgets.utils import StatusIndicator
 from pybert.pybert import PyBERT
 
 logger = logging.getLogger("pybert.rx")
@@ -86,27 +87,30 @@ class RxConfigWidget(QWidget):
         self.browse_btn = QPushButton("Browse")
         self.browse_btn.clicked.connect(self._browse_ibis)
         file_layout.addWidget(self.browse_btn)
-
-        self.view_btn = QPushButton("Configure")
-        self.view_btn.setEnabled(False)
-        file_layout.addWidget(self.view_btn)
-
         ibis_layout.addLayout(file_layout)
 
-        # IBIS valid indicator
-        info_layout = QHBoxLayout()
-        info_layout.addWidget(QLabel("Valid"))
-        self.ibis_valid = QCheckBox()
-        self.ibis_valid.setEnabled(False)
-        info_layout.addWidget(self.ibis_valid)
-        info_layout.addStretch()
+        # Bottom row with status, checkbox, and configure
+        bottom_layout = QHBoxLayout()
+        # Status indicator
+        bottom_layout.addWidget(QLabel("Status:"))
+        self.ibis_valid = StatusIndicator()
+        bottom_layout.addWidget(self.ibis_valid)
+        bottom_layout.addSpacing(20)  # Add some spacing between status and checkbox
 
         # On-die S-parameters
         self.use_ts4 = QCheckBox("Use on-die S-parameters")
         self.use_ts4.setEnabled(False)
-        info_layout.addWidget(self.use_ts4)
-        info_layout.addStretch()
-        ibis_layout.addLayout(info_layout)
+        bottom_layout.addWidget(self.use_ts4)
+
+        bottom_layout.addStretch()  # Push configure button to the right
+
+        # Configure button
+        self.view_btn = QPushButton("Configure")
+        self.view_btn.setEnabled(False)
+        bottom_layout.addWidget(self.view_btn)
+
+        ibis_layout.addLayout(bottom_layout)
+        ibis_layout.addStretch()
 
         # Add both groups to stacked layout (after both are constructed)
         self.stacked_layout.addWidget(self.ibis_group)
@@ -144,7 +148,7 @@ class RxConfigWidget(QWidget):
 
         layout.addWidget(self.rx_config, stretch=1)
 
-        self.rx_equalization = RxEqualizationWidget(self)
+        self.rx_equalization = RxEqualizationWidget(self.pybert, parent=self)
         layout.addWidget(self.rx_equalization, stretch=2)
 
         # Connect signals for radio buttons
@@ -159,13 +163,13 @@ class RxConfigWidget(QWidget):
         self.rx_equalization.connect_signals(pybert)
         self.use_ts4.toggled.connect(lambda val: setattr(pybert, "rx_use_ts4", val))
         self.ibis_file.textChanged.connect(lambda val: setattr(pybert, "rx_ibis_file", val))
+        self.use_ts4.toggled.connect(lambda val: setattr(pybert, "rx_use_ts4", val))
         self.mode_group.buttonReleased.connect(
             lambda val: setattr(pybert, "rx_model", "Native" if self.native_radio.isChecked() else "IBIS")
         )
         self.rin.valueChanged.connect(lambda val: setattr(pybert, "rx_rin", val))
         self.cin.valueChanged.connect(lambda val: setattr(pybert, "rx_cin", val))
         self.cac.valueChanged.connect(lambda val: setattr(pybert, "rx_cac", val))
-        self.ibis_has_ami.connect(self.rx_equalization.switch_equalization_modes)
 
     def _browse_ibis(self) -> None:
         """Open file dialog to select IBIS file."""
@@ -176,25 +180,24 @@ class RxConfigWidget(QWidget):
             self.ibis_file.setText(filename)
             ibis = self.pybert.load_new_rx_ibis_file(filename)
             if ibis:
-                self.ibis_valid.setChecked(True)
+                self.ibis_valid.set_status("valid")
                 self.view_btn.setEnabled(True)
                 self.view_btn.clicked.connect(ibis.gui)
 
-                if ibis.ami_file and ibis.dll_file:
+                if ibis.has_algorithmic_model:
                     dialogs.info_dialog(
                         "IBIS Algorithmic Model",
                         "There was an [Algorithmic Model] keyword in this model.\n \
     If you wish to use the AMI model associated with this IBIS model,\n \
     please, configure it now.",
                     )
-                    self.ibis_has_ami.emit(True)
                 else:
                     logger.warning(
                         "There was no [Algorithmic Model] keyword for this model or a valid executable for this platform;\n \
     PyBERT native equalization modeling being used instead.",
                     )
             else:
-                self.ibis_valid.setChecked(False)
+                self.ibis_valid.set_status("invalid")
                 self.view_btn.setEnabled(False)
                 self.view_btn.clicked.disconnect()
 
@@ -202,5 +205,7 @@ class RxConfigWidget(QWidget):
         """Show only the selected group (Native or IBIS) using stacked layout."""
         if self.native_radio.isChecked():
             self.stacked_layout.setCurrentWidget(self.native_group)
+            self.pybert.rx_use_ibis = False
         else:
             self.stacked_layout.setCurrentWidget(self.ibis_group)
+            self.pybert.rx_use_ibis = True

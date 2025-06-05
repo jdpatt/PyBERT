@@ -1,3 +1,3 @@
-from .main_window import MainWindow
+from .pybert_gui import PyBERTGUI
 
-__all__ = ["MainWindow"]
+__all__ = ["PyBERTGUI"]

@@ -1,4 +1,5 @@
 """Main Entry Point for the PyBERT GUI when using the CLI."""
+
 import sys
 from pathlib import Path
 
@@ -6,32 +7,34 @@ import click  # type: ignore
 from PySide6.QtWidgets import QApplication
 
 from pybert import __version__
-from pybert.gui.main_window import MainWindow
+from pybert.gui.pybert_gui import PyBERTGUI
 from pybert.pybert import PyBERT
 
 
-@click.group(invoke_without_command=True, context_settings={"help_option_names": ['-h', '--help']})
+@click.group(invoke_without_command=True, context_settings={"help_option_names": ["-h", "--help"]})
 @click.pass_context
 @click.version_option(version=__version__)
 @click.option("--config-file", "-c", type=click.Path(exists=True), help="Load an existing configuration file.")
 @click.option("--results", "-r", type=click.Path(exists=True), help="Load results from a prior run.")
 def cli(ctx, config_file, results):
     """Serial communication link bit error rate tester."""
-    app = QApplication()
-    pybert = PyBERT()
-    main_window = MainWindow(pybert=pybert)
 
-    # Load any user provided files before opening the GUI.
-    if config_file:
-        pybert.load_configuration(config_file)
-    if results:
-        pybert.load_results(results)
+    if ctx.invoked_subcommand is None:
+        app = QApplication()
+        pybert = PyBERT(run_simulation=True)
+        main_window = PyBERTGUI(pybert=pybert)
 
-    main_window.show()
-    sys.exit(app.exec())
+        # Load any user provided files before opening the GUI.
+        if config_file:
+            pybert.load_configuration(config_file)
+        if results:
+            pybert.load_results(results)
+
+        main_window.show()
+        sys.exit(app.exec())
 
 
-@cli.command(context_settings={"help_option_names": ['-h', '--help']})
+@cli.command(context_settings={"help_option_names": ["-h", "--help"]})
 @click.argument("config-file", type=click.Path(exists=True))
 @click.option("--results", "-r", type=click.Path(), help="Override the results filename.")
 def sim(config_file, results):

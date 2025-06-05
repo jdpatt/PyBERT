@@ -1,4 +1,5 @@
 """All pybert threads that support stop or abort derive from this class."""
+
 from threading import Event, Thread
 
 

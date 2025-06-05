@@ -16,9 +16,12 @@ from pybert.pybert import PyBERT
 from pybert.utility.math import make_bathtub, safe_log10
 from pybert.utility.sigproc import calc_eye
 
-pg.setConfigOption('background', 'w')
+pg.setConfigOption("background", "w")
+pg.ViewBox.suggestPadding = lambda *_: 0.001  # Normally this is 0.02 but we want to reduce the padding.
+
+
 # pg.setConfigOption('foreground', 'k')
-# TODO: Either limit auto sizing or limit the range of the plot(s)
+# TODO: Either limit auto sizing or limit the range of the plot(s) pyqtgraph defaults to a padding of non-zero values.
 class ResultsTab(QWidget):
     """Tab for displaying simulation results."""
 
@@ -43,6 +46,7 @@ class ResultsTab(QWidget):
         self.impulse_tab = self._create_response_tab("Impulses")
         self.step_tab = self._create_response_tab("Steps")
         self.pulse_tab = self._create_response_tab("Pulses")
+        # TODO: Add the ability to add limit lines to the frequency response plot.
         self.freq_tab = self._create_response_tab("Frequency Response")
 
         tab_widget.addTab(self.impulse_tab, "Impulses")
@@ -77,7 +81,6 @@ class ResultsTab(QWidget):
     def connect_signals(self, pybert):
         """Connect signals to PyBERT instance."""
         pybert.sim_complete.connect(self.update_results)
-
 
     def _create_dfe_tab(self):
         """Create the DFE adaptation tab.
@@ -273,7 +276,6 @@ class ResultsTab(QWidget):
             curve = plot.plot(pen="b")
             self.bathtub_plots.append(curve)
 
-
         return widget
 
     def _create_response_tab(self, response_type):
@@ -299,21 +301,21 @@ class ResultsTab(QWidget):
             plot.showGrid(x=True, y=True)
             plot.setTitle(title)
             if response_type == "Frequency Response":
-                plot.addLegend(offset=(-1, 1)) # Upper Right
+                plot.addLegend(offset=(-1, 1))  # Upper Right
                 plot.getAxis("left").setLabel("Frequency Response", units="dB")
                 plot.getAxis("bottom").setLabel("Frequency", units="GHz")
                 plot.setMouseEnabled(False, False)  # Disable zooming for freq response
                 plot.setYRange(-40, 10, padding=0)  # Set min/max y values for freq response
             elif response_type == "Impulses":
-                plot.addLegend(offset=(-1, 1)) # Upper Right
+                plot.addLegend(offset=(-1, 1))  # Upper Right
                 plot.getAxis("left").setLabel("Impulse Response", units="V/sample")
                 plot.getAxis("bottom").setLabel("Time", units="ns")
             elif response_type == "Steps":
-                plot.addLegend(offset=(-1, -1)) # Lower Right
+                plot.addLegend(offset=(-1, -1))  # Lower Right
                 plot.getAxis("left").setLabel("Step Response", units="V")
                 plot.getAxis("bottom").setLabel("Time", units="ns")
             elif response_type == "Pulses":
-                plot.addLegend(offset=(-1, 1)) # Upper Right
+                plot.addLegend(offset=(-1, 1))  # Upper Right
                 plot.getAxis("left").setLabel("Pulse Response", units="V")
                 plot.getAxis("bottom").setLabel("Time", units="ns")
             plots.append(plot)
@@ -380,7 +382,7 @@ class ResultsTab(QWidget):
             col = i % 2
             plot = plot_grid.addPlot(row=row, col=col)
             plot.showGrid(x=True, y=True)
-            plot.addLegend(offset=(-1, -1)) # Lower Right
+            plot.addLegend(offset=(-1, -1))  # Lower Right
             plot.setTitle(titles[i])
             plot.getAxis("left").setLabel("|FFT(TIE)|", units="dBui")
             plot.getAxis("bottom").setLabel("Frequency", units="MHz")
@@ -413,7 +415,6 @@ class ResultsTab(QWidget):
         self.hist_curve.setData(clk_per_hist_bins, clk_per_hist_vals)
         self.spec_curve.setData(clk_freqs, clk_spec)
 
-
     def update_output_plots(self, t_ns, ideal_signal, chnl_out, rx_in, ctle_out, dfe_out):
         """Update output waveform plots.
 
@@ -433,22 +434,21 @@ class ResultsTab(QWidget):
                 plot.plot(t_ns, ideal, pen=pg.mkPen("lightgray"), name="Ideal")
             plot.plot(t_ns, signal, pen=pg.mkPen("b"), name="Output")
 
-    def update_eye_plots(self, eye_data, ui_ps, v_range):
+    def update_eye_plots(self, xs, eye_data, y_max_values):
         """Update eye diagram plots.
 
         Args:
+            xs: Time points for x-axis
             eye_data: List of 2D arrays containing eye diagram data
-            ui_ps: UI period in ps
-            v_range: Voltage range tuple (min, max)  # (can be ignored now)
+            y_max_values: List of y_max values for each eye diagram
         """
         colormap = get_custom_colormap()
         lut = colormap.getLookupTable(0.0, 1.0, 256)
-        for img, data in zip(self.eye_plots, eye_data):
+
+        for img, data, y_max in zip(self.eye_plots, eye_data, y_max_values):
+            # Set the image with proper voltage mapping
             img.setImage(np.rot90(data), lut=lut)
-            # img.setRect(pg.QtCore.QRectF(0, v_range[0], ui_ps, v_range[1] - v_range[0]))
-            # Calculate y_max for this eye, center around zero
-            y_max = 1.1 * max(abs(data.min()), abs(data.max()))
-            img.setRect(pg.QtCore.QRectF(0, -y_max, ui_ps, 2 * y_max))
+            img.setRect(pg.QtCore.QRectF(xs[0], -y_max, xs[-1] - xs[0], 2 * y_max))
 
     def update_bathtub_plots(self, jitter_bins, bathtub_data):
         """Update bathtub curve plots.
@@ -470,7 +470,7 @@ class ResultsTab(QWidget):
         self.step_plots[0].plot(t_ns, chnl_s, pen="b", name="Channel", clear=True)
         self.step_plots[1].plot(t_ns, tx_s, pen="b", name="Incremental", clear=True)
         self.step_plots[1].plot(t_ns, tx_out_s, pen="r", name="Cumulative")
-        self.step_plots[2].plot(t_ns, ctle_s[:len(t_ns)], pen="b", name="Incremental", clear=True)
+        self.step_plots[2].plot(t_ns, ctle_s[: len(t_ns)], pen="b", name="Incremental", clear=True)
         self.step_plots[2].plot(t_ns, ctle_out_s, pen="r", name="Cumulative")
         self.step_plots[3].plot(t_ns, dfe_s, pen="b", name="Incremental", clear=True)
         self.step_plots[3].plot(t_ns, dfe_out_s, pen="r", name="Cumulative")
@@ -574,57 +574,95 @@ class ResultsTab(QWidget):
         clock_times = pb.clock_times
         ignore_until = (num_ui - eye_uis) * pb.ui
         ignore_samps = (num_ui - eye_uis) * samps_per_ui
+
+        # Eye pots
         width = 2 * samps_per_ui
         xs = np.linspace(-ui * 1.0e12, ui * 1.0e12, width)
         height = 1000
         tiny_noise = np.random.normal(scale=1e-3, size=len(chnl_out[ignore_samps:]))
         chnl_out_noisy = pb.chnl_out[ignore_samps:] + tiny_noise
-        y_max = 1.1 * max(abs(np.array(chnl_out_noisy)))
-        eye_chnl = calc_eye(pb.ui, samps_per_ui, height, chnl_out_noisy, y_max)
-        y_max = 1.1 * max(abs(np.array(pb.rx_in[ignore_samps:])))
-        eye_tx = calc_eye(pb.ui, samps_per_ui, height, pb.rx_in[ignore_samps:], y_max)
-        y_max = 1.1 * max(abs(np.array(pb.ctle_out[ignore_samps:])))
-        eye_ctle = calc_eye(pb.ui, samps_per_ui, height, pb.ctle_out[ignore_samps:], y_max)
-        y_max = 1.1 * max(abs(np.array(pb.dfe_out[ignore_samps:])))
+        y_max_chnl = 1.1 * max(abs(np.array(chnl_out_noisy)))
+        eye_chnl = calc_eye(pb.ui, samps_per_ui, height, chnl_out_noisy, y_max_chnl)
+
+        y_max_rx = 1.1 * max(abs(np.array(pb.rx_in[ignore_samps:])))
+        eye_tx = calc_eye(pb.ui, samps_per_ui, height, pb.rx_in[ignore_samps:], y_max_rx)
+
+        y_max_ctle = 1.1 * max(abs(np.array(pb.ctle_out[ignore_samps:])))
+        eye_ctle = calc_eye(pb.ui, samps_per_ui, height, pb.ctle_out[ignore_samps:], y_max_ctle)
+
+        y_max_dfe = 1.1 * max(abs(np.array(pb.dfe_out[ignore_samps:])))
         i = 0
         len_clock_times = len(clock_times)
         while i < len_clock_times and clock_times[i] < ignore_until:
             i += 1
         if i >= len(clock_times):
-                # logger.error("ERROR: Insufficient coverage in 'clock_times' vector.")
-                eye_dfe = calc_eye(pb.ui, samps_per_ui, height, pb.dfe_out[ignore_samps:], y_max)
+            eye_dfe = calc_eye(pb.ui, samps_per_ui, height, pb.dfe_out[ignore_samps:], y_max_dfe)
         else:
-                eye_dfe = calc_eye(pb.ui, samps_per_ui, height, pb.dfe_out[ignore_samps:], y_max, np.array(clock_times[i:]) - ignore_until)
+            eye_dfe = calc_eye(
+                pb.ui,
+                samps_per_ui,
+                height,
+                pb.dfe_out[ignore_samps:],
+                y_max_dfe,
+                np.array(clock_times[i:]) - ignore_until,
+            )
         eye_data = [eye_chnl, eye_tx, eye_ctle, eye_dfe]
-        ui_ps = pb.ui * 1e12
-        v_range = (
-            min(np.min(eye_chnl), np.min(eye_tx), np.min(eye_ctle), np.min(eye_dfe)),
-            max(np.max(eye_chnl), np.max(eye_tx), np.max(eye_ctle), np.max(eye_dfe)),
-        )
-        self.update_eye_plots(eye_data, ui_ps, v_range)
+        y_max_values = [y_max_chnl, y_max_rx, y_max_ctle, y_max_dfe]
+        self.update_eye_plots(xs, eye_data, y_max_values)
 
         # --- Bathtub plots ---
         jitter_bins = pb.jitter_bins
         bathtub_chnl = make_bathtub(
-            jitter_bins, pb.jitter_chnl, min_val=0.1 * MIN_BATHTUB_VAL,
-            rj=pb.rjDD_chnl, mu_r=pb.mu_pos_chnl, mu_l=pb.mu_neg_chnl, extrap=True)
+            jitter_bins,
+            pb.jitter_chnl,
+            min_val=0.1 * MIN_BATHTUB_VAL,
+            rj=pb.rjDD_chnl,
+            mu_r=pb.mu_pos_chnl,
+            mu_l=pb.mu_neg_chnl,
+            extrap=True,
+        )
         bathtub_tx = make_bathtub(
-            jitter_bins, pb.jitter_tx, min_val=0.1 * MIN_BATHTUB_VAL,
-            rj=pb.rjDD_tx, mu_r=pb.mu_pos_tx, mu_l=pb.mu_neg_tx, extrap=True)
+            jitter_bins,
+            pb.jitter_tx,
+            min_val=0.1 * MIN_BATHTUB_VAL,
+            rj=pb.rjDD_tx,
+            mu_r=pb.mu_pos_tx,
+            mu_l=pb.mu_neg_tx,
+            extrap=True,
+        )
         bathtub_ctle = make_bathtub(
-            jitter_bins, pb.jitter_ctle, min_val=0.1 * MIN_BATHTUB_VAL,
-            rj=pb.rjDD_ctle, mu_r=pb.mu_pos_ctle, mu_l=pb.mu_neg_ctle, extrap=True)
+            jitter_bins,
+            pb.jitter_ctle,
+            min_val=0.1 * MIN_BATHTUB_VAL,
+            rj=pb.rjDD_ctle,
+            mu_r=pb.mu_pos_ctle,
+            mu_l=pb.mu_neg_ctle,
+            extrap=True,
+        )
         bathtub_dfe = make_bathtub(
-            jitter_bins, pb.jitter_dfe, min_val=0.1 * MIN_BATHTUB_VAL,
-            rj=pb.rjDD_dfe, mu_r=pb.mu_pos_dfe, mu_l=pb.mu_neg_dfe, extrap=True)
-        bathtub_data = [safe_log10(bathtub_chnl), safe_log10(bathtub_tx), safe_log10(bathtub_ctle), safe_log10(bathtub_dfe)]
+            jitter_bins,
+            pb.jitter_dfe,
+            min_val=0.1 * MIN_BATHTUB_VAL,
+            rj=pb.rjDD_dfe,
+            mu_r=pb.mu_pos_dfe,
+            mu_l=pb.mu_neg_dfe,
+            extrap=True,
+        )
+        bathtub_data = [
+            safe_log10(bathtub_chnl),
+            safe_log10(bathtub_tx),
+            safe_log10(bathtub_ctle),
+            safe_log10(bathtub_dfe),
+        ]
         self.update_bathtub_plots(np.array(jitter_bins) * 1e12, bathtub_data)
 
         # --- Impulse plots ---
         self.update_impulse_plots(t_ns_chnl, pb.chnl_h, pb.tx_out_h, pb.ctle_out_h, pb.dfe_out_h)
 
         # --- Step plots ---
-        self.update_step_plots(t_ns_chnl, pb.chnl_s, pb.tx_s, pb.tx_out_s, pb.ctle_s, pb.ctle_out_s, pb.dfe_s, pb.dfe_out_s)
+        self.update_step_plots(
+            t_ns_chnl, pb.chnl_s, pb.tx_s, pb.tx_out_s, pb.ctle_s, pb.ctle_out_s, pb.dfe_s, pb.dfe_out_s
+        )
 
         # --- Pulse plots ---
         self.update_pulse_plots(t_ns_chnl, pb.chnl_p, pb.tx_out_p, pb.ctle_out_p, pb.dfe_out_p)
@@ -647,7 +685,12 @@ class ResultsTab(QWidget):
 
         # --- Jitter distribution plots ---
         jitter_data = [pb.jitter_chnl * 1e-12, pb.jitter_tx * 1e-12, pb.jitter_ctle * 1e-12, pb.jitter_dfe * 1e-12]
-        jitter_ext_data = [pb.jitter_ext_chnl * 1e-12, pb.jitter_ext_tx * 1e-12, pb.jitter_ext_ctle * 1e-12, pb.jitter_ext_dfe * 1e-12]
+        jitter_ext_data = [
+            pb.jitter_ext_chnl * 1e-12,
+            pb.jitter_ext_tx * 1e-12,
+            pb.jitter_ext_ctle * 1e-12,
+            pb.jitter_ext_dfe * 1e-12,
+        ]
         self.update_jitter_dist_plots(jitter_bins, jitter_data, jitter_ext_data)
 
         # --- Jitter spectrum plots ---
@@ -655,23 +698,29 @@ class ResultsTab(QWidget):
         f_MHz = pb.f_MHz[1:]
         self.update_jitter_spec_plots(
             f_MHz,
-            [10.0 * (safe_log10(pb.jitter_spectrum_chnl[1:]) - log10_ui),
-             10.0 * (safe_log10(pb.jitter_spectrum_tx[1:]) - log10_ui),
-             10.0 * (safe_log10(pb.jitter_spectrum_ctle[1:]) - log10_ui),
-             10.0 * (safe_log10(pb.jitter_spectrum_dfe[1:]) - log10_ui)],
-            [10.0 * (safe_log10(pb.jitter_ind_spectrum_chnl[1:]) - log10_ui),
-             10.0 * (safe_log10(pb.jitter_ind_spectrum_tx[1:]) - log10_ui),
-             10.0 * (safe_log10(pb.jitter_ind_spectrum_ctle[1:]) - log10_ui),
-             10.0 * (safe_log10(pb.jitter_ind_spectrum_dfe[1:]) - log10_ui)],
-            [10.0 * (safe_log10(pb.thresh_chnl[1:]) - log10_ui),
-             10.0 * (safe_log10(pb.thresh_tx[1:]) - log10_ui),
-             10.0 * (safe_log10(pb.thresh_ctle[1:]) - log10_ui),
-             10.0 * (safe_log10(pb.thresh_dfe[1:]) - log10_ui)],
+            [
+                10.0 * (safe_log10(pb.jitter_spectrum_chnl[1:]) - log10_ui),
+                10.0 * (safe_log10(pb.jitter_spectrum_tx[1:]) - log10_ui),
+                10.0 * (safe_log10(pb.jitter_spectrum_ctle[1:]) - log10_ui),
+                10.0 * (safe_log10(pb.jitter_spectrum_dfe[1:]) - log10_ui),
+            ],
+            [
+                10.0 * (safe_log10(pb.jitter_ind_spectrum_chnl[1:]) - log10_ui),
+                10.0 * (safe_log10(pb.jitter_ind_spectrum_tx[1:]) - log10_ui),
+                10.0 * (safe_log10(pb.jitter_ind_spectrum_ctle[1:]) - log10_ui),
+                10.0 * (safe_log10(pb.jitter_ind_spectrum_dfe[1:]) - log10_ui),
+            ],
+            [
+                10.0 * (safe_log10(pb.thresh_chnl[1:]) - log10_ui),
+                10.0 * (safe_log10(pb.thresh_tx[1:]) - log10_ui),
+                10.0 * (safe_log10(pb.thresh_ctle[1:]) - log10_ui),
+                10.0 * (safe_log10(pb.thresh_dfe[1:]) - log10_ui),
+            ],
         )
 
     def clear_waveforms(self):
         """Clear all waveform plots."""
-        pass # TODO: Implement this
+        pass  # TODO: Implement this
 
 
 def get_custom_colormap():
@@ -708,7 +757,7 @@ def get_custom_colormap():
             (0.75, 0.00, 0.00),  # red
             (0.90, 0.50, 0.50),  # pink
             (1.00, 1.00, 1.00),  # white
-        ]
+        ],
     }
     positions = [x[0] for x in seg_map["red"]]
     colors = [

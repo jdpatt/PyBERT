@@ -10,19 +10,31 @@ A partial extraction of the old `pybert/utility.py`, as part of a refactoring.
 """
 
 import re
-
 from typing import Optional
 
 from numpy import (  # type: ignore
-    arange, argmax, array, convolve, cos, cumsum, diff,
-    mean, ones, pad, pi, roll, sign, where, zeros
+    arange,
+    argmax,
+    array,
+    convolve,
+    cos,
+    cumsum,
+    diff,
+    mean,
+    ones,
+    pad,
+    pi,
+    roll,
+    sign,
+    where,
+    zeros,
 )
 from numpy.fft import rfft  # type: ignore
 from numpy.typing import NDArray  # type: ignore
 from scipy.interpolate import interp1d
-from scipy.signal      import freqs, invres
+from scipy.signal import freqs, invres
 
-from ..constants import Rvec, Cvec
+from ..constants import Cvec, Rvec
 
 
 def moving_average(a: Rvec, n: int = 3) -> Rvec:
@@ -54,7 +66,7 @@ def moving_average(a: Rvec, n: int = 3) -> Rvec:
     win = ones((n + 1) // 2)
     krnl = convolve(win, win)
     krnl = krnl / krnl.sum()
-    res  = convolve(a[1:-1], krnl, mode='same')
+    res = convolve(a[1:-1], krnl, mode="same")
     return array([a[0]] + list(res) + [a[-1]])
 
 
@@ -121,7 +133,7 @@ def pulse_center(p: Rvec, nspui: int) -> tuple[int, float]:
     thresh = p_max / div
     main_lobe_ixs = where(p > thresh)[0]
     if not main_lobe_ixs.size:  # Sometimes, the optimizer really whacks out.
-        return (-1, 0)          # Flag this, by returning an impossible index.
+        return (-1, 0)  # Flag this, by returning an impossible index.
 
     err = main_lobe_ixs[-1] - main_lobe_ixs[0] - nspui
     while err and div < 5000:
@@ -145,8 +157,9 @@ def raised_cosine(x: Cvec) -> Cvec:
 
 
 # pylint: disable=too-many-locals
-def calc_resps(t: Rvec, h: Rvec, ui: float, f: Rvec,  # noqa: F405
-               eps: float = 1e-18) -> tuple[Rvec, Rvec, Cvec]:  # noqa: F405
+def calc_resps(
+    t: Rvec, h: Rvec, ui: float, f: Rvec, eps: float = 1e-18  # noqa: F405
+) -> tuple[Rvec, Rvec, Cvec]:  # noqa: F405
     """
     From a uniformly sampled impulse response,
     calculate the: step, pulse, and frequency responses.
@@ -204,8 +217,9 @@ def calc_resps(t: Rvec, h: Rvec, ui: float, f: Rvec,  # noqa: F405
 
 
 # pylint: disable=too-many-locals
-def trim_impulse(g: Rvec, min_len: int = 0, max_len: int = 1000000, front_porch: int = 0,
-                 kept_energy: float = 0.999) -> tuple[Rvec, int]:
+def trim_impulse(
+    g: Rvec, min_len: int = 0, max_len: int = 1000000, front_porch: int = 0, kept_energy: float = 0.999
+) -> tuple[Rvec, int]:
     """
     Trim impulse response, for more useful display, by:
 
@@ -243,7 +257,7 @@ def trim_impulse(g: Rvec, min_len: int = 0, max_len: int = 1000000, front_porch:
 
     # Capture `kept_energy` of the total first derivative energy.
     diff_g = diff(_g)
-    Ptot = sum(diff_g ** 2)
+    Ptot = sum(diff_g**2)
     half_residual_energy = 0.5 * (1 - kept_energy)
     Pbeg = half_residual_energy * Ptot
     Pend = (1 - half_residual_energy) * Ptot
@@ -251,11 +265,11 @@ def trim_impulse(g: Rvec, min_len: int = 0, max_len: int = 1000000, front_porch:
     ix_end = 0
     P = 0
     while P < Pbeg:
-        P      += diff_g[ix_beg] ** 2
+        P += diff_g[ix_beg] ** 2
         ix_beg += 1
     ix_end = ix_beg
     while P < Pend and ix_end < len_g:
-        P      += diff_g[ix_end] ** 2
+        P += diff_g[ix_end] ** 2
         ix_end += 1
 
     # Enforce minimum "front porch".
@@ -271,7 +285,9 @@ def trim_impulse(g: Rvec, min_len: int = 0, max_len: int = 1000000, front_porch:
     return (_g[ix_beg:ix_end], ix_beg - half_len)
 
 
-def make_ctle(rx_bw: float, peak_freq: float, peak_mag: float, w: Rvec) -> tuple[Rvec, Cvec]:  # pylint: disable=too-many-arguments  # noqa: F405
+def make_ctle(
+    rx_bw: float, peak_freq: float, peak_mag: float, w: Rvec
+) -> tuple[Rvec, Cvec]:  # pylint: disable=too-many-arguments  # noqa: F405
     """
     Generate the frequency response of a continuous time linear equalizer (CTLE), given the:
 
@@ -321,8 +337,9 @@ def make_ctle(rx_bw: float, peak_freq: float, peak_mag: float, w: Rvec) -> tuple
 
 
 # pylint: disable=too-many-arguments,too-many-locals,too-many-positional-arguments
-def calc_eye(ui: float, samps_per_ui: int, height: int, ys: Rvec, y_max: float,
-             clock_times: Optional[Rvec] = None) -> NDArray:
+def calc_eye(
+    ui: float, samps_per_ui: int, height: int, ys: Rvec, y_max: float, clock_times: Optional[Rvec] = None
+) -> NDArray:
     """
     Calculates the "eye" diagram of the input signal vector.
 
@@ -331,7 +348,7 @@ def calc_eye(ui: float, samps_per_ui: int, height: int, ys: Rvec, y_max: float,
         samps_per_ui: # of samples per unit interval
         height: height of output image data array
         ys: signal vector of interest
-        y_max: max. +/- vertical extremity of plot
+        y_max: max. +/- vertical extremity of plot (voltage range will be -y_max to +y_max)
 
     Keyword Args:
         clock_times: Vector of clock times to use for eye centers.
@@ -354,8 +371,10 @@ def calc_eye(ui: float, samps_per_ui: int, height: int, ys: Rvec, y_max: float,
 
     # Adjust the scaling.
     width = 2 * samps_per_ui
-    y_scale = height // (2 * y_max)  # (pixels/V)
-    y_offset = height // 2           # (pixels)
+    # Map voltage range (-y_max to +y_max) to image coordinates (0 to height-1)
+    # Ensure we have enough resolution for the voltage range
+    y_scale = (height - 1) / (2 * y_max)  # pixels per volt
+    y_offset = (height - 1) / 2  # center of image (0V)
 
     # Generate the "heat" picture array.
     img_array = zeros([height, width])
@@ -364,14 +383,22 @@ def calc_eye(ui: float, samps_per_ui: int, height: int, ys: Rvec, y_max: float,
             first_ix = int(clock_time // tsamp)
             if first_ix + 2 * samps_per_ui > len(ys):
                 break
-            for i, y in enumerate(ys[first_ix: first_ix + 2 * samps_per_ui]):
-                img_array[int(y * y_scale + 0.5) + y_offset, i] += 1
+            for i, y in enumerate(ys[first_ix : first_ix + 2 * samps_per_ui]):
+                # Map voltage to image coordinate, ensuring it stays within bounds
+                # and properly centered around 0V
+                img_y = int(y * y_scale + y_offset + 0.5)
+                if 0 <= img_y < height:
+                    img_array[img_y, i] += 1
     else:
         start_ix = where(diff(sign(ys)))[0][0] + samps_per_ui // 2
         last_first_ix = len(ys) - 2 * samps_per_ui
         for first_ix in range(start_ix, last_first_ix, samps_per_ui):
-            for i, y in enumerate(ys[first_ix: first_ix + 2 * samps_per_ui]):
-                img_array[int(y * y_scale + 0.5) + y_offset, i] += 1
+            for i, y in enumerate(ys[first_ix : first_ix + 2 * samps_per_ui]):
+                # Map voltage to image coordinate, ensuring it stays within bounds
+                # and properly centered around 0V
+                img_y = int(y * y_scale + y_offset + 0.5)
+                if 0 <= img_y < height:
+                    img_array[img_y, i] += 1
 
     return img_array
 

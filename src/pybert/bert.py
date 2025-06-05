@@ -36,12 +36,14 @@ from numpy import (  # type: ignore
 from numpy.fft import irfft, rfft  # type: ignore
 from numpy.random import normal  # type: ignore
 from numpy.typing import NDArray  # type: ignore
-from pyibisami.ami.parser import AmiName, AmiNode, ami_parse
+from pyibisami.ami.parser import ami_parse
+from pyibisami.common import AmiName, AmiNode
 from scipy.interpolate import interp1d
 from scipy.signal import iirfilter, lfilter
 
 from pybert.models.dfe import DFE
 from pybert.models.stimulus import ModulationType
+from pybert.stoppable_thread import StoppableThread
 from pybert.utility import (
     calc_eye,
     calc_jitter,
@@ -59,50 +61,64 @@ clock = perf_counter
 
 AmiFloats: TypeAlias = tuple[AmiName, list["float | 'AmiFloats'"]]
 
-DEBUG           = False
+DEBUG = False
 MIN_BATHTUB_VAL = 1.0e-12
-gFc             = 1.0e6  # Corner frequency of high-pass filter used to model capacitive coupling of periodic noise.
+gFc = 1.0e6  # Corner frequency of high-pass filter used to model capacitive coupling of periodic noise.
 
 logger = logging.getLogger("pybert.sim")
+
+
+class SimulationThread(StoppableThread):
+    """Used to run the simulation in its own thread, in order to preserve GUI
+    responsiveness."""
+
+    def __init__(self):
+        super().__init__()
+        self.pybert = None
+
+    def run(self):
+        """Run the simulation(s)."""
+        try:
+            results, perf = run_simulation(self.pybert, aborted_sim=self.stopped)
+            self.pybert.result_queue.put({"type": "simulation_complete", "results": results, "performance": perf})
+
+        except RuntimeError as err:
+            logger.critical(f"Error in `pybert.threads.sim.SimulationThread`: {err}")
+            raise
+
 
 @dataclass
 class SimulationPerf:
     """Performance metrics for the simulation."""
+
     start_time: float = 0.0
     end_time: float = 0.0
     channel: float = 0.0
     tx: float = 0.0
     ctle: float = 0.0
     dfe: float = 0.0
+    jitter: float = 0.0
+    total: float = 0.0
 
     def __str__(self):
-        return f"Performance Metrics: (Msmpls./min) " \
-               f"Channel: {self.channel * 6e-05:6.3f}  " \
-               f"Tx Preemphasis: {self.tx * 6e-05:6.3f}  " \
-               f"CTLE: {self.ctle * 6e-05:6.3f}  " \
-               f"DFE: {self.dfe * 6e-05:6.3f}  " \
-               f"Jitter: {self.jitter * 6e-05:6.3f}  " \
-               f"Total: {self.total * 6e-05:6.3f}"
+        return (
+            f"Performance Metrics: (Msmpls./min) "
+            f"Channel: {self.channel * 6e-05:6.3f}  "
+            f"Tx Preemphasis: {self.tx * 6e-05:6.3f}  "
+            f"CTLE: {self.ctle * 6e-05:6.3f}  "
+            f"DFE: {self.dfe * 6e-05:6.3f}  "
+            f"Jitter: {self.jitter * 6e-05:6.3f}  "
+            f"Total: {self.total * 6e-05:6.3f}"
+        )
 
 
-# pylint: disable=too-many-locals,protected-access,too-many-branches,too-many-statements
-def my_run_simulation(self, initial_run: bool = False, update_plots: bool = True,
-                      aborted_sim: Optional[Callable[[], bool]] = None):
-    """
-    Runs the simulation.
+def run_simulation(self, aborted_sim: Optional[Callable[[], bool]] = None):
+    """Runs the simulation.
 
     Args:
         self: Reference to an instance of the *PyBERT* class.
 
     Keyword Args:
-        initial_run: If True, don't update the eye diagrams, since
-            they haven't been created, yet.
-            Default: False
-        update_plots: If True, update the plots, after simulation
-            completes. This option can be used by larger scripts, which
-            import *pybert*, in order to avoid graphical back-end
-            conflicts and speed up this function's execution time.
-            Default: True
         aborted_sim: a function that is used to tell the simulation that the user
             has requested to stop/abort the simulation.
 
@@ -121,7 +137,6 @@ def my_run_simulation(self, initial_run: bool = False, update_plots: bool = True
             logger.error("Simulation aborted by User.")
             raise RuntimeError("Simulation aborted by User.")
 
-    logger.info("Starting simulation...")
     results = None
 
     perf = SimulationPerf()
@@ -172,7 +187,7 @@ def my_run_simulation(self, initial_run: bool = False, update_plots: bool = True
     Ts = t[1]
     ts = Ts
     fs = 1 / ts
-    min_len =  30 * nspui
+    min_len = 30 * nspui
     max_len = 100 * nspui
     if impulse_length:
         min_len = max_len = round(impulse_length / ts)
@@ -207,7 +222,7 @@ def my_run_simulation(self, initial_run: bool = False, update_plots: bool = True
         logger.debug(f"Channel convolution time: {_conv_chnl_time}")
         perf.channel = nbits * nspb / (clock() - perf.start_time)
     except Exception as err:
-        logger.exception(f"Exception: channel: {err}")
+        logger.error(f"Exception: channel: {err}")
         raise
     self.chnl_out = chnl_out
 
@@ -227,7 +242,7 @@ def my_run_simulation(self, initial_run: bool = False, update_plots: bool = True
     pn_period = 1.0 / pn_freq
     pn_samps = int(pn_period / Ts + 0.5)
     pn = zeros(pn_samps)
-    pn[pn_samps // 2:] = pn_mag
+    pn[pn_samps // 2 :] = pn_mag
     self.pn_period = pn_period
     self.pn_samps = pn_samps
     pn = resize(pn, len(x))
@@ -265,7 +280,7 @@ def my_run_simulation(self, initial_run: bool = False, update_plots: bool = True
                 ctle_h *= sum(_ctle_h) / sum(ctle_h)
                 ctle_h, _ = trim_impulse(ctle_h, front_porch=False, min_len=min_len, max_len=max_len)
             else:
-                ctle_h = array([1.] + [0. for _ in range(min_len - 1)])
+                ctle_h = array([1.0] + [0.0 for _ in range(min_len - 1)])
         return ctle_h
 
     ctle_s = None
@@ -274,21 +289,23 @@ def my_run_simulation(self, initial_run: bool = False, update_plots: bool = True
         params: list[str] = []
         if self.tx_use_ami and self.tx_use_getwave:
             tx_out, _, tx_h, tx_out_h, msg, _params = run_ami_model(
-                self.tx_dll_file, self._tx_cfg, True, ui, ts, chnl_h, x)
+                self._tx_model, self._tx_cfg, True, ui, ts, chnl_h, x
+            )
             params = _params
             logger.info(f"Tx IBIS-AMI model initialization results:\n{msg}")
             tx_getwave_params = list(map(ami_parse, params))
             logger.info(f"Tx IBIS-AMI model GetWave() output parameters:\n{tx_getwave_params}")
-            rx_in = convolve(tx_out + noise, chnl_h)[:len(tx_out)]
-            # Calculate the remaining responses from the impulse responses.
+            rx_in = convolve(tx_out + noise, chnl_h)[: len(tx_out)]
             tx_s, tx_p, tx_H = calc_resps(t, tx_h, ui, f)
+            # Calculate the remaining responses from the impulse responses.
             tx_out_s, tx_out_p, tx_out_H = calc_resps(t, tx_out_h, ui, f)
             perf.tx = nbits * nspb / (clock() - split_time)
             split_time = clock()
-            self.status = "Running CTLE..."
+            logger.info("Running CTLE...")
             if self.rx_use_ami and self.rx_use_getwave:
                 ctle_out, _, ctle_h, ctle_out_h, msg, _params = run_ami_model(
-                    self.rx_dll_file, self._rx_cfg, True, ui, ts, tx_out_h, convolve(tx_out, chnl_h))
+                    self._rx_model, self._rx_cfg, True, ui, ts, tx_out_h, convolve(tx_out, chnl_h)
+                )
                 params = _params
                 logger.info(f"Rx IBIS-AMI model initialization results:\n{msg}")
                 _rx_getwave_params = list(map(ami_parse, params))
@@ -296,34 +313,37 @@ def my_run_simulation(self, initial_run: bool = False, update_plots: bool = True
             else:  # Rx is either AMI_Init() or PyBERT native.
                 if self.rx_use_ami:  # Rx Init()
                     _, _, ctle_h, ctle_out_h, msg, _ = run_ami_model(
-                        self.rx_dll_file, self._rx_cfg, False, ui, ts, chnl_h, tx_out)
+                        self._rx_model, self._rx_cfg, False, ui, ts, chnl_h, tx_out
+                    )
                     logger.info(f"Rx IBIS-AMI model initialization results:\n{msg}")
-                    ctle_out = convolve(tx_out, ctle_out_h)[:len(tx_out)]
-                else:                # PyBERT native Rx
+                    ctle_out = convolve(tx_out, ctle_out_h)[: len(tx_out)]
+                else:  # PyBERT native Rx
                     ctle_h = get_ctle_h()
-                    ctle_out_h = convolve(ctle_h, tx_out_h)[:len(ctle_h)]
-                    ctle_out = convolve(tx_out, convolve(ctle_h, chnl_h))[:len(tx_out)]
+                    ctle_out_h = convolve(ctle_h, tx_out_h)[: len(ctle_h)]
+                    ctle_out = convolve(tx_out, convolve(ctle_h, chnl_h))[: len(tx_out)]
         else:  # Tx is either AMI_Init() or PyBERT native.
             if self.tx_use_ami:  # Tx is AMI_Init().
                 rx_in, _, tx_h, tx_out_h, msg, _ = run_ami_model(
-                    self.tx_dll_file, self._tx_cfg, False, ui, ts, chnl_h, x)
+                    self._tx_model, self._tx_cfg, False, ui, ts, chnl_h, x
+                )
                 logger.info(f"Tx IBIS-AMI model initialization results:\n{msg}")
                 rx_in += noise
-            else:                # Tx is PyBERT native.
+            else:  # Tx is PyBERT native.
                 # Using `sum` to concatenate:
                 tx_h = array(sum([[x] + list(zeros(nspui - 1)) for x in ffe], []))
                 tx_h.resize(len(chnl_h), refcheck=False)  # "refcheck=False", to get around Tox failure.
                 tx_out_h = convolve(tx_h, chnl_h)[: len(chnl_h)]
-                rx_in = convolve(x, tx_out_h)[:len(x)] + noise
+                rx_in = convolve(x, tx_out_h)[: len(x)] + noise
             # Calculate the remaining responses from the impulse responses.
             tx_s, tx_p, tx_H = calc_resps(t, tx_h, ui, f)
             tx_out_s, tx_out_p, tx_out_H = calc_resps(t, tx_out_h, ui, f)
             perf.tx = nbits * nspb / (clock() - split_time)
             split_time = clock()
-            self.status = "Running CTLE..."
+            logger.info("Running CTLE...")
             if self.rx_use_ami and self.rx_use_getwave:
                 ctle_out, clock_times, ctle_h, ctle_out_h, msg, _params = run_ami_model(
-                    self.rx_dll_file, self._rx_cfg, True, ui, ts, tx_out_h, rx_in)
+                    self._rx_model, self._rx_cfg, True, ui, ts, tx_out_h, rx_in
+                )
                 params = _params
                 logger.info(f"Rx IBIS-AMI model initialization results:\n{msg}")
                 # Time evolution of (<root_name>: AmiName, <param_vals>: list[AmiNode]):
@@ -341,7 +361,7 @@ def my_run_simulation(self, initial_run: bool = False, update_plots: bool = True
                 def get_numeric_values(prefix: AmiName, node: AmiNode) -> dict[AmiName, list[np.float64]]:
                     "Retrieve all numeric values from an AMI node, encoding hierarchy in key names."
                     pname = node[0]
-                    vals  = node[1]
+                    vals = node[1]
                     pname_hier = AmiName(prefix + pname)
                     first_val = vals[0]
                     if isnumeric(first_val):
@@ -383,20 +403,21 @@ def my_run_simulation(self, initial_run: bool = False, update_plots: bool = True
             else:  # Rx is either AMI_Init() or PyBERT native.
                 if self.rx_use_ami:  # Rx Init()
                     ctle_out, _, ctle_h, ctle_out_h, msg, _ = run_ami_model(
-                        self.rx_dll_file, self._rx_cfg, False, ui, ts, tx_out_h, x)
+                        self._rx_model, self._rx_cfg, False, ui, ts, tx_out_h, x
+                    )
                     logger.info(f"Rx IBIS-AMI model initialization results:\n{msg}")
                     ctle_out += noise
-                else:                # PyBERT native Rx
+                else:  # PyBERT native Rx
                     if ctle_enable:
                         ctle_h = get_ctle_h()
-                        ctle_out_h = convolve(tx_out_h, ctle_h)[:len(tx_out_h)]
-                        ctle_out = convolve(x + noise, ctle_out_h)[:len(x)]
+                        ctle_out_h = convolve(tx_out_h, ctle_h)[: len(tx_out_h)]
+                        ctle_out = convolve(x + noise, ctle_out_h)[: len(x)]
                     else:
-                        ctle_h = array([1.] + [0.] * (min_len - 1))
+                        ctle_h = array([1.0] + [0.0] * (min_len - 1))
                         ctle_out_h = tx_out_h
                         ctle_out = rx_in
     except Exception as err:
-        logger.exception(f"Exception: {err}")
+        logger.error(f"Exception: {err}")
         raise
 
     # Calculate the remaining responses from the impulse responses.
@@ -458,14 +479,27 @@ def my_run_simulation(self, initial_run: bool = False, update_plots: bool = True
         if tuner.enabled:
             limits.append((tuner.min_val, tuner.max_val))
         else:
-            limits.append((0., 0.))
-    dfe = DFE(_n_taps, _gain, delta_t, alpha, ui, nspui, decision_scaler, mod_type,
-              n_ave=n_ave, n_lock_ave=n_lock_ave, rel_lock_tol=rel_lock_tol,
-              lock_sustain=lock_sustain, bandwidth=bandwidth, ideal=_ideal,
-              limits=limits)
+            limits.append((0.0, 0.0))
+    dfe = DFE(
+        _n_taps,
+        _gain,
+        delta_t,
+        alpha,
+        ui,
+        nspui,
+        decision_scaler,
+        mod_type,
+        n_ave=n_ave,
+        n_lock_ave=n_lock_ave,
+        rel_lock_tol=rel_lock_tol,
+        lock_sustain=lock_sustain,
+        bandwidth=bandwidth,
+        ideal=_ideal,
+        limits=limits,
+    )
     if not (self.rx_use_ami and self.rx_use_getwave):  # Use PyBERT native DFE/CDR.
         (dfe_out, tap_weights, ui_ests, clocks, lockeds, sample_times, bits_out) = dfe.run(t, ctle_out)
-    else:                                              # Process Rx IBIS-AMI GetWave() output.
+    else:  # Process Rx IBIS-AMI GetWave() output.
         # Process any valid clock times returned by Rx IBIS-AMI model's GetWave() function if apropos.
         dfe_out = array(ctle_out)  # In this case, `ctle_out` includes the effects of IBIS-AMI DFE.
         dfe_out.resize(len(t))
@@ -492,8 +526,9 @@ def my_run_simulation(self, initial_run: bool = False, update_plots: bool = True
             # Starting at `nspui/4` handles either case:
             #   - starting at UI boundary, or
             #   - starting at last sampling instant.
-            next_sample_ix = t_ix + nspui // 4 + argmax([sum(abs(ctle_out[t_ix + nspui // 4 + k::nspui]))
-                                                         for k in range(nspui)])
+            next_sample_ix = (
+                t_ix + nspui // 4 + argmax([sum(abs(ctle_out[t_ix + nspui // 4 + k :: nspui])) for k in range(nspui)])
+            )
             for t_ix in range(next_sample_ix, len(t), nspui):
                 _, _bits = dfe.decide(ctle_out[t_ix])
                 bits_out.extend(_bits)
@@ -503,28 +538,31 @@ def my_run_simulation(self, initial_run: bool = False, update_plots: bool = True
     start_ix = max(0, len(bits_out) - eye_bits)
     end_ix = len(bits_out)
     auto_corr = (
-        1.0 * correlate(bits_out[start_ix: end_ix], bits[start_ix: end_ix], mode="same") /  # noqa: W504
-        sum(bits[start_ix: end_ix])
+        1.0
+        * correlate(bits_out[start_ix:end_ix], bits[start_ix:end_ix], mode="same")  # noqa: W504
+        / sum(bits[start_ix:end_ix])
     )
-    auto_corr = auto_corr[len(auto_corr) // 2:]
+    auto_corr = auto_corr[len(auto_corr) // 2 :]
     self.auto_corr = auto_corr
     bit_dly = where(auto_corr == max(auto_corr))[0][0]
-    bits_ref = bits[(nbits - eye_bits):]
-    bits_tst = bits_out[(nbits + bit_dly - eye_bits):]
+    bits_ref = bits[(nbits - eye_bits) :]
+    bits_tst = bits_out[(nbits + bit_dly - eye_bits) :]
     if len(bits_ref) > len(bits_tst):
         bits_ref = bits_ref[: len(bits_tst)]
     elif len(bits_tst) > len(bits_ref):
         bits_tst = bits_tst[: len(bits_ref)]
     bit_errs = where(bits_tst ^ bits_ref)[0]
     n_errs = len(bit_errs)
-    if n_errs and False:  # pylint: disable=condition-evals-to-constant
-        logger.error(f"pybert.models.bert.my_run_simulation(): Bit errors detected at indices: {bit_errs}.")
+    # if n_errs and False:  # pylint: disable=condition-evals-to-constant
+    #     logger.error(f"pybert.models.bert.my_run_simulation(): Bit errors detected at indices: {bit_errs}.")
     self.bit_errs = n_errs
 
     if len(tap_weights) > 0:
         dfe_h = array(
-            [1.0] + list(zeros(nspui - 1)) +  # noqa: W504
-            sum([[-x] + list(zeros(nspui - 1)) for x in tap_weights[-1]], []))  # sum as concat
+            [1.0]
+            + list(zeros(nspui - 1))  # noqa: W504
+            + sum([[-x] + list(zeros(nspui - 1)) for x in tap_weights[-1]], [])
+        )  # sum as concat
         dfe_h.resize(len(ctle_out_h), refcheck=False)
     else:
         dfe_h = array([1.0] + list(zeros(nspui - 1)))
@@ -631,11 +669,11 @@ def my_run_simulation(self, initial_run: bool = False, update_plots: bool = True
             mu_pos,
             mu_neg,
         ) = calc_jitter(ui, eye_uis, pattern_len, ideal_xings_jit, actual_xings_jit, rel_thresh)
-        self.t_jitter  = t_jitter
-        self.isi_chnl  = isi
-        self.dcd_chnl  = dcd
-        self.pj_chnl   = pj
-        self.rj_chnl   = rj
+        self.t_jitter = t_jitter
+        self.isi_chnl = isi
+        self.dcd_chnl = dcd
+        self.pj_chnl = pj
+        self.rj_chnl = rj
         self.pjDD_chnl = pjDD
         self.rjDD_chnl = rjDD
         self.mu_pos_chnl = mu_pos
@@ -675,10 +713,10 @@ def my_run_simulation(self, initial_run: bool = False, update_plots: bool = True
             mu_pos,
             mu_neg,
         ) = calc_jitter(ui, eye_uis, pattern_len, ideal_xings_jit, actual_xings_jit, rel_thresh)
-        self.isi_tx  = isi
-        self.dcd_tx  = dcd
-        self.pj_tx   = pj
-        self.rj_tx   = rj
+        self.isi_tx = isi
+        self.dcd_tx = dcd
+        self.pj_tx = pj
+        self.rj_tx = rj
         self.pjDD_tx = pjDD
         self.rjDD_tx = rjDD
         self.mu_pos_tx = mu_pos
@@ -718,10 +756,10 @@ def my_run_simulation(self, initial_run: bool = False, update_plots: bool = True
             mu_pos,
             mu_neg,
         ) = calc_jitter(ui, eye_uis, pattern_len, ideal_xings_jit, actual_xings_jit, rel_thresh)
-        self.isi_ctle  = isi
-        self.dcd_ctle  = dcd
-        self.pj_ctle   = pj
-        self.rj_ctle   = rj
+        self.isi_ctle = isi
+        self.dcd_ctle = dcd
+        self.pj_ctle = pj
+        self.rj_ctle = rj
         self.pjDD_ctle = pjDD
         self.rjDD_ctle = rjDD
         self.mu_pos_ctle = mu_pos
@@ -758,10 +796,10 @@ def my_run_simulation(self, initial_run: bool = False, update_plots: bool = True
             mu_pos,
             mu_neg,
         ) = calc_jitter(ui, eye_uis, pattern_len, ideal_xings_jit, actual_xings_jit, rel_thresh, dbg_obj=self)
-        self.isi_dfe  = isi
-        self.dcd_dfe  = dcd
-        self.pj_dfe   = pj
-        self.rj_dfe   = rj
+        self.isi_dfe = isi
+        self.dcd_dfe = dcd
+        self.pj_dfe = pj
+        self.rj_dfe = rj
         self.pjDD_dfe = pjDD
         self.rjDD_dfe = rjDD
         self.mu_pos_dfe = mu_pos
@@ -779,19 +817,12 @@ def my_run_simulation(self, initial_run: bool = False, update_plots: bool = True
 
         perf.jitter = nbits * nspb / (clock() - split_time)
     except ValueError as err:
-        logger.exception(f"The jitter calculation could not be completed, due to the following error:\n{err}")
+        logger.error(f"The jitter calculation could not be completed, due to the following error:\n{err}")
         # raise
 
     perf.total = nbits * nspb / (clock() - perf.start_time)
     perf.end_time = clock()
-    logger.info("Simulation complete. Duration: %s", round(perf.end_time - perf.start_time, 3))
+    logger.info(f"Simulation complete. Duration: {round(perf.end_time - perf.start_time, 3)} s")
     logger.info(str(perf))
-    # logger.info(f"Performance Metrics: "
-    # f"Channel: {perf.channel * 6e-05:6.3f} Msmpls./min "
-    # f"Tx Preemphasis: {perf.tx * 6e-05:6.3f} Msmpls./min "
-    # f"CTLE: {perf.ctle * 6e-05:6.3f} Msmpls./min "
-    # f"DFE: {perf.dfe * 6e-05:6.3f} Msmpls./min "
-    # f"Jitter: {perf.jitter * 6e-05:6.3f} Msmpls./min "
-    # f"Total: {perf.total * 6e-05:6.3f} Msmpls./min")
 
     return results, perf

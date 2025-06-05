@@ -15,6 +15,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = "BSD-3-Clause"
 dependencies = [
+    "pyibis-ami==7.99",
     "kiwisolver==1.4.8",
     "pyside6==6.9.0",
     "pyqtgraph==0.13.7",
@@ -60,12 +61,16 @@ pybert = "pybert.cli:cli"
 
 [project.optional-dependencies]
 dev = [
-    "black",
-    "isort",
     "pre-commit",
     "tox",
-    "sphinx",
-    "m2r",
+    # Tools below are useful for when using VsCode or other IDEs.
+    "black",
+    "isort",
+    "pytest",
+    "pytest-cov",
+    "pytest-xdist",
+    "pytest-qt",
+    "mypy",
 ]
 
 [tool.setuptools.packages.find]

@@ -18,9 +18,6 @@ from PySide6.QtWidgets import (
 
 from pybert.constants import gMaxCTLEPeak
 from pybert.pybert import PyBERT
-from pybert.utility.logger import setup_logger
-
-logger = setup_logger("pybert")
 
 
 class RxOptimizationCTLEWidget(QGroupBox):

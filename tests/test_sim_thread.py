@@ -1,5 +1,5 @@
+from pybert.bert import SimulationThread
 from pybert.pybert import PyBERT
-from pybert.threads.sim import SimulationThread
 
 
 def test_simulation_can_abort():
@@ -9,12 +9,19 @@ def test_simulation_can_abort():
     blocking.  This just guards against pytest infinitely hanging up because
     of some event.  The simulation should abort within a second or two.
     """
-    app = PyBERT(run_simulation=False, gui=False)
+    app = PyBERT(run_simulation=False)
 
     sim = SimulationThread()
-    sim.the_pybert = app
+    sim.pybert = app
     sim.start()  # Start the thread
     sim.stop()  # Abort the thread
     sim.join(60)  # Join and wait until it ends or 10 seconds passed.
 
-    assert "Aborted" in app.status_str
+    # Get all messages from the queue and check for "Aborted" string
+    while not app.result_queue.empty():
+        result = app.result_queue.get()
+        if result.get("type") == "message":
+            if "Simulation aborted by User." in result.get("message", ""):
+                assert True
+                return
+    assert False

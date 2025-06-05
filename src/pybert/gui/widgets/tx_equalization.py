@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QLabel,
     QLineEdit,
+    QPushButton,
     QRadioButton,
     QStackedLayout,
     QTableWidget,
@@ -23,6 +24,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from pybert.gui.dialogs import select_file_dialog
+from pybert.gui.widgets.utils import StatusIndicator
 from pybert.models.tx_tap import TxTapTuner
 from pybert.pybert import PyBERT
 
@@ -67,26 +70,39 @@ class TxEqualizationWidget(QGroupBox):
         # IBIS-AMI file selection
         file_layout = QHBoxLayout()
         file_layout.addWidget(QLabel("AMI File"))
-        self.ibis_file = QLineEdit()
-        self.ibis_file.setReadOnly(True)
-        file_layout.addWidget(self.ibis_file)
+        self.ami_file = QLineEdit()
+        self.ami_file.setReadOnly(True)
+        file_layout.addWidget(self.ami_file)
         ibis_layout.addLayout(file_layout)
 
         file_layout = QHBoxLayout()
         file_layout.addWidget(QLabel("DLL File"))
-        self.ibis_file = QLineEdit()
-        self.ibis_file.setReadOnly(True)
-        file_layout.addWidget(self.ibis_file)
+        self.dll_file = QLineEdit()
+        self.dll_file.setReadOnly(True)
+        file_layout.addWidget(self.dll_file)
         ibis_layout.addLayout(file_layout)
 
-        # IBIS-AMI valid indicator
-        valid_layout = QHBoxLayout()
-        valid_layout.addWidget(QLabel("Valid"))
-        self.ibis_valid = QCheckBox()
-        self.ibis_valid.setEnabled(False)
-        valid_layout.addWidget(self.ibis_valid)
-        valid_layout.addStretch()
-        ibis_layout.addLayout(valid_layout)
+        # Bottom row with status, checkbox, and configure
+        bottom_layout = QHBoxLayout()
+        # Status indicator
+        bottom_layout.addWidget(QLabel("Status:"))
+        self.ami_model_valid = StatusIndicator()
+        bottom_layout.addWidget(self.ami_model_valid)
+        bottom_layout.addSpacing(20)  # Add some spacing between status and checkbox
+
+        # GetWave checkbox
+        self.use_getwave = QCheckBox("Use GetWave()")
+        self.use_getwave.setEnabled(False)
+        bottom_layout.addWidget(self.use_getwave)
+
+        bottom_layout.addStretch()  # Push configure button to the right
+
+        # Configure button
+        self.ami_configurator = QPushButton("Configure")
+        self.ami_configurator.setEnabled(False)
+        bottom_layout.addWidget(self.ami_configurator)
+
+        ibis_layout.addLayout(bottom_layout)
         ibis_layout.addStretch()
 
         # Add both groups to stacked layout (after both are constructed)
@@ -133,17 +149,41 @@ class TxEqualizationWidget(QGroupBox):
 
     def connect_signals(self, pybert) -> None:
         """Connect signals to PyBERT instance."""
+        pybert.new_tx_model.connect(self._update_view)
         self.mode_group.buttonReleased.connect(
             lambda val: setattr(pybert, "tx_eq", "Native" if self.native_radio.isChecked() else "IBIS")
         )
         self.ffe_table.itemChanged.connect(lambda item: setattr(pybert, "tx_taps", self.get_tap_values()))
+        self.ami_configurator.clicked.connect(self._open_ami_configurator)
+        self.use_getwave.toggled.connect(lambda val: setattr(pybert, "tx_use_getwave", val))
 
     def _update_mode(self) -> None:
         """Show only the selected group (IBIS or Native) using stacked layout."""
         if self.ibis_radio.isChecked():
             self.stacked_layout.setCurrentWidget(self.ibis_group)
+            self.pybert.tx_use_ami = True
         else:
             self.stacked_layout.setCurrentWidget(self.native_group)
+            self.pybert.tx_use_ami = False
+
+    def _update_view(self) -> None:
+        """Update the view based on the current mode."""
+        if self.pybert._tx_ibis.has_algorithmic_model:
+            self.ibis_radio.setChecked(True)
+            self._update_mode()
+            self.ami_file.setText(str(self.pybert._tx_ibis.ami_file))
+            self.dll_file.setText(str(self.pybert._tx_ibis.dll_file))
+            self.ami_model_valid.set_status("valid")
+            self.ami_configurator.setEnabled(True)
+        else:
+            self.ami_model_valid.set_status("invalid")
+            self.native_radio.setChecked(True)
+            self._update_mode()
+
+    def _open_ami_configurator(self) -> None:
+        """Open the AMI configurator."""
+        if self.ami_model_valid.property("status") == "valid":
+            self.pybert._tx_cfg.gui()
 
     def switch_equalization_modes(self, has_ami: bool) -> None:
         """Switch the equalization modes based on the presence of an AMI file."""
@@ -195,3 +235,19 @@ class TxEqualizationWidget(QGroupBox):
         """
         if 0 <= tap_index < self.ffe_table.rowCount():
             self.ffe_table.item(tap_index, 2).setText(f"{value:+.3f}")
+
+    def _load_ami_model(self) -> None:
+        """Load AMI model from file."""
+        filename = select_file_dialog(self, "Select AMI Model", "AMI Models (*.dll *.so *.dylib);;All Files (*.*)")
+        if filename:
+            self.ami_file.setText(filename)
+            if self.pybert.load_new_tx_ami_model(filename):
+                self.ami_model_valid.set_status("valid")
+                self.view_btn.setEnabled(True)
+                self.use_getwave.setEnabled(True)
+                self.view_btn.clicked.connect(self.pybert.tx_ami_model.gui)
+            else:
+                self.ami_model_valid.set_status("invalid")
+                self.view_btn.setEnabled(False)
+                self.use_getwave.setEnabled(False)
+                self.view_btn.clicked.disconnect()

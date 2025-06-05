@@ -1,14 +1,21 @@
 """Shared fixtures across the pybert testing infrastructure."""
 
+import logging
+import time
+
 import pytest
 
 from pybert.pybert import PyBERT
+
+logging.basicConfig(level=logging.INFO)
 
 
 @pytest.fixture(scope="module")
 def dut():
     """Return an initialized pybert object that has already run the initial simulation."""
-    yield PyBERT()
+    dut = PyBERT()
+    dut.simulate()
+    yield dut
 
 
 @pytest.fixture(scope="module")

@@ -17,7 +17,7 @@ def test_cli_version():
 
 def test_cli_sim(tmp_path):
     """Make sure that pybert can run without a gui and generate a results file output."""
-    app = PyBERT(run_simulation=False, gui=False)
+    app = PyBERT(run_simulation=False)
     config_file = tmp_path.joinpath("config.yaml")
     app.save_configuration(config_file)
     assert config_file.exists()
@@ -31,7 +31,7 @@ def test_cli_sim(tmp_path):
 
 def test_cli_sim_with_overridden_filename(tmp_path):
     """Confirm that `sim` can override the filename using the --results flag."""
-    app = PyBERT(run_simulation=False, gui=False)
+    app = PyBERT(run_simulation=False)
     config_file = tmp_path.joinpath("config.yaml")
     app.save_configuration(config_file)
     assert config_file.exists()
