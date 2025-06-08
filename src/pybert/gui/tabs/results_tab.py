@@ -46,7 +46,7 @@ class ResultsTab(QWidget):
             ("Impulses", self._create_response_tab),
             ("Steps", self._create_response_tab),
             ("Pulses", self._create_response_tab),
-            ("Frequency Response", self._create_response_tab),
+            ("Frequency", self._create_response_tab),
             ("DFE", self._create_dfe_tab),
             ("Outputs", self._create_outputs_tab),
             ("Eyes", self._create_eyes_tab),
@@ -59,6 +59,9 @@ class ResultsTab(QWidget):
             tab_widget.addTab(tab, tab_name)
             if tab_name == "Eyes":
                 tab_widget.setCurrentWidget(tab)
+
+        if pybert:
+            self.connect_signals(pybert)
 
     def connect_signals(self, pybert) -> None:
         """Connect the simulation complete signal to the update_results method.
@@ -396,7 +399,7 @@ class ResultsTab(QWidget):
             plot = plot_grid.addPlot(row=row, col=col)
             plot.showGrid(x=True, y=True)
             plot.setTitle(title)
-            if response_name == "Frequency Response":
+            if response_name == "Frequency":
                 plot.addLegend(offset=(-1, 1))  # Upper Right
                 plot.getAxis("left").setLabel("Frequency Response", units="dB")
                 plot.getAxis("bottom").setLabel("Frequency", units="GHz")
@@ -417,7 +420,7 @@ class ResultsTab(QWidget):
             plots.append(plot)
 
         # Only link x-axes for non-frequency response plots
-        if response_name != "Frequency Response":
+        if response_name != "Frequency":
             for plot in plots[1:]:
                 plot.setXLink(plots[0])
 
@@ -428,7 +431,7 @@ class ResultsTab(QWidget):
             self.step_plots = plots
         elif response_name == "Pulses":
             self.pulse_plots = plots
-        elif response_name == "Frequency Response":
+        elif response_name == "Frequency":
             self.freq_plots = plots
 
         return widget

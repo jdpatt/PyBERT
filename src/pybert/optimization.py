@@ -14,17 +14,6 @@ import logging
 import time
 
 import numpy as np
-from numpy import (  # type: ignore
-    arange,
-    argmax,
-    array,
-    convolve,
-    log10,
-    ones,
-    pi,
-    where,
-    zeros,
-)
 from numpy.fft import irfft  # type: ignore
 from scipy.interpolate import interp1d
 
@@ -98,7 +87,7 @@ def mk_tx_weights(weightss: list[list[float]], enumerated_tuners: list[tuple[int
     n, tuner = head
     if not tuner.enabled:
         return mk_tx_weights(weightss, tail)
-    weight_vals = arange(tuner.min_val, tuner.max_val + tuner.step, tuner.step)
+    weight_vals = np.arange(tuner.min_val, tuner.max_val + tuner.step, tuner.step)
     new_weightss = []
     for weights in weightss:
         for val in weight_vals:
@@ -135,8 +124,8 @@ def coopt(
 
     # Calculate time/frequency vectors for CTLE.
     ctle_fmax = 100 * rx_bw  # Should give -40dB at truncation, assuming 20 dB/dec. roll-off.
-    f_ctle = arange(0, ctle_fmax + 10e6, 10e6)  # 10 MHz freq. step & includes `ctle_fmax` (i.e. - fNyquist)
-    w_ctle = 2 * pi * f_ctle
+    f_ctle = np.arange(0, ctle_fmax + 10e6, 10e6)  # 10 MHz freq. step & includes `ctle_fmax` (i.e. - fNyquist)
+    w_ctle = 2 * np.pi * f_ctle
     t_ctle = [n * 1.0 / (2 * ctle_fmax) for n in range(2 * (len(f_ctle) - 1))]
 
     # Calculate unequalized channel pulse response.
@@ -157,13 +146,13 @@ def coopt(
         list(enumerate(pybert.tx_tap_tuners)),
     )
     for tx_weights in tx_weightss:
-        tx_weights.insert(tx_curs_pos, 1 - sum(abs(array(tx_weights))))
+        tx_weights.insert(tx_curs_pos, 1 - sum(abs(np.array(tx_weights))))
 
     # Calculate CTLE gain candidates.
     if pybert.ctle_enable_tune:
-        peak_mags = arange(min_mag, max_mag + step_mag, step_mag)
+        peak_mags = np.arange(min_mag, max_mag + step_mag, step_mag)
     else:
-        peak_mags = array([0])
+        peak_mags = np.array([0])
 
     # Calculate and report the total number of trials, as well as some other misc. info.
     n_trials = len(peak_mags) * len(tx_weightss)
@@ -185,21 +174,21 @@ def coopt(
     fom_max = -1000.0
     peak_mag_best = 0.0
     trials_run = 0
-    dfe_weights = zeros(len(dfe_taps))
+    dfe_weights = np.zeros(len(dfe_taps))
     for peak_mag in peak_mags:
         _, H_ctle = make_ctle(rx_bw, peak_freq, peak_mag, w_ctle)
         _h_ctle = irfft(H_ctle)
         krnl = interp1d(t_ctle, _h_ctle, bounds_error=False, fill_value=0)
         h_ctle = krnl(t[:max_len])
         h_ctle *= sum(_h_ctle) / sum(h_ctle)
-        p_ctle_out = convolve(p_chnl, h_ctle)[: len(p_chnl)]
+        p_ctle_out = np.convolve(p_chnl, h_ctle)[: len(p_chnl)]
         for tx_weights in tx_weightss:
             # sum = concatenate
-            h_tx = array(sum([[tx_weight] + [0] * (nspui - 1) for tx_weight in tx_weights], []))
-            p_tot = convolve(p_ctle_out, h_tx)[: len(p_ctle_out)]
-            curs_ix = where(p_tot == max(p_tot))[0][0]
+            h_tx = np.array(sum([[tx_weight] + [0] * (nspui - 1) for tx_weight in tx_weights], []))
+            p_tot = np.convolve(p_ctle_out, h_tx)[: len(p_ctle_out)]
+            curs_ix = np.where(p_tot == max(p_tot))[0][0]
             # Test for obvious "to ignore" cases.
-            if p_tot[argmax(abs(p_tot))] < 0:  # Main peak is negative.
+            if p_tot[np.argmax(abs(p_tot))] < 0:  # Main peak is negative.
                 continue
             if curs_ix > len(p_tot) // 2:  # Main peak occurs in right half of waveform.
                 continue
@@ -218,7 +207,7 @@ def coopt(
                 tx_weights_best = tx_weights.copy()
                 del tx_weights_best[tx_curs_pos]
                 peak_mag_best = peak_mag
-                clocks = 1.1 * curs_amp * ones(len(p_tot))
+                clocks = 1.1 * curs_amp * np.ones(len(p_tot))
                 for ix in range(curs_ix - n_pre_isi * nspui, len(clocks), nspui):
                     clocks[ix] = 0
                 curs_time = pybert.t_ns[curs_ix]

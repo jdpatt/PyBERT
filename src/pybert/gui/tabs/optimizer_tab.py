@@ -75,6 +75,9 @@ class OptimizerTab(QWidget):
         # Set initial splitter sizes (40% controls, 60% plot)
         splitter.setSizes([400, 600])
 
+        if pybert:
+            self.connect_signals(pybert)
+
     def update_plot(self, result):
         """Update the plot with new data.
 

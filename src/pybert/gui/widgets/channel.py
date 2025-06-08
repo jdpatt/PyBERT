@@ -112,7 +112,7 @@ class ChannelConfigWidget(QGroupBox):
         mode_layout = QHBoxLayout()
         self.native_radio = QRadioButton("Native")
         self.file_radio = QRadioButton("From File(s)")
-        self.native_radio.setChecked(True)  # Default to Native
+        self.native_radio.setChecked(True)
         self.mode_group = QButtonGroup(self)
         self.mode_group.addButton(self.native_radio)
         self.mode_group.addButton(self.file_radio)
@@ -157,13 +157,11 @@ class ChannelConfigWidget(QGroupBox):
 
         self.length = QDoubleSpinBox()
         self.length.setRange(0.0, 10.0)
-        self.length.setValue(0.5)
         self.length.setSuffix(" m")
         native_form.addRow(QLabel("Length"), self.length)
 
         self.loss_tan = QDoubleSpinBox()
         self.loss_tan.setRange(0.0, 1.0)
-        self.loss_tan.setValue(0.02)
         self.loss_tan.setDecimals(3)
         native_form.addRow(
             QLabel(
@@ -174,31 +172,26 @@ class ChannelConfigWidget(QGroupBox):
 
         self.z0 = QDoubleSpinBox()
         self.z0.setRange(0.0, 200.0)
-        self.z0.setValue(100.0)
         self.z0.setSuffix(" Ohms")
         native_form.addRow(QLabel("Characteristic Impedance"), self.z0)
 
         self.v0 = QDoubleSpinBox()
         self.v0.setRange(0.0, 1.0)
-        self.v0.setValue(0.6)
         self.v0.setSuffix(" c")
         native_form.addRow(QLabel("Relative Velocity"), self.v0)
 
         self.rdc = QDoubleSpinBox()
         self.rdc.setRange(0.0, 100.0)
-        self.rdc.setValue(0.0)
         self.rdc.setSuffix(" Ohms")
         native_form.addRow(QLabel("DC Resistance"), self.rdc)
 
         self.w0 = QDoubleSpinBox()
         self.w0.setRange(0.0, 1e12)
-        self.w0.setValue(0.0)
         self.w0.setSuffix(" rads/s")
         native_form.addRow(QLabel("Transition Frequency"), self.w0)
 
         self.r0 = QDoubleSpinBox()
         self.r0.setRange(0.0, 100.0)
-        self.r0.setValue(0.0)
         self.r0.setSuffix(" Ohms")
         native_form.addRow(QLabel("Skin Effect Resistance"), self.r0)
 
@@ -221,29 +214,96 @@ class ChannelConfigWidget(QGroupBox):
         # Add stretch to push everything to the top
         layout.addStretch()
 
-        # Connect signals for radio buttons
+        if pybert is not None:
+            self.update_from_model()
+            self.connect_signals(pybert)
+        self._update_mode()
+
+    def block_signals(self, block: bool = True) -> None:
+        """Block or unblock all widget signals to prevent unnecessary updates.
+
+        Args:
+            block: True to block signals, False to unblock
+        """
+        widgets = [
+            self.native_radio,
+            self.file_radio,
+            self.length,
+            self.loss_tan,
+            self.z0,
+            self.v0,
+            self.rdc,
+            self.w0,
+            self.r0,
+            self.file_list,
+        ]
+        for widget in widgets:
+            widget.blockSignals(block)
+
+    def update_from_model(self) -> None:
+        """Update all widget values from the PyBERT model.
+
+        Args:
+            pybert: PyBERT model instance to update from
+        """
+        if self.pybert is None:
+            return
+
+        self.block_signals(True)
+        try:
+            # Update mode
+            self.native_radio.setChecked(self.pybert.channel_model == "Native")
+            self.file_radio.setChecked(self.pybert.channel_model == "From File(s)")
+
+            self.length.setValue(self.pybert.l_ch)
+            self.loss_tan.setValue(self.pybert.Theta0)
+            self.z0.setValue(self.pybert.Z0)
+            self.v0.setValue(self.pybert.v0)
+            self.rdc.setValue(self.pybert.Rdc)
+            self.w0.setValue(self.pybert.w0)
+            self.r0.setValue(self.pybert.R0)
+
+            # Update file groups
+            self.file_list.clear()
+            for file_info in self.pybert.channel_elements:
+                group = FileGroupWidget(
+                    order=len(self.file_list) + 1,
+                    remove_callback=lambda: self._validate_existing_groups(),
+                    parent=self,
+                    file_changed_callback=lambda: self._validate_existing_groups(),
+                )
+                group.channel_file.setText(file_info["file"])
+                group.port_combo.setCurrentText(file_info["port"])
+                item = QListWidgetItem()
+                self.file_list.addItem(item)
+                self.file_list.setItemWidget(item, group)
+            self.update_add_btn_state()
+            if self.file_list.count() == 0:
+                self.add_file_group()
+        finally:
+            self.block_signals(False)
+
+    def connect_signals(self, pybert: "PyBERT") -> None:
+        """Connect widget signals to PyBERT instance."""
         self.native_radio.toggled.connect(self._update_mode)
         self.file_radio.toggled.connect(self._update_mode)
 
-        # Set initial visibility
-        self._update_mode()
-
-        self.add_file_group()  # Ensure at least one file group by default
-
-    def connect_signals(self, pybert):
-        """Connect signals to PyBERT instance."""
+        # Connect mode selection
         self.mode_group.buttonReleased.connect(
-            lambda val: setattr(pybert, "channel_model", "Native" if self.native_radio.isChecked() else "From File")
+            lambda val: setattr(pybert, "channel_model", "Native" if self.native_radio.isChecked() else "From File(s)")
         )
+
+        # Connect native parameters
+        self.length.valueChanged.connect(lambda val: setattr(pybert, "channel_length", val))
+        self.loss_tan.valueChanged.connect(lambda val: setattr(pybert, "channel_loss_tan", val))
+        self.z0.valueChanged.connect(lambda val: setattr(pybert, "channel_z0", val))
+        self.v0.valueChanged.connect(lambda val: setattr(pybert, "channel_v0", val))
+        self.rdc.valueChanged.connect(lambda val: setattr(pybert, "channel_rdc", val))
+        self.w0.valueChanged.connect(lambda val: setattr(pybert, "channel_w0", val))
+        self.r0.valueChanged.connect(lambda val: setattr(pybert, "channel_r0", val))
+
+        # Connect use_window
         self.use_window.toggled.connect(lambda val: setattr(pybert, "use_window", val))
-        self.length.valueChanged.connect(lambda val: setattr(pybert, "l_ch", val))
-        self.loss_tan.valueChanged.connect(lambda val: setattr(pybert, "Theta0", val))
-        self.z0.valueChanged.connect(lambda val: setattr(pybert, "Z0", val))
-        self.v0.valueChanged.connect(lambda val: setattr(pybert, "v0", val))
-        self.rdc.valueChanged.connect(lambda val: setattr(pybert, "Rdc", val))
-        self.w0.valueChanged.connect(lambda val: setattr(pybert, "w0", val))
-        self.r0.valueChanged.connect(lambda val: setattr(pybert, "R0", val))
-        self.file_list.itemChanged.connect(lambda item: setattr(pybert, "elements", self.get_channel_elements()))
 
     def get_channel_elements(self):
         """Get the list of files and their parameters from the file groups.

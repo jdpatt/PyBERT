@@ -1,11 +1,11 @@
+from enum import Enum, StrEnum
 
-from enum import Enum
 
-
-class ModulationType(Enum):
+class ModulationType(StrEnum):
     NRZ = "NRZ"
-    DUO = "Duobinary"
+    DUO = "Duo-binary"
     PAM4 = "PAM4"
+
 
 class BitPattern(Enum):
     PRBS7 = [7, 6]

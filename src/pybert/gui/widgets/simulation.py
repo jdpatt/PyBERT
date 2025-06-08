@@ -7,6 +7,7 @@ samples per unit interval, modulation type, etc.
 import logging
 from typing import Optional
 
+from PySide6.QtCore import QObject, Signal
 from PySide6.QtWidgets import (
     QComboBox,
     QDoubleSpinBox,
@@ -26,13 +27,14 @@ from pybert.pybert import PyBERT
 logger = logging.getLogger("pybert")
 
 
-class SimulationControlWidget(QGroupBox):
+class SimulationConfiglWidget(QGroupBox):
     """Widget for controlling simulation parameters."""
 
     def __init__(self, pybert: PyBERT | None = None, parent: Optional[QWidget] = None) -> None:
         """Initialize the simulation control widget.
 
         Args:
+            pybert: PyBERT model instance
             parent: Parent widget
         """
         super().__init__("Stimulus", parent)
@@ -52,7 +54,6 @@ class SimulationControlWidget(QGroupBox):
         bit_rate_layout.addWidget(QLabel("Bit Rate"))
         self.bit_rate = QDoubleSpinBox()
         self.bit_rate.setRange(0.1, 250.0)
-        self.bit_rate.setValue(10.0)
         self.bit_rate.setSuffix(" Gbps")
         bit_rate_layout.addWidget(self.bit_rate)
         rate_layout.addLayout(bit_rate_layout)
@@ -62,7 +63,6 @@ class SimulationControlWidget(QGroupBox):
         samp_layout.addWidget(QLabel("Samples per UI"))
         self.nspui = QSpinBox()
         self.nspui.setRange(2, 256)
-        self.nspui.setValue(32)
         samp_layout.addWidget(self.nspui)
         rate_layout.addLayout(samp_layout)
 
@@ -70,8 +70,7 @@ class SimulationControlWidget(QGroupBox):
         mod_layout = QHBoxLayout()
         mod_layout.addWidget(QLabel("Modulation"))
         self.modulation = QComboBox()
-        self.modulation.addItems(["NRZ", "Duo-binary", "PAM-4"])
-        self.modulation.setCurrentText("NRZ")
+        self.modulation.addItems([mod.value for mod in ModulationType])
         mod_layout.addWidget(self.modulation)
         rate_layout.addLayout(mod_layout)
 
@@ -86,8 +85,7 @@ class SimulationControlWidget(QGroupBox):
         pat_layout = QHBoxLayout()
         pat_layout.addWidget(QLabel("Pattern"))
         self.pattern = QComboBox()
-        self.pattern.addItems(["PRBS7", "PRBS9", "PRBS11", "PRBS15", "PRBS23", "PRBS31"])
-        self.pattern.setCurrentText("PRBS7")
+        self.pattern.addItems([pattern.name for pattern in BitPattern])
         pat_layout.addWidget(self.pattern)
         pattern_layout.addLayout(pat_layout)
 
@@ -96,7 +94,6 @@ class SimulationControlWidget(QGroupBox):
         seed_layout.addWidget(QLabel("Seed"))
         self.seed = QSpinBox()
         self.seed.setRange(0, 1000000)
-        self.seed.setValue(1)
         seed_layout.addWidget(self.seed)
         pattern_layout.addLayout(seed_layout)
 
@@ -105,7 +102,6 @@ class SimulationControlWidget(QGroupBox):
         nbits_layout.addWidget(QLabel("Nbits"))
         self.nbits = QSpinBox()
         self.nbits.setRange(1000, 10_000_000)
-        self.nbits.setValue(15000)
         nbits_layout.addWidget(self.nbits)
         pattern_layout.addLayout(nbits_layout)
 
@@ -114,7 +110,6 @@ class SimulationControlWidget(QGroupBox):
         eye_layout.addWidget(QLabel("EyeBits"))
         self.eye_bits = QSpinBox()
         self.eye_bits.setRange(0, 100000)
-        self.eye_bits.setValue(10160)
         eye_layout.addWidget(self.eye_bits)
         pattern_layout.addLayout(eye_layout)
 
@@ -129,7 +124,6 @@ class SimulationControlWidget(QGroupBox):
         vod_layout = QHBoxLayout()
         vod_layout.addWidget(QLabel("Output Voltage"))
         self.vod = QDoubleSpinBox()
-        self.vod.setValue(1.0)
         self.vod.setSuffix(" V")
         vod_layout.addWidget(self.vod)
         level_layout.addLayout(vod_layout)
@@ -138,7 +132,6 @@ class SimulationControlWidget(QGroupBox):
         rn_layout = QHBoxLayout()
         rn_layout.addWidget(QLabel("Random Noise"))
         self.rn = QDoubleSpinBox()
-        self.rn.setValue(0.01)
         self.rn.setSuffix(" V")
         rn_layout.addWidget(self.rn)
         level_layout.addLayout(rn_layout)
@@ -147,7 +140,6 @@ class SimulationControlWidget(QGroupBox):
         pn_mag_layout = QHBoxLayout()
         pn_mag_layout.addWidget(QLabel("Periodic Noise"))
         self.pn_mag = QDoubleSpinBox()
-        self.pn_mag.setValue(0.1)
         self.pn_mag.setSuffix(" V")
         pn_mag_layout.addWidget(self.pn_mag)
         level_layout.addLayout(pn_mag_layout)
@@ -156,7 +148,6 @@ class SimulationControlWidget(QGroupBox):
         pn_freq_layout = QHBoxLayout()
         pn_freq_layout.addWidget(QLabel("f(Pn)"))
         self.pn_freq = QDoubleSpinBox()
-        self.pn_freq.setValue(11)
         self.pn_freq.setSuffix(" MHz")
         pn_freq_layout.addWidget(self.pn_freq)
         level_layout.addLayout(pn_freq_layout)
@@ -173,7 +164,6 @@ class SimulationControlWidget(QGroupBox):
         self.impulse_length = QDoubleSpinBox()
         self.impulse_length.setToolTip("Manual impulse response length override (Determined automatically, when 0.)")
         self.impulse_length.setDecimals(3)
-        self.impulse_length.setValue(0.0)
         self.impulse_length.setFixedWidth(100)
         self.impulse_length.setSuffix(" ns")
         analysis_layout.addWidget(impulse_label, 0, 0)
@@ -184,7 +174,6 @@ class SimulationControlWidget(QGroupBox):
         self.thresh = QDoubleSpinBox()
         self.thresh.setToolTip("Threshold for identifying periodic jitter spectral elements. (sigma)")
         self.thresh.setDecimals(3)
-        self.thresh.setValue(3.0)
         self.thresh.setFixedWidth(100)
         self.thresh.setSuffix(" sigma")
         analysis_layout.addWidget(thresh_label, 1, 0)
@@ -195,7 +184,6 @@ class SimulationControlWidget(QGroupBox):
         self.f_max = QDoubleSpinBox()
         self.f_max.setToolTip("Maximum frequency used for plotting, modeling, and signal processing. (GHz)")
         self.f_max.setDecimals(3)
-        self.f_max.setValue(40.0)
         self.f_max.setFixedWidth(100)
         self.f_max.setSuffix(" GHz")
         self.f_max.setRange(0.0, 1000.0)
@@ -207,7 +195,6 @@ class SimulationControlWidget(QGroupBox):
         self.f_step = QDoubleSpinBox()
         self.f_step.setToolTip("Frequency step used for plotting, modeling, and signal processing. (MHz)")
         self.f_step.setDecimals(3)
-        self.f_step.setValue(10.0)
         self.f_step.setFixedWidth(100)
         self.f_step.setSuffix(" MHz")
         analysis_layout.addWidget(fstep_label, 3, 0)
@@ -216,11 +203,79 @@ class SimulationControlWidget(QGroupBox):
         # Add the analysis group to the main layout
         layout.addWidget(analysis_group)
 
+        # Initialize widget values from model if available
+        if self.pybert is not None:
+            self.update_from_model()
+            self.connect_signals(self.pybert)
+
+    def block_signals(self, block: bool = True) -> None:
+        """Block or unblock all widget signals to prevent unnecessary updates.
+
+        Args:
+            block: True to block signals, False to unblock
+        """
+        widgets = [
+            self.bit_rate,
+            self.nspui,
+            self.modulation,
+            self.pattern,
+            self.seed,
+            self.nbits,
+            self.eye_bits,
+            self.vod,
+            self.rn,
+            self.pn_mag,
+            self.pn_freq,
+            self.impulse_length,
+            self.thresh,
+            self.f_max,
+            self.f_step,
+        ]
+        for widget in widgets:
+            widget.blockSignals(block)
+
+    def update_from_model(self) -> None:
+        """Update all widget values from the PyBERT model.
+
+        Args:
+            pybert: PyBERT model instance to update from
+        """
+        if self.pybert is None:
+            return
+
+        self.block_signals(True)
+        try:
+            # Update rate & modulation
+            self.bit_rate.setValue(self.pybert.bit_rate)
+            self.nspui.setValue(self.pybert.nspui)
+            mod_index = {ModulationType.NRZ: 0, ModulationType.DUO: 1, ModulationType.PAM4: 2}[self.pybert.mod_type]
+            self.modulation.setCurrentIndex(mod_index)
+
+            # Update pattern settings
+            self.pattern.setCurrentText(self.pybert.pattern.name)
+            self.seed.setValue(self.pybert.seed)
+            self.nbits.setValue(self.pybert.nbits)
+            self.eye_bits.setValue(self.pybert.eye_bits)
+
+            # Update level & noise
+            self.vod.setValue(self.pybert.vod)
+            self.rn.setValue(self.pybert.rn)
+            self.pn_mag.setValue(self.pybert.pn_mag)
+            self.pn_freq.setValue(self.pybert.pn_freq)
+
+            # Update analysis parameters
+            self.impulse_length.setValue(self.pybert.impulse_length)
+            self.thresh.setValue(self.pybert.thresh)
+            self.f_max.setValue(self.pybert.f_max)
+            self.f_step.setValue(self.pybert.f_step)
+        finally:
+            self.block_signals(False)
+
     def connect_signals(self, pybert: "PyBERT") -> None:
         """Connect widget signals to PyBERT stimulus model."""
         self.bit_rate.valueChanged.connect(lambda val: setattr(pybert, "bit_rate", val))
         self.nspui.valueChanged.connect(lambda val: setattr(pybert, "nspui", val))
-        self.modulation.currentIndexChanged.connect(lambda idx: self.update_modulation(pybert, idx))
+        self.modulation.currentTextChanged.connect(lambda val: self.update_modulation(pybert, val))
         self.seed.valueChanged.connect(lambda val: setattr(pybert, "seed", val))
         self.pattern.currentTextChanged.connect(self.update_pattern)
         self.nbits.valueChanged.connect(self.update_nbits)
@@ -234,13 +289,13 @@ class SimulationControlWidget(QGroupBox):
         self.f_max.valueChanged.connect(self.update_f_max)
         self.f_step.valueChanged.connect(lambda val: setattr(pybert, "f_step", val))
 
-    def update_modulation(self, pybert: "PyBERT", idx: int) -> None:
+    def update_modulation(self, pybert: "PyBERT", val: str) -> None:
         """Update the modulation type."""
-        if idx == 0:
+        if val == ModulationType.NRZ.value:
             setattr(pybert, "mod_type", ModulationType.NRZ)
-        elif idx == 1:
+        elif val == ModulationType.DUO.value:
             setattr(pybert, "mod_type", ModulationType.DUO)
-        elif idx == 2:
+        elif val == ModulationType.PAM4.value:
             setattr(pybert, "mod_type", ModulationType.PAM4)
 
     def update_nbits(self, nbits: int) -> None:

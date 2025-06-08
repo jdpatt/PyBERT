@@ -90,13 +90,11 @@ class RxEqualizationWidget(QGroupBox):
 
         # GetWave checkbox
         self.use_getwave = QCheckBox("Use GetWave()")
-        self.use_getwave.setEnabled(False)
         bottom_layout.addWidget(self.use_getwave)
         bottom_layout.addSpacing(10)  # Add spacing between checkboxes
 
         # Clocks checkbox
         self.use_clocks = QCheckBox("Use Clocks")
-        self.use_clocks.setEnabled(False)
         bottom_layout.addWidget(self.use_clocks)
 
         bottom_layout.addStretch()  # Push configure button to the right
@@ -131,7 +129,7 @@ class RxEqualizationWidget(QGroupBox):
         ctle_mode_layout = QHBoxLayout()
         self.ctle_file_radio = QRadioButton("File")
         self.ctle_model_radio = QRadioButton("Model")
-        self.ctle_model_radio.setChecked(True)  # Default to Model
+
         self.ctle_mode_group = QButtonGroup(self)
         self.ctle_mode_group.addButton(self.ctle_file_radio)
         self.ctle_mode_group.addButton(self.ctle_model_radio)
@@ -164,7 +162,6 @@ class RxEqualizationWidget(QGroupBox):
         self.peak_freq = QDoubleSpinBox()
         self.peak_freq.setToolTip("CTLE peaking frequency (GHz)")
         self.peak_freq.setDecimals(2)
-        self.peak_freq.setValue(5.0)
         self.peak_freq.setSuffix(" GHz")
         model_layout.addWidget(QLabel("Peaking Frequency"))
         model_layout.addWidget(self.peak_freq)
@@ -175,7 +172,6 @@ class RxEqualizationWidget(QGroupBox):
         self.rx_bw = QDoubleSpinBox()
         self.rx_bw.setToolTip("Unequalized signal path bandwidth (GHz)")
         self.rx_bw.setDecimals(2)
-        self.rx_bw.setValue(12.0)
         self.rx_bw.setSuffix(" GHz")
         model_layout.addWidget(QLabel("Bandwidth"))
         model_layout.addWidget(self.rx_bw)
@@ -186,7 +182,7 @@ class RxEqualizationWidget(QGroupBox):
         self.peak_mag = QDoubleSpinBox()
         self.peak_mag.setToolTip("CTLE peaking magnitude (dB)")
         self.peak_mag.setDecimals(1)
-        self.peak_mag.setValue(1.7)
+
         self.peak_mag.setSuffix(" dB")
         model_layout.addWidget(QLabel("Boost"))
         model_layout.addWidget(self.peak_mag)
@@ -208,7 +204,6 @@ class RxEqualizationWidget(QGroupBox):
         self.delta_t = QDoubleSpinBox()
         self.delta_t.setToolTip("Magnitude of CDR proportional branch")
         self.delta_t.setDecimals(2)
-        self.delta_t.setValue(0.1)
         self.delta_t.setSuffix(" ps")
         cdr_layout.addRow("Delta-t", self.delta_t)
 
@@ -216,26 +211,23 @@ class RxEqualizationWidget(QGroupBox):
         self.alpha = QDoubleSpinBox()
         self.alpha.setToolTip("Relative magnitude of CDR integral branch")
         self.alpha.setDecimals(2)
-        self.alpha.setValue(0.01)
+
         cdr_layout.addRow("Alpha", self.alpha)
 
         # Lock parameters
         self.n_lock_ave = QSpinBox()
         self.n_lock_ave.setToolTip("# of UI estimates to average, when determining lock")
         self.n_lock_ave.setRange(1, 100000)
-        self.n_lock_ave.setValue(500)
         cdr_layout.addRow("Lock Nave.", self.n_lock_ave)
 
         self.rel_lock_tol = QDoubleSpinBox()
         self.rel_lock_tol.setToolTip("Relative tolerance for determining lock")
         self.rel_lock_tol.setDecimals(2)
-        self.rel_lock_tol.setValue(0.01)
         cdr_layout.addRow("Lock Tol.", self.rel_lock_tol)
 
         self.lock_sustain = QSpinBox()
         self.lock_sustain.setToolTip("Length of lock determining hysteresis vector")
         self.lock_sustain.setRange(1, 100000)
-        self.lock_sustain.setValue(500)
         cdr_layout.addRow("Lock Sus.", self.lock_sustain)
 
         cdr_group.setLayout(cdr_layout)
@@ -251,21 +243,18 @@ class RxEqualizationWidget(QGroupBox):
         self.gain = QDoubleSpinBox()
         self.gain.setToolTip("Error feedback gain")
         self.gain.setDecimals(2)
-        self.gain.setValue(0.2)
         dfe_layout.addRow("Gain", self.gain)
 
         # Nave
         self.n_ave = QSpinBox()
         self.n_ave.setToolTip("# of CDR adaptations per DFE adaptation")
         self.n_ave.setRange(1, 100000)
-        self.n_ave.setValue(100)
         dfe_layout.addRow("Nave.", self.n_ave)
 
         # Decision Level
         self.decision_scaler = QDoubleSpinBox()
         self.decision_scaler.setToolTip("Target output magnitude")
         self.decision_scaler.setDecimals(2)
-        self.decision_scaler.setValue(0.5)
         level_widget = QWidget()
         level_layout = QHBoxLayout(level_widget)
         level_layout.setContentsMargins(0, 0, 0, 0)
@@ -277,7 +266,6 @@ class RxEqualizationWidget(QGroupBox):
         self.sum_bw = QDoubleSpinBox()
         self.sum_bw.setToolTip("Summing node bandwidth")
         self.sum_bw.setDecimals(2)
-        self.sum_bw.setValue(12.0)
         self.sum_bw.setSuffix(" GHz")
         bw_widget = QWidget()
         bw_layout = QHBoxLayout(bw_widget)
@@ -303,23 +291,24 @@ class RxEqualizationWidget(QGroupBox):
         # Add stretch to push everything to the top
         layout.addStretch()
 
-        # Connect signals for radio buttons
-        self.ibis_radio.toggled.connect(self._update_mode)
-        self.native_radio.toggled.connect(self._update_mode)
-        self.ctle_file_radio.toggled.connect(self._update_ctle_mode)
-        self.ctle_model_radio.toggled.connect(self._update_ctle_mode)
-        self.ami_configurator.clicked.connect(self._open_ami_configurator)
-
-        # Connect signals for enabling/disabling controls
-        self.sum_ideal.toggled.connect(self._update_sum_bw_control)
-
-        # Set initial visibility
+        if pybert:
+            self.update_from_model()
+            self.connect_signals(pybert)
         self._update_mode()
         self._update_ctle_mode()
         self._update_sum_bw_control()
 
     def connect_signals(self, pybert) -> None:
         """Connect signals to PyBERT instance."""
+        self.ibis_radio.toggled.connect(self._update_mode)
+        self.native_radio.toggled.connect(self._update_mode)
+        self.ctle_file_radio.toggled.connect(self._update_ctle_mode)
+        self.ctle_model_radio.toggled.connect(self._update_ctle_mode)
+        self.ami_configurator.clicked.connect(self._open_ami_configurator)
+        self.sum_ideal.toggled.connect(self._update_sum_bw_control)
+
+        pybert.new_rx_model.connect(self._update_ami_view)
+
         self.mode_group.buttonReleased.connect(
             lambda val: setattr(pybert, "rx_eq", "Native" if self.native_radio.isChecked() else "IBIS")
         )
@@ -327,9 +316,11 @@ class RxEqualizationWidget(QGroupBox):
         self.use_clocks.toggled.connect(lambda val: setattr(pybert, "rx_use_clocks", val))
         # CTLE
         self.ctle_enable.toggled.connect(lambda val: setattr(pybert, "ctle_enable", val))
-        self.ctle_file_radio.toggled.connect(lambda val: setattr(pybert, "rx_ctle_model", "File"))
-        self.ctle_model_radio.toggled.connect(lambda val: setattr(pybert, "rx_ctle_model", "Native"))
         self.ctle_file.textChanged.connect(lambda val: setattr(pybert, "ctle_file", val))
+        # Use buttonReleased instead of toggled to avoid double signals
+        self.ctle_mode_group.buttonReleased.connect(
+            lambda: setattr(pybert, "rx_ctle_model", "File" if self.ctle_file_radio.isChecked() else "Native")
+        )
         self.rx_bw.valueChanged.connect(lambda val: setattr(pybert, "rx_bw", val))
         self.peak_freq.valueChanged.connect(lambda val: setattr(pybert, "peak_freq", val))
         self.peak_mag.valueChanged.connect(lambda val: setattr(pybert, "peak_mag", val))
@@ -345,7 +336,88 @@ class RxEqualizationWidget(QGroupBox):
         self.decision_scaler.valueChanged.connect(lambda val: setattr(pybert, "decision_scaler", val))
         self.sum_bw.valueChanged.connect(lambda val: setattr(pybert, "sum_bw", val))
         self.sum_ideal.toggled.connect(lambda val: setattr(pybert, "sum_ideal", val))
-        pybert.new_rx_model.connect(self.update_view)
+
+    def update_from_model(self) -> None:
+        """Update all widget values from the PyBERT model.
+
+        Args:
+            pybert: PyBERT model instance to update from
+        """
+        if self.pybert is None:
+            return
+
+        self.block_signals(True)
+        try:
+            # Update mode
+            self.native_radio.setChecked(self.pybert.rx_eq == "Native")
+            self.ibis_radio.setChecked(self.pybert.rx_eq == "IBIS")
+
+            # Update AMI settings
+            if hasattr(self.pybert, "_rx_ibis") and self.pybert._rx_ibis is not None:
+                self.ami_file.setText(str(self.pybert._rx_ibis.ami_file))
+                self.dll_file.setText(str(self.pybert._rx_ibis.dll_file))
+                self.ami_model_valid.set_status("valid" if self.pybert._rx_ibis.has_algorithmic_model else "invalid")
+                self.ami_configurator.setEnabled(self.pybert._rx_ibis.has_algorithmic_model)
+                self.use_getwave.setEnabled(self.pybert._rx_ibis.has_algorithmic_model)
+                self.use_clocks.setEnabled(self.pybert._rx_ibis.has_algorithmic_model)
+                self.use_getwave.setChecked(self.pybert.rx_use_getwave)
+                self.use_clocks.setChecked(self.pybert.rx_use_clocks)
+            else:
+                self.ami_model_valid.set_status("not_loaded")
+                self.ami_configurator.setEnabled(False)
+                self.use_getwave.setEnabled(False)
+                self.use_clocks.setEnabled(False)
+
+            # Update CTLE parameters
+            self.ctle_enable.setChecked(self.pybert.ctle_enable)
+            self.ctle_file_radio.setChecked(self.pybert.use_ctle_file)
+            self.ctle_model_radio.setChecked(not self.pybert.use_ctle_file)
+            self.peak_freq.setValue(self.pybert.peak_freq)
+            self.rx_bw.setValue(self.pybert.rx_bw)
+            self.peak_mag.setValue(self.pybert.peak_mag)
+            if hasattr(self.pybert, "rx_ctle_file"):
+                self.ctle_file.setText(self.pybert.ctle_file)
+
+            # Update CDR parameters
+            self.delta_t.setValue(self.pybert.delta_t)
+            self.alpha.setValue(self.pybert.alpha)
+            self.n_lock_ave.setValue(self.pybert.n_lock_ave)
+            self.rel_lock_tol.setValue(self.pybert.rel_lock_tol)
+            self.lock_sustain.setValue(self.pybert.lock_sustain)
+
+            # Update DFE parameters
+            self.gain.setValue(self.pybert.gain)
+            self.n_ave.setValue(self.pybert.n_ave)
+            self.decision_scaler.setValue(self.pybert.decision_scaler)
+            self.sum_bw.setValue(self.pybert.sum_bw)
+            self.sum_ideal.setChecked(self.pybert.sum_ideal)
+
+        finally:
+            self.block_signals(False)
+
+    def block_signals(self, block: bool = True) -> None:
+        """Block or unblock all widget signals to prevent unnecessary updates.
+
+        Args:
+            block: True to block signals, False to unblock
+        """
+        widgets = [
+            self.native_radio,
+            self.ibis_radio,
+            self.ctle_enable,
+            self.ctle_file_radio,
+            self.ctle_model_radio,
+            self.peak_freq,
+            self.rx_bw,
+            self.peak_mag,
+            self.use_getwave,
+            self.use_clocks,
+            self.ami_file,
+            self.dll_file,
+            self.ctle_file,
+        ]
+        for widget in widgets:
+            widget.blockSignals(block)
 
     def _update_mode(self) -> None:
         """Show only the selected group (IBIS or Native) using stacked layout."""
@@ -355,25 +427,6 @@ class RxEqualizationWidget(QGroupBox):
         else:
             self.stacked_layout.setCurrentWidget(self.native_group)
             self.pybert.rx_use_ami = False
-
-    def update_view(self) -> None:
-        """Update the view based on the current mode."""
-        if self.pybert._rx_ibis.has_algorithmic_model:
-            self.ibis_radio.setChecked(True)
-            self._update_mode()
-            self.ami_file.setText(str(self.pybert._rx_ibis.ami_file))
-            self.dll_file.setText(str(self.pybert._rx_ibis.dll_file))
-            self.ami_model_valid.set_status("valid")
-            self.ami_configurator.setEnabled(True)
-        else:
-            self.ami_model_valid.set_status("invalid")
-            self.native_radio.setChecked(True)
-            self._update_mode()
-
-    def _open_ami_configurator(self) -> None:
-        """Open the AMI configurator."""
-        if self.ami_model_valid.property("status") == "valid":
-            self.pybert._rx_cfg.gui()
 
     def _update_ctle_mode(self) -> None:
         """Show only the selected CTLE mode (File or Model) using stacked layout."""
@@ -392,20 +445,21 @@ class RxEqualizationWidget(QGroupBox):
         """Enable/disable sum bandwidth control based on ideal checkbox."""
         self.sum_bw.setEnabled(not self.sum_ideal.isChecked())
 
-    def _load_ami_model(self) -> None:
-        """Load AMI model from file."""
-        filename = select_file_dialog(self, "Select AMI Model", "AMI Models (*.dll *.so *.dylib);;All Files (*.*)")
-        if filename:
-            self.ami_file.setText(filename)
-            if self.pybert.load_new_rx_ami_model(filename):
-                self.ami_model_valid.set_status("valid")
-                self.view_btn.setEnabled(True)
-                self.use_getwave.setEnabled(True)
-                self.use_clocks.setEnabled(True)
-                self.view_btn.clicked.connect(self.pybert.rx_ami_model.gui)
-            else:
-                self.ami_model_valid.set_status("invalid")
-                self.view_btn.setEnabled(False)
-                self.view_btn.clicked.disconnect()
-                self.use_getwave.setEnabled(False)
-                self.use_clocks.setEnabled(False)
+    def _open_ami_configurator(self) -> None:
+        """Open the AMI configurator."""
+        if self.ami_model_valid.property("status") == "valid":
+            self.pybert._rx_cfg.gui()
+
+    def _update_ami_view(self) -> None:
+        """Update the AMI view based on the current IBIS model state."""
+        if self.pybert._rx_ibis.has_algorithmic_model:
+            self.ibis_radio.setChecked(True)
+            self._update_mode()
+            self.ami_file.setText(str(self.pybert._rx_ibis.ami_file))
+            self.dll_file.setText(str(self.pybert._rx_ibis.dll_file))
+            self.ami_model_valid.set_status("valid")
+            self.ami_configurator.setEnabled(True)
+        else:
+            self.ami_model_valid.set_status("invalid")
+            self.native_radio.setChecked(True)
+            self._update_mode()

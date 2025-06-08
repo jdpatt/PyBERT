@@ -7,6 +7,7 @@ model selection and native parameters.
 import logging
 from typing import Optional
 
+from pyibisami import IBISModel
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QButtonGroup,
@@ -61,7 +62,6 @@ class TxConfigWidget(QWidget):
         mode_layout = QHBoxLayout()
         self.native_radio = QRadioButton("Native")
         self.ibis_radio = QRadioButton("IBIS")
-        self.native_radio.setChecked(True)  # Default to Native
         self.mode_group = QButtonGroup(self)
         self.mode_group.addButton(self.native_radio)
         self.mode_group.addButton(self.ibis_radio)
@@ -101,7 +101,6 @@ class TxConfigWidget(QWidget):
         self.use_ts4 = QCheckBox("Use on-die S-parameters")
         self.use_ts4.setEnabled(False)
         bottom_layout.addWidget(self.use_ts4)
-
         bottom_layout.addStretch()  # Push configure button to the right
 
         # Configure button
@@ -123,14 +122,12 @@ class TxConfigWidget(QWidget):
         self.rs = QDoubleSpinBox()
         self.rs.setRange(0.0, 1000.0)
         self.rs.setDecimals(2)
-        self.rs.setValue(100.0)
         self.rs.setSuffix(" Ohms")
         native_form.addRow(QLabel("Impedance"), self.rs)
 
         self.cout = QDoubleSpinBox()
         self.cout.setRange(0.0, 1000.0)
         self.cout.setDecimals(2)
-        self.cout.setValue(1.0)
         self.cout.setSuffix(" pF")
         native_form.addRow(QLabel("Capacitance"), self.cout)
 
@@ -143,25 +140,73 @@ class TxConfigWidget(QWidget):
         self.tx_equalization = TxEqualizationWidget(pybert=self.pybert, parent=self)
         layout.addWidget(self.tx_equalization, stretch=2)
 
-        # Connect signals for radio buttons
-        self.ibis_radio.toggled.connect(self._update_mode)
-        self.native_radio.toggled.connect(self._update_mode)
-
-        # Set initial visibility
+        if pybert is not None:
+            self.update_from_model()
+            self.connect_signals(pybert)
         self._update_mode()
 
-    def connect_signals(self, pybert) -> None:
-        """Connect signals to PyBERT instance."""
-        self.tx_equalization.connect_signals(pybert)
-        self.use_ts4.toggled.connect(lambda val: setattr(pybert, "tx_use_ts4", val))
-        self.rs.valueChanged.connect(lambda val: setattr(pybert, "tx_rs", val))
-        self.cout.valueChanged.connect(lambda val: setattr(pybert, "tx_cout", val))
-        self.ibis_file.textChanged.connect(lambda val: setattr(pybert, "tx_ibis_file", val))
-        self.use_ts4.toggled.connect(lambda val: setattr(pybert, "tx_use_ts4", val))
-        self.mode_group.buttonReleased.connect(
-            lambda val: setattr(pybert, "tx_model", "Native" if self.native_radio.isChecked() else "IBIS")
-        )
+    def block_signals(self, block: bool = True) -> None:
+        """Block or unblock all widget signals to prevent unnecessary updates.
+
+        Args:
+            block: True to block signals, False to unblock
+        """
+        widgets = [
+            self.use_ts4,
+            self.rs,
+            self.cout,
+            self.ibis_file,
+            self.native_radio,
+            self.ibis_radio,
+            self.tx_equalization,
+        ]
+        for widget in widgets:
+            widget.blockSignals(block)
+
+    def update_from_model(self) -> None:
+        """Update all widget values from the PyBERT model.
+
+        Args:
+            pybert: PyBERT model instance to update from
+        """
+        if self.pybert is None:
+            return
+
+        self.block_signals(True)
+        try:
+            # Update mode
+            self.native_radio.setChecked(self.pybert.tx_model == "Native")
+            self.ibis_radio.setChecked(self.pybert.tx_model == "IBIS")
+
+            # Update IBIS settings
+            self.ibis_file.setText(self.pybert.tx_ibis_file)
+            self.use_ts4.setChecked(self.pybert.tx_use_ts4)
+
+            # Update native parameters
+            self.rs.setValue(self.pybert.rs)
+            self.cout.setValue(self.pybert.cout)
+
+            # Update equalization
+            self.tx_equalization.update_from_model()
+        finally:
+            self.block_signals(False)
+
+    def connect_signals(self, pybert: "PyBERT") -> None:
+        """Connect widget signals to PyBERT instance."""
+
+        # Connect signals for radio buttons
+        self.native_radio.toggled.connect(self._update_mode)
+        self.ibis_radio.toggled.connect(self._update_mode)
         self.ibis_has_ami.connect(self.tx_equalization.switch_equalization_modes)
+
+        if pybert is not None:
+            self.use_ts4.toggled.connect(lambda val: setattr(pybert, "tx_use_ts4", val))
+            self.rs.valueChanged.connect(lambda val: setattr(pybert, "tx_rs", val))
+            self.cout.valueChanged.connect(lambda val: setattr(pybert, "tx_cout", val))
+            self.ibis_file.textChanged.connect(lambda val: setattr(pybert, "tx_ibis_file", val))
+            self.mode_group.buttonReleased.connect(
+                lambda val: setattr(pybert, "tx_model", "Native" if self.native_radio.isChecked() else "IBIS")
+            )
 
     def _browse_ibis(self) -> None:
         """Open file dialog to select IBIS file."""
@@ -170,14 +215,11 @@ class TxConfigWidget(QWidget):
         )
         if filename:
             self.ibis_file.setText(filename)
-            ibis = self.pybert.load_new_tx_ibis_file(filename)
+            ibis: IBISModel | None = self.pybert.load_new_tx_ibis_file(filename)
             if ibis:
                 self.ibis_valid.set_status("valid")
                 self.view_btn.setEnabled(True)
                 self.view_btn.clicked.connect(ibis.gui)
-
-                if ibis.has_ts4:
-                    self.use_ts4.setEnabled(True)
 
                 if ibis.has_algorithmic_model:
                     dialogs.info_dialog(

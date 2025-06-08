@@ -9,7 +9,7 @@ import webbrowser
 from pathlib import Path
 from typing import Optional
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QObject, Qt, Signal
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import (
     QFileDialog,
@@ -34,8 +34,18 @@ from pybert.utility.logger import QStatusBarHandler
 logger = logging.getLogger("pybert")
 
 
+class PyBERTSignals(QObject):
+    """Signals for PyBERT model changes."""
+
+    model_changed = Signal()  # Emitted when model parameters change
+    configuration_loaded = Signal()  # Emitted when new configuration is loaded
+
+
 class PyBERTGUI(QMainWindow):
     """Main window for the PyBERT application."""
+
+    configuration_loaded = Signal()
+    results_loaded = Signal()
 
     def __init__(self, pybert: PyBERT | None = None, show_debug: bool = False, parent: Optional[QWidget] = None):
         """Initialize the main window.
@@ -47,6 +57,7 @@ class PyBERTGUI(QMainWindow):
         """
         super().__init__(parent)
         self.pybert: PyBERT = pybert
+        self._signals = PyBERTSignals()
 
         self.setWindowTitle(f"PyBERT v{__version__}")
         self.resize(1920, 1080)
@@ -87,14 +98,24 @@ class PyBERTGUI(QMainWindow):
         # Connect PyBERT signals if available
         if self.pybert:
             self.connect_signals()
+            self.connect_configuration_signals()
 
     def connect_signals(self):
         """Connect PyBERT signals to status bar update slots."""
-        self.config_tab.connect_signals(self.pybert)
-        self.optimizer_tab.connect_signals(self.pybert)
-        self.results_tab.connect_signals(self.pybert)
         self.pybert.sim_complete.connect(self.update_status_bar)
         self.pybert.status_update.connect(lambda msg: self.status_bar.showMessage(msg))
+
+    def connect_configuration_signals(self) -> None:
+        """Connect configuration_loaded signal to all configuration widgets."""
+        if not self.pybert:
+            return
+
+        # Connect to all configuration widgets
+        self._signals.configuration_loaded.connect(self.config_tab.sim_control.update_from_model)
+        self._signals.configuration_loaded.connect(self.config_tab.tx_config.update_from_model)
+        self._signals.configuration_loaded.connect(self.config_tab.rx_config.update_from_model)
+        self._signals.configuration_loaded.connect(self.config_tab.tx_config.tx_equalization.update_from_model)
+        self._signals.configuration_loaded.connect(self.config_tab.rx_config.rx_equalization.update_from_model)
 
     def create_status_bar(self):
         """Create and setup the status bar with permanent widgets."""
@@ -293,7 +314,8 @@ class PyBERTGUI(QMainWindow):
         file_path, _ = QFileDialog.getOpenFileName(self, "Load Configuration", "", CONFIG_LOAD_WILDCARD)
         if file_path and self.pybert:
             self.last_config_filepath = Path(file_path)
-            self.pybert.load_config(self.last_config_filepath)
+            self.pybert.load_configuration(self.last_config_filepath)
+            self._signals.configuration_loaded.emit()
 
     def save_config(self):
         """Save configuration to the current file."""

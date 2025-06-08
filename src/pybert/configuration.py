@@ -24,6 +24,8 @@ if TYPE_CHECKING:
 
 import yaml
 
+# TODO: Add a v7 to v8 migration method.
+
 
 class InvalidFileType(Exception):
     """Raised when a filetype that isn't supported is used when trying to load
@@ -35,7 +37,6 @@ class InvalidFileType(Exception):
 CONFIG_LOAD_WILDCARD = ";;".join(
     [
         "Yaml Config (*.yaml;*.yml)|*.yaml;*.yml",
-        "Pickle Config (*.pybert_cfg)",
         "All files (*)|*",
     ]
 )

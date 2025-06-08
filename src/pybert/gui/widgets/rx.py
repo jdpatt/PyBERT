@@ -151,19 +151,66 @@ class RxConfigWidget(QWidget):
         self.rx_equalization = RxEqualizationWidget(self.pybert, parent=self)
         layout.addWidget(self.rx_equalization, stretch=2)
 
-        # Connect signals for radio buttons
+        if pybert is not None:
+            self.update_from_model()
+            self.connect_signals(pybert)
+        self._update_mode()
+
+    def block_signals(self, block: bool = True) -> None:
+        """Block or unblock all widget signals to prevent unnecessary updates.
+
+        Args:
+            block: True to block signals, False to unblock
+        """
+        widgets = [
+            self.use_ts4,
+            self.ibis_file,
+            self.native_radio,
+            self.ibis_radio,
+            self.rin,
+            self.cin,
+            self.cac,
+            self.rx_equalization,
+        ]
+        for widget in widgets:
+            widget.blockSignals(block)
+
+    def update_from_model(self) -> None:
+        """Update all widget values from the PyBERT model.
+
+        Args:
+            pybert: PyBERT model instance to update from
+        """
+        if self.pybert is None:
+            return
+
+        self.block_signals(True)
+        try:
+            # Update mode
+            self.native_radio.setChecked(self.pybert.rx_model == "Native")
+            self.ibis_radio.setChecked(self.pybert.rx_model == "IBIS")
+
+            # Update IBIS settings
+            self.ibis_file.setText(self.pybert.rx_ibis_file)
+            self.use_ts4.setChecked(self.pybert.rx_use_ts4)
+
+            # Update native parameters
+            self.rin.setValue(self.pybert.rin)
+            self.cin.setValue(self.pybert.cin)
+            self.cac.setValue(self.pybert.cac)
+
+            # Update equalization
+            self.rx_equalization.update_from_model()
+        finally:
+            self.block_signals(False)
+
+    def connect_signals(self, pybert: "PyBERT") -> None:
+        """Connect widget signals to PyBERT instance."""
         self.native_radio.toggled.connect(self._update_mode)
         self.ibis_radio.toggled.connect(self._update_mode)
 
-        # Set initial visibility
-        self._update_mode()
-
-    def connect_signals(self, pybert) -> None:
-        """Connect signals to PyBERT instance."""
-        self.rx_equalization.connect_signals(pybert)
         self.use_ts4.toggled.connect(lambda val: setattr(pybert, "rx_use_ts4", val))
         self.ibis_file.textChanged.connect(lambda val: setattr(pybert, "rx_ibis_file", val))
-        self.use_ts4.toggled.connect(lambda val: setattr(pybert, "rx_use_ts4", val))
         self.mode_group.buttonReleased.connect(
             lambda val: setattr(pybert, "rx_model", "Native" if self.native_radio.isChecked() else "IBIS")
         )

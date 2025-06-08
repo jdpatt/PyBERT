@@ -50,7 +50,6 @@ class TxEqualizationWidget(QGroupBox):
         mode_layout = QHBoxLayout()
         self.native_radio = QRadioButton("Native")
         self.ibis_radio = QRadioButton("IBIS-AMI")
-        self.native_radio.setChecked(True)  # Default to Native
         self.mode_group = QButtonGroup(self)
         self.mode_group.addButton(self.native_radio)
         self.mode_group.addButton(self.ibis_radio)
@@ -92,14 +91,12 @@ class TxEqualizationWidget(QGroupBox):
 
         # GetWave checkbox
         self.use_getwave = QCheckBox("Use GetWave()")
-        self.use_getwave.setEnabled(False)
         bottom_layout.addWidget(self.use_getwave)
 
         bottom_layout.addStretch()  # Push configure button to the right
 
         # Configure button
         self.ami_configurator = QPushButton("Configure")
-        self.ami_configurator.setEnabled(False)
         bottom_layout.addWidget(self.ami_configurator)
 
         ibis_layout.addLayout(bottom_layout)
@@ -140,22 +137,68 @@ class TxEqualizationWidget(QGroupBox):
         # Add stretch to push everything to the top
         layout.addStretch()
 
-        # Connect signals for radio buttons
-        self.ibis_radio.toggled.connect(self._update_mode)
-        self.native_radio.toggled.connect(self._update_mode)
-
-        # Set initial visibility
+        if pybert:
+            self.update_from_model()
+            self.connect_signals(pybert)
         self._update_mode()
 
     def connect_signals(self, pybert) -> None:
         """Connect signals to PyBERT instance."""
-        pybert.new_tx_model.connect(self._update_view)
-        self.mode_group.buttonReleased.connect(
-            lambda val: setattr(pybert, "tx_eq", "Native" if self.native_radio.isChecked() else "IBIS")
-        )
-        self.ffe_table.itemChanged.connect(lambda item: setattr(pybert, "tx_taps", self.get_tap_values()))
-        self.ami_configurator.clicked.connect(self._open_ami_configurator)
-        self.use_getwave.toggled.connect(lambda val: setattr(pybert, "tx_use_getwave", val))
+        self.ibis_radio.toggled.connect(self._update_mode)
+        self.native_radio.toggled.connect(self._update_mode)
+
+        if pybert is not None:
+            pybert.new_tx_model.connect(self._update_ami_view)
+            self.mode_group.buttonReleased.connect(
+                lambda val: setattr(pybert, "tx_eq", "Native" if self.native_radio.isChecked() else "IBIS")
+            )
+            self.ffe_table.itemChanged.connect(lambda item: setattr(pybert, "tx_taps", self.get_tap_values()))
+            self.ami_configurator.clicked.connect(self._open_ami_configurator)
+            self.use_getwave.toggled.connect(lambda val: setattr(pybert, "tx_use_getwave", val))
+
+    def update_from_model(self) -> None:
+        """Update all widget values from the PyBERT model.
+
+        Args:
+            pybert: PyBERT model instance to update from
+        """
+        if self.pybert is None:
+            return
+
+        self.block_signals(True)
+        try:
+            # Update mode
+            self.native_radio.setChecked(self.pybert.tx_eq == "Native")
+            self.ibis_radio.setChecked(self.pybert.tx_eq == "IBIS")
+
+            # Update AMI settings
+            if hasattr(self.pybert, "_tx_ibis") and self.pybert._tx_ibis is not None:
+                self.ami_file.setText(str(self.pybert._tx_ibis.ami_file))
+                self.dll_file.setText(str(self.pybert._tx_ibis.dll_file))
+                self.ami_model_valid.set_status("valid" if self.pybert._tx_ibis.has_algorithmic_model else "invalid")
+                self.ami_configurator.setEnabled(self.pybert._tx_ibis.has_algorithmic_model)
+                self.use_getwave.setEnabled(self.pybert._tx_ibis.has_algorithmic_model)
+                self.use_getwave.setChecked(self.pybert.tx_use_getwave)
+            else:
+                self.ami_model_valid.set_status("not_loaded")
+                self.ami_configurator.setEnabled(False)
+                self.use_getwave.setEnabled(False)
+
+            # Update native parameters
+            if hasattr(self.pybert, "tx_taps"):
+                self.set_taps(self.pybert.tx_taps)
+        finally:
+            self.block_signals(False)
+
+    def block_signals(self, block: bool = True) -> None:
+        """Block or unblock all widget signals to prevent unnecessary updates.
+
+        Args:
+            block: True to block signals, False to unblock
+        """
+        widgets = [self.native_radio, self.ibis_radio, self.use_getwave, self.ami_file, self.dll_file, self.ffe_table]
+        for widget in widgets:
+            widget.blockSignals(block)
 
     def _update_mode(self) -> None:
         """Show only the selected group (IBIS or Native) using stacked layout."""
@@ -166,8 +209,8 @@ class TxEqualizationWidget(QGroupBox):
             self.stacked_layout.setCurrentWidget(self.native_group)
             self.pybert.tx_use_ami = False
 
-    def _update_view(self) -> None:
-        """Update the view based on the current mode."""
+    def _update_ami_view(self) -> None:
+        """Update the AMI view based on the current IBIS model state."""
         if self.pybert._tx_ibis.has_algorithmic_model:
             self.ibis_radio.setChecked(True)
             self._update_mode()

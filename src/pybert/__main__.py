@@ -10,6 +10,8 @@ import sys
 import pyibisami.ibis.gui
 from PySide6.QtWidgets import QApplication
 
+import pybert.configuration
+
 # Monkeypatch setattr in all widgets and tabs so that we can log every change using setattr
 import pybert.gui.widgets.channel
 import pybert.gui.widgets.jitter_info
@@ -21,6 +23,7 @@ import pybert.gui.widgets.simulation
 import pybert.gui.widgets.tx
 import pybert.gui.widgets.tx_equalization
 import pybert.gui.widgets.tx_optimization
+import pybert.results
 from pybert.utility.debug import setattr
 
 for mod in [
@@ -35,6 +38,8 @@ for mod in [
     pybert.gui.widgets.jitter_info,
     pybert.gui.widgets.channel,
     pyibisami.ibis.gui,
+    pybert.configuration,
+    pybert.results,
 ]:
     mod.setattr = setattr
 

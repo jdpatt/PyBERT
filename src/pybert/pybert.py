@@ -103,7 +103,7 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
 
         # - Channel Control
         self.channel_model: str = "Native"  #: Channel model type.
-        self.elements: list[str] = []  #: Channel elements.
+        self.channel_elements: list[dict[str, str]] = []  #: Channel elements.
         self.ch_file: str = ""  #: Channel file name.
         self.use_ch_file: bool = False  #: Import channel description from file? (Default = False)
         self.renumber: bool = False  #: Automatically fix "1=>3/2=>4" port numbering? (Default = False)
