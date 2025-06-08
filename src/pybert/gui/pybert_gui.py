@@ -87,7 +87,6 @@ class PyBERTGUI(QMainWindow):
         # Connect PyBERT signals if available
         if self.pybert:
             self.connect_signals()
-            self.pybert.simulate()  # Populate the results tab with data
 
     def connect_signals(self):
         """Connect PyBERT signals to status bar update slots."""
@@ -230,7 +229,7 @@ class PyBERTGUI(QMainWindow):
         run_action.setShortcut("Ctrl+R")
         run_action.triggered.connect(self.run_simulation)
 
-        abort_action = QAction("Stop", self)
+        abort_action = QAction("Abort", self)
         abort_action.triggered.connect(self.stop_simulation)
 
         sim_menu.addAction(run_action)
@@ -256,7 +255,7 @@ class PyBERTGUI(QMainWindow):
         opt_menu.addAction(abort_optimize_action)
 
         # Tools menu
-        tools_menu = self.menuBar().addMenu("&Tools")
+        # tools_menu = self.menuBar().addMenu("&Tools")
 
         # Presets submenu
         # presets_menu = tools_menu.addMenu("Presets")

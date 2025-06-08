@@ -17,11 +17,11 @@ from pybert.utility.math import make_bathtub, safe_log10
 from pybert.utility.sigproc import calc_eye
 
 pg.setConfigOption("background", "w")
-pg.ViewBox.suggestPadding = lambda *_: 0.001  # Normally this is 0.02 but we want to reduce the padding.
-
-
-# pg.setConfigOption('foreground', 'k')
 # TODO: Either limit auto sizing or limit the range of the plot(s) pyqtgraph defaults to a padding of non-zero values.
+pg.ViewBox.suggestPadding = lambda *_: 0.001  # Normally this is 0.02 but we want to reduce the padding.
+# pg.setConfigOption('foreground', 'k')
+
+
 class ResultsTab(QWidget):
     """Tab for displaying simulation results."""
 
@@ -42,48 +42,128 @@ class ResultsTab(QWidget):
         tab_widget = QTabWidget(self)
         layout.addWidget(tab_widget)
 
-        # --- Responses tabs ---
-        self.impulse_tab = self._create_response_tab("Impulses")
-        self.step_tab = self._create_response_tab("Steps")
-        self.pulse_tab = self._create_response_tab("Pulses")
-        # TODO: Add the ability to add limit lines to the frequency response plot.
-        self.freq_tab = self._create_response_tab("Frequency Response")
+        for tab_name, creator_func in [
+            ("Impulses", self._create_response_tab),
+            ("Steps", self._create_response_tab),
+            ("Pulses", self._create_response_tab),
+            ("Frequency Response", self._create_response_tab),
+            ("DFE", self._create_dfe_tab),
+            ("Outputs", self._create_outputs_tab),
+            ("Eyes", self._create_eyes_tab),
+            ("Bathtubs", self._create_bathtub_tab),
+            ("Jitter Dist.", self._create_jitter_dist_tab),
+            ("Jitter Spec.", self._create_jitter_spec_tab),
+            ("Jitter Info", self._create_jitter_info_tab),
+        ]:
+            tab = creator_func(tab_name)
+            tab_widget.addTab(tab, tab_name)
+            if tab_name == "Eyes":
+                tab_widget.setCurrentWidget(tab)
 
-        tab_widget.addTab(self.impulse_tab, "Impulses")
-        tab_widget.addTab(self.step_tab, "Steps")
-        tab_widget.addTab(self.pulse_tab, "Pulses")
-        tab_widget.addTab(self.freq_tab, "Frequency Response")
+    def connect_signals(self, pybert) -> None:
+        """Connect the simulation complete signal to the update_results method.
 
-        # --- Original Results tabs ---
-        self.dfe_tab = self._create_dfe_tab()
-        self.outputs_tab = self._create_outputs_tab()
-        self.eyes_tab = self._create_eyes_tab()
-        self.bathtub_tab = self._create_bathtub_tab()
-
-        tab_widget.addTab(self.dfe_tab, "DFE")
-        tab_widget.addTab(self.outputs_tab, "Outputs")
-        tab_widget.addTab(self.eyes_tab, "Eyes")
-        tab_widget.addTab(self.bathtub_tab, "Bathtubs")
-
-        # --- Jitter tabs ---
-        self.jitter_dist_tab = self._create_jitter_dist_tab()
-        self.jitter_spec_tab = self._create_jitter_spec_tab()
-
-        tab_widget.addTab(self.jitter_dist_tab, "Jitter Dist.")
-        tab_widget.addTab(self.jitter_spec_tab, "Jitter Spec.")
-
-        # --- Performance tab ---
-        self.jitter_info = JitterInfoTable(self.pybert, parent=self)
-        tab_widget.addTab(self.jitter_info, "Jitter Info")
-
-        tab_widget.setCurrentWidget(self.eyes_tab)
-
-    def connect_signals(self, pybert):
-        """Connect signals to PyBERT instance."""
+        This is triggered by the PyBERT instance's when a simulation is complete and the GUI needs to be updated.
+        """
         pybert.sim_complete.connect(self.update_results)
 
-    def _create_dfe_tab(self):
+    def update_results(self, results, perf):
+        """Update all plots using the current PyBERT simulation results."""
+        pb = self.pybert
+        if pb is None:
+            return
+
+        self.jitter_info_table.update_rejection()
+
+        # --- DFE plots ---
+        self.update_dfe_plots(
+            pb.t_ns,
+            results["ui_ests"],
+            results["tap_weights"],
+            results["clk_per_hist_bins"],
+            results["clk_per_hist_vals"],
+            results["clk_freqs"],
+            results["clk_spec"],
+        )
+
+        # --- Output plots ---
+        len_t = len(pb.t_ns)
+        ideal_signal = pb.ideal_signal[:len_t]
+        chnl_out = pb.chnl_out[:len_t]
+        rx_in = pb.rx_in[:len_t]
+        ctle_out = pb.ctle_out[:len_t]
+        dfe_out = pb.dfe_out[:len_t]
+        self.update_output_plots(
+            pb.t_ns,
+            ideal_signal,
+            chnl_out,
+            rx_in,
+            ctle_out,
+            dfe_out,
+        )
+
+        # --- Eye plots ---
+        self.update_eye_plots(results["eye_xs"], results["eye_data"], results["y_max_values"])
+
+        # --- Bathtub plots ---
+        self.update_bathtub_plots(results["jitter_bins"], results["bathtub_data"])
+
+        # --- Impulse plots ---
+        self.update_impulse_plots(pb.t_ns_chnl, pb.chnl_h, pb.tx_out_h, pb.ctle_out_h, pb.dfe_out_h)
+
+        # --- Step plots ---
+        self.update_step_plots(
+            pb.t_ns_chnl, pb.chnl_s, pb.tx_s, pb.tx_out_s, pb.ctle_s, pb.ctle_out_s, pb.dfe_s, pb.dfe_out_s
+        )
+
+        # --- Pulse plots ---
+        self.update_pulse_plots(pb.t_ns_chnl, pb.chnl_p, pb.tx_out_p, pb.ctle_out_p, pb.dfe_out_p)
+
+        # --- Frequency plots ---
+        freq_responses = results["freq_responses"]
+        self.update_freq_plots(
+            results["f_GHz"][1:],
+            freq_responses["chnl_H"],
+            freq_responses["chnl_H_raw"],
+            freq_responses["chnl_trimmed_H"],
+            freq_responses["tx_H"],
+            freq_responses["tx_out_H"],
+            freq_responses["ctle_H"],
+            freq_responses["ctle_out_H"],
+            freq_responses["dfe_H"],
+            freq_responses["dfe_out_H"],
+        )
+
+        # --- Jitter distribution plots ---
+        self.update_jitter_dist_plots(results["jitter_bins"], results["jitter_data"], results["jitter_ext_data"])
+
+        # --- Jitter spectrum plots ---
+        self.update_jitter_spec_plots(
+            results["f_MHz"],
+            results["jitter_spectrum"],
+            results["jitter_ind_spectrum"],
+            results["jitter_thresh"],
+        )
+
+    # -- Plot Creation Methods ------------------------------------------------------------------------------------
+
+    def _create_jitter_info_tab(self, _: str):
+        """Create the jitter info tab.
+
+        Args:
+            _: The name of the tab, which is ignored but passed to allow us to loop over creation.
+
+        Returns:
+            QWidget: Widget containing the jitter info table
+        """
+        self.jitter_info_table = JitterInfoTable(self.pybert, parent=self)
+        return self.jitter_info_table
+
+    def _create_dfe_tab(self, _: str):
         """Create the DFE adaptation tab.
+
+        Args:
+            _: The name of the tab, which is ignored but passed to allow us to loop over creation.
 
         Returns:
             QWidget: Widget containing the DFE plots
@@ -147,8 +227,11 @@ class ResultsTab(QWidget):
 
         return widget
 
-    def _create_outputs_tab(self):
+    def _create_outputs_tab(self, _: str):
         """Create the outputs tab.
+
+        Args:
+            _: The name of the tab, which is ignored but passed to allow us to loop over creation.
 
         Returns:
             QWidget: Widget containing the output plots
@@ -193,8 +276,11 @@ class ResultsTab(QWidget):
 
         return widget
 
-    def _create_eyes_tab(self):
+    def _create_eyes_tab(self, _: str):
         """Create the eye diagrams tab.
+
+        Args:
+            _: The name of the tab, which is ignored but passed to allow us to loop over creation.
 
         Returns:
             QWidget: Widget containing the eye diagrams
@@ -234,8 +320,11 @@ class ResultsTab(QWidget):
 
         return widget
 
-    def _create_bathtub_tab(self):
+    def _create_bathtub_tab(self, _: str):
         """Create the bathtub curves tab.
+
+        Args:
+            _: The name of the tab, which is ignored but passed to allow us to loop over creation.
 
         Returns:
             QWidget: Widget containing the bathtub plots
@@ -278,8 +367,15 @@ class ResultsTab(QWidget):
 
         return widget
 
-    def _create_response_tab(self, response_type):
-        """Create a tab with a 2x2 grid of plots."""
+    def _create_response_tab(self, response_name: str):
+        """Create a tab with a 2x2 grid of plots.
+
+        Args:
+            response_name: The type of response to create.
+
+        Returns:
+            QWidget: Widget containing the response plots
+        """
         widget = QWidget(self)
         layout = QVBoxLayout()
         widget.setLayout(layout)
@@ -300,43 +396,52 @@ class ResultsTab(QWidget):
             plot = plot_grid.addPlot(row=row, col=col)
             plot.showGrid(x=True, y=True)
             plot.setTitle(title)
-            if response_type == "Frequency Response":
+            if response_name == "Frequency Response":
                 plot.addLegend(offset=(-1, 1))  # Upper Right
                 plot.getAxis("left").setLabel("Frequency Response", units="dB")
                 plot.getAxis("bottom").setLabel("Frequency", units="GHz")
                 plot.setMouseEnabled(False, False)  # Disable zooming for freq response
                 plot.setYRange(-40, 10, padding=0)  # Set min/max y values for freq response
-            elif response_type == "Impulses":
+            elif response_name == "Impulses":
                 plot.addLegend(offset=(-1, 1))  # Upper Right
                 plot.getAxis("left").setLabel("Impulse Response", units="V/sample")
                 plot.getAxis("bottom").setLabel("Time", units="ns")
-            elif response_type == "Steps":
+            elif response_name == "Steps":
                 plot.addLegend(offset=(-1, -1))  # Lower Right
                 plot.getAxis("left").setLabel("Step Response", units="V")
                 plot.getAxis("bottom").setLabel("Time", units="ns")
-            elif response_type == "Pulses":
+            elif response_name == "Pulses":
                 plot.addLegend(offset=(-1, 1))  # Upper Right
                 plot.getAxis("left").setLabel("Pulse Response", units="V")
                 plot.getAxis("bottom").setLabel("Time", units="ns")
             plots.append(plot)
 
         # Only link x-axes for non-frequency response plots
-        if response_type != "Frequency Response":
+        if response_name != "Frequency Response":
             for plot in plots[1:]:
                 plot.setXLink(plots[0])
 
         # Store plots for update methods
-        if response_type == "Impulses":
+        if response_name == "Impulses":
             self.impulse_plots = plots
-        elif response_type == "Steps":
+        elif response_name == "Steps":
             self.step_plots = plots
-        elif response_type == "Pulses":
+        elif response_name == "Pulses":
             self.pulse_plots = plots
-        elif response_type == "Frequency Response":
+        elif response_name == "Frequency Response":
             self.freq_plots = plots
+
         return widget
 
-    def _create_jitter_dist_tab(self):
+    def _create_jitter_dist_tab(self, _: str):
+        """Create the jitter distribution tab.
+
+        Args:
+            _: The name of the tab, which is ignored but passed to allow us to loop over creation.
+
+        Returns:
+            QWidget: Widget containing the jitter distribution plots
+        """
         widget = QWidget(self)
         layout = QVBoxLayout()
         widget.setLayout(layout)
@@ -362,9 +467,18 @@ class ResultsTab(QWidget):
             total_curve = plot.plot(pen=pg.mkPen("b"), name="Total")
             di_curve = plot.plot(pen=pg.mkPen("r"), name="Data-Ind.")
             self.jitter_dist_plots.append((total_curve, di_curve))
+
         return widget
 
-    def _create_jitter_spec_tab(self):
+    def _create_jitter_spec_tab(self, _: str):
+        """Create the jitter spectrum tab.
+
+        Args:
+            _: The name of the tab, which is ignored but passed to allow us to loop over creation.
+
+        Returns:
+            QWidget: Widget containing the jitter spectrum plots
+        """
         widget = QWidget(self)
         layout = QVBoxLayout()
         widget.setLayout(layout)
@@ -392,7 +506,10 @@ class ResultsTab(QWidget):
             thresh_curve = plot.plot(pen=pg.mkPen("m"), name="Pj Threshold")
             self.jitter_spec_plots.append((total_curve, di_curve, thresh_curve))
             plot.setMouseEnabled(x=True, y=True)
+
         return widget
+
+    # -- Plot Update Methods ------------------------------------------------------------------------------------
 
     def update_dfe_plots(self, t_ns, ui_ests, tap_weights, clk_per_hist_bins, clk_per_hist_vals, clk_freqs, clk_spec):
         """Update DFE adaptation plots.
@@ -461,12 +578,30 @@ class ResultsTab(QWidget):
             curve.setData(jitter_bins, data)
 
     def update_impulse_plots(self, t_ns, chnl_h, tx_out_h, ctle_out_h, dfe_out_h):
+        """Update impulse response plots.
+
+        Args:
+            t_ns: Time points
+            chnl_h: Channel impulse response
+            tx_out_h: Tx output impulse response
+            ctle_out_h: CTLE output impulse response
+            dfe_out_h: DFE output impulse response
+        """
         self.impulse_plots[0].plot(t_ns, chnl_h, pen="b", name="Incremental", clear=True)
         self.impulse_plots[1].plot(t_ns, tx_out_h, pen="r", name="Cumulative", clear=True)
         self.impulse_plots[2].plot(t_ns, ctle_out_h, pen="r", name="Cumulative", clear=True)
         self.impulse_plots[3].plot(t_ns, dfe_out_h, pen="r", name="Cumulative", clear=True)
 
     def update_step_plots(self, t_ns, chnl_s, tx_s, tx_out_s, ctle_s, ctle_out_s, dfe_s, dfe_out_s):
+        """Update step response plots.
+
+        Args:
+            t_ns: Time points
+            chnl_s: Channel step response
+            tx_out_h: Tx output step response
+            ctle_out_h: CTLE output step response
+            dfe_out_h: DFE output step response
+        """
         self.step_plots[0].plot(t_ns, chnl_s, pen="b", name="Channel", clear=True)
         self.step_plots[1].plot(t_ns, tx_s, pen="b", name="Incremental", clear=True)
         self.step_plots[1].plot(t_ns, tx_out_s, pen="r", name="Cumulative")
@@ -476,6 +611,15 @@ class ResultsTab(QWidget):
         self.step_plots[3].plot(t_ns, dfe_out_s, pen="r", name="Cumulative")
 
     def update_pulse_plots(self, t_ns, chnl_p, tx_out_p, ctle_out_p, dfe_out_p):
+        """Update pulse response plots.
+
+        Args:
+            t_ns: Time points
+            chnl_p: Channel pulse response
+            tx_out_p: Tx output pulse response
+            ctle_out_p: CTLE output pulse response
+            dfe_out_p: DFE output pulse response
+        """
         self.pulse_plots[0].plot(t_ns, chnl_p, pen="b", name="Incremental", clear=True)
         self.pulse_plots[1].plot(t_ns, tx_out_p, pen="r", name="Cumulative", clear=True)
         self.pulse_plots[2].plot(t_ns, ctle_out_p, pen="r", name="Cumulative", clear=True)
@@ -484,6 +628,20 @@ class ResultsTab(QWidget):
     def update_freq_plots(
         self, f_GHz, chnl_H, chnl_H_raw, chnl_trimmed_H, tx_H, tx_out_H, ctle_H, ctle_out_H, dfe_H, dfe_out_H
     ):
+        """Update frequency response plots.
+
+        Args:
+            f_GHz: Frequency points
+            chnl_H: Channel frequency response
+            chnl_H_raw: Channel frequency response (raw)
+            chnl_trimmed_H: Channel frequency response (trimmed)
+            tx_H: Tx frequency response
+            tx_out_H: Tx output frequency response
+            ctle_H: CTLE frequency response
+            ctle_out_H: CTLE output frequency response
+            dfe_H: DFE frequency response
+            dfe_out_H: DFE output frequency response
+        """
         self.freq_plots[0].plot(f_GHz, chnl_H_raw, pen="k", name="Perfect Term.", clear=True)
         self.freq_plots[0].plot(f_GHz, chnl_H, pen="b", name="Actual Term.")
         self.freq_plots[0].plot(f_GHz, chnl_trimmed_H, pen="r", name="Trimmed Impulse")
@@ -501,11 +659,25 @@ class ResultsTab(QWidget):
             plot.setYRange(-40, 10, padding=0)
 
     def update_jitter_dist_plots(self, jitter_bins, jitter_data, jitter_ext_data):
+        """Update jitter distribution plots.
+
+        Args:
+            jitter_bins: Time points
+            jitter_data: Jitter data
+            jitter_ext_data: Jitter extended data
+        """
         for (total_curve, di_curve), total, di in zip(self.jitter_dist_plots, jitter_data, jitter_ext_data):
             total_curve.setData(jitter_bins, total)
             di_curve.setData(jitter_bins, di)
 
     def update_jitter_spec_plots(self, f_MHz, jitter_spectrum, jitter_ind_spectrum, thresh):
+        """Update jitter spectrum plots.
+        Args:
+            f_MHz: Frequency points
+            jitter_spectrum: Jitter spectrum
+            jitter_ind_spectrum: Jitter independent spectrum
+            thresh: Threshold
+        """
         for (total_curve, di_curve, thresh_curve), total, di, th in zip(
             self.jitter_spec_plots, jitter_spectrum, jitter_ind_spectrum, thresh
         ):
@@ -513,217 +685,9 @@ class ResultsTab(QWidget):
             di_curve.setData(f_MHz, di)
             thresh_curve.setData(f_MHz, th)
 
-    def update_results(self, results, perf):
-        """Update all plots using the current PyBERT simulation results."""
-        pb = self.pybert
-        if pb is None:
-            return
 
-        self.jitter_info.update_rejection()
-
-        t_ns = pb.t_ns
-        t_ns_chnl = pb.t_ns_chnl
-
-        # --- DFE plots ---
-        ui_ests = pb.ui_ests
-        try:
-            tap_weights = np.transpose(np.array(pb.adaptation))
-        except Exception:
-            tap_weights = []
-        (bin_counts, bin_edges) = np.histogram(ui_ests, bins=100)
-        bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2.0
-        clock_spec = np.fft.rfft(ui_ests)
-        t = pb.t
-        ui = pb.ui
-        _f0 = 1 / (t[1] * len(t)) if len(t) > 1 else 0
-        spec_freqs = np.array([_f0 * k for k in range(len(t) // 2 + 1)])
-        clk_per_hist_bins = bin_centers
-        clk_per_hist_vals = bin_counts
-        clk_spec = safe_log10(np.abs(clock_spec[1:]) / np.abs(clock_spec[1])) if len(clock_spec) > 1 else np.zeros(1)
-        clk_freqs = spec_freqs[1:] * ui if len(spec_freqs) > 1 else np.zeros(1)
-        self.update_dfe_plots(
-            t_ns,
-            ui_ests,
-            tap_weights,
-            clk_per_hist_bins,
-            clk_per_hist_vals,
-            clk_freqs,
-            clk_spec,
-        )
-
-        # --- Output plots ---
-        len_t = len(t_ns)
-        ideal_signal = pb.ideal_signal[:len_t]
-        chnl_out = pb.chnl_out[:len_t]
-        rx_in = pb.rx_in[:len_t]
-        ctle_out = pb.ctle_out[:len_t]
-        dfe_out = pb.dfe_out[:len_t]
-        self.update_output_plots(
-            t_ns,
-            ideal_signal,
-            chnl_out,
-            rx_in,
-            ctle_out,
-            dfe_out,
-        )
-
-        # --- Eye plots ---
-        samps_per_ui = pb.nspui
-        eye_uis = pb.eye_uis
-        num_ui = pb.nui
-        clock_times = pb.clock_times
-        ignore_until = (num_ui - eye_uis) * pb.ui
-        ignore_samps = (num_ui - eye_uis) * samps_per_ui
-
-        # Eye pots
-        width = 2 * samps_per_ui
-        xs = np.linspace(-ui * 1.0e12, ui * 1.0e12, width)
-        height = 1000
-        tiny_noise = np.random.normal(scale=1e-3, size=len(chnl_out[ignore_samps:]))
-        chnl_out_noisy = pb.chnl_out[ignore_samps:] + tiny_noise
-        y_max_chnl = 1.1 * max(abs(np.array(chnl_out_noisy)))
-        eye_chnl = calc_eye(pb.ui, samps_per_ui, height, chnl_out_noisy, y_max_chnl)
-
-        y_max_rx = 1.1 * max(abs(np.array(pb.rx_in[ignore_samps:])))
-        eye_tx = calc_eye(pb.ui, samps_per_ui, height, pb.rx_in[ignore_samps:], y_max_rx)
-
-        y_max_ctle = 1.1 * max(abs(np.array(pb.ctle_out[ignore_samps:])))
-        eye_ctle = calc_eye(pb.ui, samps_per_ui, height, pb.ctle_out[ignore_samps:], y_max_ctle)
-
-        y_max_dfe = 1.1 * max(abs(np.array(pb.dfe_out[ignore_samps:])))
-        i = 0
-        len_clock_times = len(clock_times)
-        while i < len_clock_times and clock_times[i] < ignore_until:
-            i += 1
-        if i >= len(clock_times):
-            eye_dfe = calc_eye(pb.ui, samps_per_ui, height, pb.dfe_out[ignore_samps:], y_max_dfe)
-        else:
-            eye_dfe = calc_eye(
-                pb.ui,
-                samps_per_ui,
-                height,
-                pb.dfe_out[ignore_samps:],
-                y_max_dfe,
-                np.array(clock_times[i:]) - ignore_until,
-            )
-        eye_data = [eye_chnl, eye_tx, eye_ctle, eye_dfe]
-        y_max_values = [y_max_chnl, y_max_rx, y_max_ctle, y_max_dfe]
-        self.update_eye_plots(xs, eye_data, y_max_values)
-
-        # --- Bathtub plots ---
-        jitter_bins = pb.jitter_bins
-        bathtub_chnl = make_bathtub(
-            jitter_bins,
-            pb.jitter_chnl,
-            min_val=0.1 * MIN_BATHTUB_VAL,
-            rj=pb.rjDD_chnl,
-            mu_r=pb.mu_pos_chnl,
-            mu_l=pb.mu_neg_chnl,
-            extrap=True,
-        )
-        bathtub_tx = make_bathtub(
-            jitter_bins,
-            pb.jitter_tx,
-            min_val=0.1 * MIN_BATHTUB_VAL,
-            rj=pb.rjDD_tx,
-            mu_r=pb.mu_pos_tx,
-            mu_l=pb.mu_neg_tx,
-            extrap=True,
-        )
-        bathtub_ctle = make_bathtub(
-            jitter_bins,
-            pb.jitter_ctle,
-            min_val=0.1 * MIN_BATHTUB_VAL,
-            rj=pb.rjDD_ctle,
-            mu_r=pb.mu_pos_ctle,
-            mu_l=pb.mu_neg_ctle,
-            extrap=True,
-        )
-        bathtub_dfe = make_bathtub(
-            jitter_bins,
-            pb.jitter_dfe,
-            min_val=0.1 * MIN_BATHTUB_VAL,
-            rj=pb.rjDD_dfe,
-            mu_r=pb.mu_pos_dfe,
-            mu_l=pb.mu_neg_dfe,
-            extrap=True,
-        )
-        bathtub_data = [
-            safe_log10(bathtub_chnl),
-            safe_log10(bathtub_tx),
-            safe_log10(bathtub_ctle),
-            safe_log10(bathtub_dfe),
-        ]
-        self.update_bathtub_plots(np.array(jitter_bins) * 1e12, bathtub_data)
-
-        # --- Impulse plots ---
-        self.update_impulse_plots(t_ns_chnl, pb.chnl_h, pb.tx_out_h, pb.ctle_out_h, pb.dfe_out_h)
-
-        # --- Step plots ---
-        self.update_step_plots(
-            t_ns_chnl, pb.chnl_s, pb.tx_s, pb.tx_out_s, pb.ctle_s, pb.ctle_out_s, pb.dfe_s, pb.dfe_out_s
-        )
-
-        # --- Pulse plots ---
-        self.update_pulse_plots(t_ns_chnl, pb.chnl_p, pb.tx_out_p, pb.ctle_out_p, pb.dfe_out_p)
-
-        # --- Frequency plots ---
-        f_GHz = pb.f / 1.0e9
-        len_f_GHz = len(f_GHz)
-        self.update_freq_plots(
-            f_GHz[1:],
-            20.0 * safe_log10(np.abs(pb.chnl_H[1:len_f_GHz])),
-            20.0 * safe_log10(np.abs(pb.chnl_H_raw[1:len_f_GHz])),
-            20.0 * safe_log10(np.abs(pb.chnl_trimmed_H[1:len_f_GHz])),
-            20.0 * safe_log10(np.abs(pb.tx_H[1:])),
-            20.0 * safe_log10(np.abs(pb.tx_out_H[1:len_f_GHz])),
-            20.0 * safe_log10(np.abs(pb.ctle_H[1:len_f_GHz])),
-            20.0 * safe_log10(np.abs(pb.ctle_out_H[1:len_f_GHz])),
-            20.0 * safe_log10(np.abs(pb.dfe_H[1:len_f_GHz])),
-            20.0 * safe_log10(np.abs(pb.dfe_out_H[1:len_f_GHz])),
-        )
-
-        # --- Jitter distribution plots ---
-        jitter_data = [pb.jitter_chnl * 1e-12, pb.jitter_tx * 1e-12, pb.jitter_ctle * 1e-12, pb.jitter_dfe * 1e-12]
-        jitter_ext_data = [
-            pb.jitter_ext_chnl * 1e-12,
-            pb.jitter_ext_tx * 1e-12,
-            pb.jitter_ext_ctle * 1e-12,
-            pb.jitter_ext_dfe * 1e-12,
-        ]
-        self.update_jitter_dist_plots(jitter_bins, jitter_data, jitter_ext_data)
-
-        # --- Jitter spectrum plots ---
-        log10_ui = safe_log10(pb.ui)
-        f_MHz = pb.f_MHz[1:]
-        self.update_jitter_spec_plots(
-            f_MHz,
-            [
-                10.0 * (safe_log10(pb.jitter_spectrum_chnl[1:]) - log10_ui),
-                10.0 * (safe_log10(pb.jitter_spectrum_tx[1:]) - log10_ui),
-                10.0 * (safe_log10(pb.jitter_spectrum_ctle[1:]) - log10_ui),
-                10.0 * (safe_log10(pb.jitter_spectrum_dfe[1:]) - log10_ui),
-            ],
-            [
-                10.0 * (safe_log10(pb.jitter_ind_spectrum_chnl[1:]) - log10_ui),
-                10.0 * (safe_log10(pb.jitter_ind_spectrum_tx[1:]) - log10_ui),
-                10.0 * (safe_log10(pb.jitter_ind_spectrum_ctle[1:]) - log10_ui),
-                10.0 * (safe_log10(pb.jitter_ind_spectrum_dfe[1:]) - log10_ui),
-            ],
-            [
-                10.0 * (safe_log10(pb.thresh_chnl[1:]) - log10_ui),
-                10.0 * (safe_log10(pb.thresh_tx[1:]) - log10_ui),
-                10.0 * (safe_log10(pb.thresh_ctle[1:]) - log10_ui),
-                10.0 * (safe_log10(pb.thresh_dfe[1:]) - log10_ui),
-            ],
-        )
-
-    def clear_waveforms(self):
-        """Clear all waveform plots."""
-        pass  # TODO: Implement this
-
-
-def get_custom_colormap():
+def get_custom_colormap() -> pg.ColorMap:
+    """Get a custom colormap for the eye plots."""
     seg_map = {
         "red": [
             (0.00, 0.00, 0.00),  # black

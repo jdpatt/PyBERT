@@ -98,6 +98,7 @@ class SimulationPerf:
     ctle: float = 0.0
     dfe: float = 0.0
     jitter: float = 0.0
+    plotting: float = 0.0
     total: float = 0.0
 
     def __str__(self):
@@ -108,8 +109,185 @@ class SimulationPerf:
             f"CTLE: {self.ctle * 6e-05:6.3f}  "
             f"DFE: {self.dfe * 6e-05:6.3f}  "
             f"Jitter: {self.jitter * 6e-05:6.3f}  "
+            f"Plotting: {self.plotting * 6e-05:6.3f}  "
             f"Total: {self.total * 6e-05:6.3f}"
         )
+
+
+def calculate_plotting_data(self):
+    """Calculate all the data needed for plotting results.
+
+    This method calculates all the derived data needed for plotting, including:
+    - DFE plots (ui_ests, tap_weights, clock spectrum)
+    - Eye diagrams
+    - Bathtub curves
+    - Jitter distributions and spectra
+    - Frequency responses
+    """
+    # DFE plot calculations
+    ui_ests = self.ui_ests
+    try:
+        tap_weights = np.transpose(np.array(self.adaptation))
+    except Exception:
+        tap_weights = []
+
+    # Clock spectrum calculations
+    (bin_counts, bin_edges) = np.histogram(ui_ests, bins=100)
+    bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2.0
+    clock_spec = np.fft.rfft(ui_ests)
+    t = self.t
+    ui = self.ui
+    _f0 = 1 / (t[1] * len(t)) if len(t) > 1 else 0
+    spec_freqs = np.array([_f0 * k for k in range(len(t) // 2 + 1)])
+
+    # Eye diagram calculations
+    samps_per_ui = self.nspui
+    eye_uis = self.eye_uis
+    num_ui = self.nui
+    clock_times = self.clock_times
+    ignore_until = (num_ui - eye_uis) * self.ui
+    ignore_samps = (num_ui - eye_uis) * samps_per_ui
+
+    width = 2 * samps_per_ui
+    xs = np.linspace(-ui * 1.0e12, ui * 1.0e12, width)
+    height = 1000
+
+    # Calculate eye diagrams with tiny noise for better visualization
+    tiny_noise = np.random.normal(scale=1e-3, size=len(self.chnl_out[ignore_samps:]))
+    chnl_out_noisy = self.chnl_out[ignore_samps:] + tiny_noise
+    y_max_chnl = 1.1 * max(abs(np.array(chnl_out_noisy)))
+    eye_chnl = calc_eye(self.ui, samps_per_ui, height, chnl_out_noisy, y_max_chnl)
+
+    y_max_rx = 1.1 * max(abs(np.array(self.rx_in[ignore_samps:])))
+    eye_tx = calc_eye(self.ui, samps_per_ui, height, self.rx_in[ignore_samps:], y_max_rx)
+
+    y_max_ctle = 1.1 * max(abs(np.array(self.ctle_out[ignore_samps:])))
+    eye_ctle = calc_eye(self.ui, samps_per_ui, height, self.ctle_out[ignore_samps:], y_max_ctle)
+
+    y_max_dfe = 1.1 * max(abs(np.array(self.dfe_out[ignore_samps:])))
+    i = 0
+    len_clock_times = len(clock_times)
+    while i < len_clock_times and clock_times[i] < ignore_until:
+        i += 1
+    if i >= len(clock_times):
+        eye_dfe = calc_eye(self.ui, samps_per_ui, height, self.dfe_out[ignore_samps:], y_max_dfe)
+    else:
+        eye_dfe = calc_eye(
+            self.ui,
+            samps_per_ui,
+            height,
+            self.dfe_out[ignore_samps:],
+            y_max_dfe,
+            np.array(clock_times[i:]) - ignore_until,
+        )
+
+    # Bathtub curve calculations
+    jitter_bins = self.jitter_bins
+    bathtub_chnl = make_bathtub(
+        jitter_bins,
+        self.jitter_chnl,
+        min_val=0.1 * MIN_BATHTUB_VAL,
+        rj=self.rjDD_chnl,
+        mu_r=self.mu_pos_chnl,
+        mu_l=self.mu_neg_chnl,
+        extrap=True,
+    )
+    bathtub_tx = make_bathtub(
+        jitter_bins,
+        self.jitter_tx,
+        min_val=0.1 * MIN_BATHTUB_VAL,
+        rj=self.rjDD_tx,
+        mu_r=self.mu_pos_tx,
+        mu_l=self.mu_neg_tx,
+        extrap=True,
+    )
+    bathtub_ctle = make_bathtub(
+        jitter_bins,
+        self.jitter_ctle,
+        min_val=0.1 * MIN_BATHTUB_VAL,
+        rj=self.rjDD_ctle,
+        mu_r=self.mu_pos_ctle,
+        mu_l=self.mu_neg_ctle,
+        extrap=True,
+    )
+    bathtub_dfe = make_bathtub(
+        jitter_bins,
+        self.jitter_dfe,
+        min_val=0.1 * MIN_BATHTUB_VAL,
+        rj=self.rjDD_dfe,
+        mu_r=self.mu_pos_dfe,
+        mu_l=self.mu_neg_dfe,
+        extrap=True,
+    )
+
+    # Return all calculated plotting data
+    return {
+        # DFE plot data
+        "ui_ests": ui_ests,
+        "tap_weights": tap_weights,
+        "clk_per_hist_bins": bin_centers,
+        "clk_per_hist_vals": bin_counts,
+        "clk_freqs": spec_freqs[1:] * ui if len(spec_freqs) > 1 else np.zeros(1),
+        "clk_spec": safe_log10(np.abs(clock_spec[1:]) / np.abs(clock_spec[1])) if len(clock_spec) > 1 else np.zeros(1),
+        # Eye diagram data
+        "eye_xs": xs,
+        "eye_data": [eye_chnl, eye_tx, eye_ctle, eye_dfe],
+        "y_max_values": [y_max_chnl, y_max_rx, y_max_ctle, y_max_dfe],
+        # Bathtub data
+        "jitter_bins": np.array(jitter_bins) * 1e12,
+        "bathtub_data": [
+            safe_log10(bathtub_chnl),
+            safe_log10(bathtub_tx),
+            safe_log10(bathtub_ctle),
+            safe_log10(bathtub_dfe),
+        ],
+        # Jitter data
+        "jitter_data": [
+            self.jitter_chnl * 1e-12,
+            self.jitter_tx * 1e-12,
+            self.jitter_ctle * 1e-12,
+            self.jitter_dfe * 1e-12,
+        ],
+        "jitter_ext_data": [
+            self.jitter_ext_chnl * 1e-12,
+            self.jitter_ext_tx * 1e-12,
+            self.jitter_ext_ctle * 1e-12,
+            self.jitter_ext_dfe * 1e-12,
+        ],
+        # Jitter spectrum data
+        "f_MHz": self.f_MHz[1:],
+        "jitter_spectrum": [
+            10.0 * (safe_log10(self.jitter_spectrum_chnl[1:]) - safe_log10(self.ui)),
+            10.0 * (safe_log10(self.jitter_spectrum_tx[1:]) - safe_log10(self.ui)),
+            10.0 * (safe_log10(self.jitter_spectrum_ctle[1:]) - safe_log10(self.ui)),
+            10.0 * (safe_log10(self.jitter_spectrum_dfe[1:]) - safe_log10(self.ui)),
+        ],
+        "jitter_ind_spectrum": [
+            10.0 * (safe_log10(self.jitter_ind_spectrum_chnl[1:]) - safe_log10(self.ui)),
+            10.0 * (safe_log10(self.jitter_ind_spectrum_tx[1:]) - safe_log10(self.ui)),
+            10.0 * (safe_log10(self.jitter_ind_spectrum_ctle[1:]) - safe_log10(self.ui)),
+            10.0 * (safe_log10(self.jitter_ind_spectrum_dfe[1:]) - safe_log10(self.ui)),
+        ],
+        "jitter_thresh": [
+            10.0 * (safe_log10(self.thresh_chnl[1:]) - safe_log10(self.ui)),
+            10.0 * (safe_log10(self.thresh_tx[1:]) - safe_log10(self.ui)),
+            10.0 * (safe_log10(self.thresh_ctle[1:]) - safe_log10(self.ui)),
+            10.0 * (safe_log10(self.thresh_dfe[1:]) - safe_log10(self.ui)),
+        ],
+        # Frequency response data
+        "f_GHz": self.f / 1.0e9,
+        "freq_responses": {
+            "chnl_H": 20.0 * safe_log10(np.abs(self.chnl_H[1:])),
+            "chnl_H_raw": 20.0 * safe_log10(np.abs(self.chnl_H_raw[1:])),
+            "chnl_trimmed_H": 20.0 * safe_log10(np.abs(self.chnl_trimmed_H[1:])),
+            "tx_H": 20.0 * safe_log10(np.abs(self.tx_H[1:])),
+            "tx_out_H": 20.0 * safe_log10(np.abs(self.tx_out_H[1:])),
+            "ctle_H": 20.0 * safe_log10(np.abs(self.ctle_H[1:])),
+            "ctle_out_H": 20.0 * safe_log10(np.abs(self.ctle_out_H[1:])),
+            "dfe_H": 20.0 * safe_log10(np.abs(self.dfe_H[1:])),
+            "dfe_out_H": 20.0 * safe_log10(np.abs(self.dfe_out_H[1:])),
+        },
+    }
 
 
 def run_simulation(self, aborted_sim: Optional[Callable[[], bool]] = None):
@@ -820,9 +998,15 @@ def run_simulation(self, aborted_sim: Optional[Callable[[], bool]] = None):
         logger.error(f"The jitter calculation could not be completed, due to the following error:\n{err}")
         # raise
 
+    split_time = clock()
+    logger.info("Generating plot data...")
+
+    plotting_data = calculate_plotting_data(self)
+    perf.plotting = nbits * nspb / (clock() - split_time)
+
     perf.total = nbits * nspb / (clock() - perf.start_time)
     perf.end_time = clock()
     logger.info(f"Simulation complete. Duration: {round(perf.end_time - perf.start_time, 3)} s")
     logger.info(str(perf))
 
-    return results, perf
+    return plotting_data, perf
