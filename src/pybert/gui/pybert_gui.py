@@ -237,22 +237,21 @@ class PyBERTGUI(QMainWindow):
 
         # Optimization menu
         opt_menu = self.menuBar().addMenu("&Optimization")
+        optimize_eq_action = QAction("Optimize", self)
+        optimize_eq_action.triggered.connect(self.start_optimization)
+        opt_menu.addAction(optimize_eq_action)
+        abort_optimize_action = QAction("Abort", self)
+        abort_optimize_action.triggered.connect(self.stop_optimization)
+        opt_menu.addAction(abort_optimize_action)
+
+        opt_menu.addSeparator()
+
         apply_eq_action = QAction("Apply EQ", self)
-        apply_eq_action.setShortcut("Ctrl+U")
+        opt_menu.addAction(apply_eq_action)
         apply_eq_action.triggered.connect(self.apply_optimization)
         reset_eq_action = QAction("Reset EQ", self)
         reset_eq_action.triggered.connect(self.reset_optimization)
-        optimize_eq_action = QAction("Optimize", self)
-        optimize_eq_action.setShortcut("Ctrl+O")
-        optimize_eq_action.triggered.connect(self.start_optimization)
-        abort_optimize_action = QAction("Abort", self)
-        abort_optimize_action.setShortcut("Ctrl+Esc")
-        abort_optimize_action.triggered.connect(self.stop_optimization)
-
-        opt_menu.addAction(apply_eq_action)
         opt_menu.addAction(reset_eq_action)
-        opt_menu.addAction(optimize_eq_action)
-        opt_menu.addAction(abort_optimize_action)
 
         # Tools menu
         # tools_menu = self.menuBar().addMenu("&Tools")
