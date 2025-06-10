@@ -294,9 +294,6 @@ class RxEqualizationWidget(QGroupBox):
         if pybert:
             self.update_from_model()
             self.connect_signals(pybert)
-        self._update_mode()
-        self._update_ctle_mode()
-        self._update_sum_bw_control()
 
     def connect_signals(self, pybert) -> None:
         """Connect signals to PyBERT instance."""
@@ -310,7 +307,7 @@ class RxEqualizationWidget(QGroupBox):
         pybert.new_rx_model.connect(self._update_ami_view)
 
         self.mode_group.buttonReleased.connect(
-            lambda val: setattr(pybert, "rx_eq", "Native" if self.native_radio.isChecked() else "IBIS")
+            lambda val: setattr(pybert, "rx_use_ami", self.native_radio.isChecked() == False)
         )
         self.use_getwave.toggled.connect(lambda val: setattr(pybert, "rx_use_getwave", val))
         self.use_clocks.toggled.connect(lambda val: setattr(pybert, "rx_use_clocks", val))
@@ -349,8 +346,8 @@ class RxEqualizationWidget(QGroupBox):
         self.block_signals(True)
         try:
             # Update mode
-            self.native_radio.setChecked(self.pybert.rx_eq == "Native")
-            self.ibis_radio.setChecked(self.pybert.rx_eq == "IBIS")
+            self.native_radio.setChecked(self.pybert.rx_use_ami == False)
+            self.ibis_radio.setChecked(self.pybert.rx_use_ami == True)
 
             # Update AMI settings
             if hasattr(self.pybert, "_rx_ibis") and self.pybert._rx_ibis is not None:
@@ -393,6 +390,9 @@ class RxEqualizationWidget(QGroupBox):
             self.sum_ideal.setChecked(self.pybert.sum_ideal)
 
         finally:
+            self._update_mode()
+            self._update_ctle_mode()
+            self._update_sum_bw_control()
             self.block_signals(False)
 
     def block_signals(self, block: bool = True) -> None:

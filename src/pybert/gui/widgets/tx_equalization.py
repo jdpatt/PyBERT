@@ -140,7 +140,6 @@ class TxEqualizationWidget(QGroupBox):
         if pybert:
             self.update_from_model()
             self.connect_signals(pybert)
-        self._update_mode()
 
     def connect_signals(self, pybert) -> None:
         """Connect signals to PyBERT instance."""
@@ -150,7 +149,7 @@ class TxEqualizationWidget(QGroupBox):
         if pybert is not None:
             pybert.new_tx_model.connect(self._update_ami_view)
             self.mode_group.buttonReleased.connect(
-                lambda val: setattr(pybert, "tx_eq", "Native" if self.native_radio.isChecked() else "IBIS")
+                lambda val: setattr(pybert, "tx_use_ami", self.native_radio.isChecked() == False)
             )
             self.ffe_table.itemChanged.connect(lambda item: setattr(pybert, "tx_taps", self.get_tap_values()))
             self.ami_configurator.clicked.connect(self._open_ami_configurator)
@@ -168,8 +167,8 @@ class TxEqualizationWidget(QGroupBox):
         self.block_signals(True)
         try:
             # Update mode
-            self.native_radio.setChecked(self.pybert.tx_eq == "Native")
-            self.ibis_radio.setChecked(self.pybert.tx_eq == "IBIS")
+            self.native_radio.setChecked(self.pybert.tx_use_ami == False)
+            self.ibis_radio.setChecked(self.pybert.tx_use_ami == True)
 
             # Update AMI settings
             if hasattr(self.pybert, "_tx_ibis") and self.pybert._tx_ibis is not None:
@@ -188,6 +187,7 @@ class TxEqualizationWidget(QGroupBox):
             if hasattr(self.pybert, "tx_taps"):
                 self.set_taps(self.pybert.tx_taps)
         finally:
+            self._update_mode()
             self.block_signals(False)
 
     def block_signals(self, block: bool = True) -> None:

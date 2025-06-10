@@ -39,13 +39,12 @@ class PyBERTSignals(QObject):
 
     model_changed = Signal()  # Emitted when model parameters change
     configuration_loaded = Signal()  # Emitted when new configuration is loaded
+    results_loaded = Signal(object, object)  # Emitted when new results are loaded
+    reference_results_loaded = Signal(object)  # Emitted when new reference results are loaded
 
 
 class PyBERTGUI(QMainWindow):
     """Main window for the PyBERT application."""
-
-    configuration_loaded = Signal()
-    results_loaded = Signal()
 
     def __init__(self, pybert: PyBERT | None = None, show_debug: bool = False, parent: Optional[QWidget] = None):
         """Initialize the main window.
@@ -59,7 +58,7 @@ class PyBERTGUI(QMainWindow):
         self.pybert: PyBERT = pybert
         self._signals = PyBERTSignals()
 
-        self.setWindowTitle(f"PyBERT v{__version__}")
+        self.setWindowTitle(f"PyBERT v{__version__} - Untitled")
         self.resize(1920, 1080)
 
         # Set window icon
@@ -94,6 +93,7 @@ class PyBERTGUI(QMainWindow):
         self.create_status_bar()
 
         self.last_config_filepath = None
+        self.last_results_filepath = None
 
         # Connect PyBERT signals if available
         if self.pybert:
@@ -112,10 +112,15 @@ class PyBERTGUI(QMainWindow):
 
         # Connect to all configuration widgets
         self._signals.configuration_loaded.connect(self.config_tab.sim_control.update_from_model)
+        self._signals.configuration_loaded.connect(self.config_tab.channel_config.update_from_model)
         self._signals.configuration_loaded.connect(self.config_tab.tx_config.update_from_model)
         self._signals.configuration_loaded.connect(self.config_tab.rx_config.update_from_model)
         self._signals.configuration_loaded.connect(self.config_tab.tx_config.tx_equalization.update_from_model)
         self._signals.configuration_loaded.connect(self.config_tab.rx_config.rx_equalization.update_from_model)
+
+        # Connect to all results widgets
+        self._signals.results_loaded.connect(self.results_tab.update_results)
+        self._signals.reference_results_loaded.connect(self.results_tab.add_reference_plots)
 
     def create_status_bar(self):
         """Create and setup the status bar with permanent widgets."""
@@ -176,10 +181,13 @@ class PyBERTGUI(QMainWindow):
         self.pj_label.setText(f"Pj: {self.pybert.pj_dfe* 1.0e12:6.1f} ({self.pybert.pjDD_dfe * 1.0e12:6.1f}) ps")
         self.rj_label.setText(f"Rj: {self.pybert.rj_dfe* 1.0e12:6.1f} ({self.pybert.rjDD_dfe * 1.0e12:6.1f}) ps")
 
-    def create_menus(self, show_debug: bool = False):
-        """Create the application menus."""
-        # File menu
+    def create_file_menu(self):
+        """Create the file menu for the application with the basic resetting, loading, saving, and quitting."""
         file_menu = self.menuBar().addMenu("&File")
+
+        new_action = QAction("New", self)
+        new_action.setShortcut("Ctrl+N")
+        new_action.triggered.connect(self.new_config)
 
         quit_action = QAction("&Quit", self)
         quit_action.setShortcut("Ctrl+Q")
@@ -187,6 +195,9 @@ class PyBERTGUI(QMainWindow):
 
         load_results_action = QAction("Load Results", self)
         load_results_action.triggered.connect(self.load_results)
+
+        load_reference_action = QAction("Load as Reference", self)
+        load_reference_action.triggered.connect(self.load_results_as_reference)
 
         save_results_action = QAction("Save Results", self)
         save_results_action.triggered.connect(self.save_results)
@@ -203,16 +214,20 @@ class PyBERTGUI(QMainWindow):
         save_config_as_action.setShortcut("Ctrl+Shift+S")
         save_config_as_action.triggered.connect(self.save_config_as)
 
-        file_menu.addAction(quit_action)
-        file_menu.addSeparator()
-        file_menu.addAction(load_results_action)
-        file_menu.addAction(save_results_action)
+        file_menu.addAction(new_action)
         file_menu.addSeparator()
         file_menu.addAction(load_config_action)
         file_menu.addAction(save_config_action)
         file_menu.addAction(save_config_as_action)
+        file_menu.addSeparator()
+        file_menu.addAction(load_results_action)
+        file_menu.addAction(load_reference_action)
+        file_menu.addAction(save_results_action)
+        file_menu.addSeparator()
+        file_menu.addAction(quit_action)
 
-        # View menu
+    def create_view_menu(self, show_debug: bool = False):
+        """Create the view menu with options to manipulate the GUI."""
         view_menu = self.menuBar().addMenu("&View")
 
         debug_console_action = QAction("Debug Console", self)
@@ -241,7 +256,16 @@ class PyBERTGUI(QMainWindow):
         # Store actions for later use
         self._logging_actions = {logging.INFO: normal_action, logging.DEBUG: debug_action}
 
-        # view_menu.addSeparator()
+        view_menu.addSeparator()
+
+        clear_reference_action = QAction("Clear Reference", self)
+        clear_reference_action.triggered.connect(self.clear_reference_plots)
+        view_menu.addAction(clear_reference_action)
+
+    def create_menus(self, show_debug: bool = False):
+        """Create the application menus."""
+        self.create_file_menu()
+        self.create_view_menu(show_debug)
 
         # Simulation menu
         sim_menu = self.menuBar().addMenu("Simulate")
@@ -259,6 +283,7 @@ class PyBERTGUI(QMainWindow):
         # Optimization menu
         opt_menu = self.menuBar().addMenu("&Optimization")
         optimize_eq_action = QAction("Optimize", self)
+        optimize_eq_action.setShortcut("Ctrl+T")
         optimize_eq_action.triggered.connect(self.start_optimization)
         opt_menu.addAction(optimize_eq_action)
         abort_optimize_action = QAction("Abort", self)
@@ -279,6 +304,7 @@ class PyBERTGUI(QMainWindow):
 
         # Presets submenu
         # presets_menu = tools_menu.addMenu("Presets")
+        # TODO: Add presents like USB3, PCIe, etc.
 
         # Help menu
         help_menu = self.menuBar().addMenu("&Help")
@@ -299,7 +325,25 @@ class PyBERTGUI(QMainWindow):
             self, "Load Results", "", "PyBERT Results (*.pybert_data);;All Files (*.*)"
         )
         if file_path and self.pybert:
-            self.pybert.load_results(Path(file_path))
+            results = self.pybert.load_results(Path(file_path))
+            self.last_results_filepath = Path(file_path)
+            self._signals.results_loaded.emit(results.results, results.performance)
+
+    def load_results_as_reference(self):
+        """Load results from a file as reference.
+
+        Only impulse, step, pulse, and frequency plots are loaded as reference plots.
+        """
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "Load Results as Reference", "", "PyBERT Results (*.pybert_data);;All Files (*.*)"
+        )
+        if file_path and self.pybert:
+            results = self.pybert.load_results(Path(file_path))
+            self._signals.reference_results_loaded.emit(results.results)
+
+    def clear_reference_plots(self):
+        """Clear the reference plots."""
+        self.results_tab.clear_reference_plots()
 
     def save_results(self):
         """Save results to a file."""
@@ -308,6 +352,7 @@ class PyBERTGUI(QMainWindow):
         )
         if file_path and self.pybert:
             self.pybert.save_results(Path(file_path))
+            self.last_results_filepath = Path(file_path)
 
     def load_config(self):
         """Load configuration from a file."""
@@ -316,6 +361,7 @@ class PyBERTGUI(QMainWindow):
             self.last_config_filepath = Path(file_path)
             self.pybert.load_configuration(self.last_config_filepath)
             self._signals.configuration_loaded.emit()
+            self.setWindowTitle(f"PyBERT v{__version__} - {self.last_config_filepath.name}")
 
     def save_config(self):
         """Save configuration to the current file."""
@@ -330,6 +376,14 @@ class PyBERTGUI(QMainWindow):
         if file_path and self.pybert:
             self.last_config_filepath = Path(file_path)
             self.pybert.save_configuration(self.last_config_filepath)
+            self.setWindowTitle(f"PyBERT v{__version__} - {self.last_config_filepath.name}")
+
+    def new_config(self):
+        """Create a new configuration."""
+        self.setWindowTitle(f"PyBERT v{__version__} - Untitled")
+        self.last_config_filepath = None
+        self.pybert.reset_configuration()
+        self._signals.configuration_loaded.emit()
 
     def toggle_console_view(self):
         """Toggle the debug console visibility."""

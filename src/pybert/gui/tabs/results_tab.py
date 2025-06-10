@@ -34,6 +34,9 @@ class ResultsTab(QWidget):
         super().__init__(parent)
         self.pybert = pybert
 
+        # Store references to reference plot items for selective clearing
+        self.reference_plots = []
+
         # Create main layout
         layout = QVBoxLayout()
         self.setLayout(layout)
@@ -72,15 +75,11 @@ class ResultsTab(QWidget):
 
     def update_results(self, results, perf):
         """Update all plots using the current PyBERT simulation results."""
-        pb = self.pybert
-        if pb is None:
-            return
-
         self.jitter_info_table.update_rejection()
 
         # --- DFE plots ---
         self.update_dfe_plots(
-            pb.t_ns,
+            results["t_ns"],
             results["ui_ests"],
             results["tap_weights"],
             results["clk_per_hist_bins"],
@@ -90,20 +89,7 @@ class ResultsTab(QWidget):
         )
 
         # --- Output plots ---
-        len_t = len(pb.t_ns)
-        ideal_signal = pb.ideal_signal[:len_t]
-        chnl_out = pb.chnl_out[:len_t]
-        rx_in = pb.rx_in[:len_t]
-        ctle_out = pb.ctle_out[:len_t]
-        dfe_out = pb.dfe_out[:len_t]
-        self.update_output_plots(
-            pb.t_ns,
-            ideal_signal,
-            chnl_out,
-            rx_in,
-            ctle_out,
-            dfe_out,
-        )
+        self.update_output_plots(results["t_ns"], results["output_plots"])
 
         # --- Eye plots ---
         self.update_eye_plots(results["eye_xs"], results["eye_data"], results["y_max_values"])
@@ -112,15 +98,13 @@ class ResultsTab(QWidget):
         self.update_bathtub_plots(results["jitter_bins"], results["bathtub_data"])
 
         # --- Impulse plots ---
-        self.update_impulse_plots(pb.t_ns_chnl, pb.chnl_h, pb.tx_out_h, pb.ctle_out_h, pb.dfe_out_h)
+        self.update_impulse_plots(results["t_ns_chnl"], results["impulse_plots"])
 
         # --- Step plots ---
-        self.update_step_plots(
-            pb.t_ns_chnl, pb.chnl_s, pb.tx_s, pb.tx_out_s, pb.ctle_s, pb.ctle_out_s, pb.dfe_s, pb.dfe_out_s
-        )
+        self.update_step_plots(results["t_ns_chnl"], results["step_plots"])
 
         # --- Pulse plots ---
-        self.update_pulse_plots(pb.t_ns_chnl, pb.chnl_p, pb.tx_out_p, pb.ctle_out_p, pb.dfe_out_p)
+        self.update_pulse_plots(results["t_ns_chnl"], results["pulse_plots"])
 
         # --- Frequency plots ---
         freq_responses = results["freq_responses"]
@@ -535,18 +519,19 @@ class ResultsTab(QWidget):
         self.hist_curve.setData(clk_per_hist_bins, clk_per_hist_vals)
         self.spec_curve.setData(clk_freqs, clk_spec)
 
-    def update_output_plots(self, t_ns, ideal_signal, chnl_out, rx_in, ctle_out, dfe_out):
+    def update_output_plots(self, t_ns, output_plots):
         """Update output waveform plots.
 
         Args:
             t_ns: Time points
-            ideal_signal: Ideal input signal
-            chnl_out: Channel output
-            rx_in: Rx input (after Tx)
-            ctle_out: CTLE output
-            dfe_out: DFE output
+            output_plots: Dictionary containing the output plots
         """
-        signals = [(ideal_signal, chnl_out), (None, rx_in), (None, ctle_out), (None, dfe_out)]
+        signals = [
+            (output_plots["ideal_signal"], output_plots["chnl_out"]),
+            (None, output_plots["rx_in"]),
+            (None, output_plots["ctle_out"]),
+            (None, output_plots["dfe_out"]),
+        ]
 
         for plot, (ideal, signal) in zip(self.output_plots, signals):
             plot.clear()
@@ -580,53 +565,44 @@ class ResultsTab(QWidget):
         for curve, data in zip(self.bathtub_plots, bathtub_data):
             curve.setData(jitter_bins, data)
 
-    def update_impulse_plots(self, t_ns, chnl_h, tx_out_h, ctle_out_h, dfe_out_h):
+    def update_impulse_plots(self, t_ns, impulse_plots):
         """Update impulse response plots.
 
         Args:
             t_ns: Time points
-            chnl_h: Channel impulse response
-            tx_out_h: Tx output impulse response
-            ctle_out_h: CTLE output impulse response
-            dfe_out_h: DFE output impulse response
+            impulse_plots: Dictionary containing the impulse plots
         """
-        self.impulse_plots[0].plot(t_ns, chnl_h, pen="b", name="Incremental", clear=True)
-        self.impulse_plots[1].plot(t_ns, tx_out_h, pen="r", name="Cumulative", clear=True)
-        self.impulse_plots[2].plot(t_ns, ctle_out_h, pen="r", name="Cumulative", clear=True)
-        self.impulse_plots[3].plot(t_ns, dfe_out_h, pen="r", name="Cumulative", clear=True)
+        self.impulse_plots[0].plot(t_ns, impulse_plots["chnl_h"], pen="b", name="Incremental", clear=True)
+        self.impulse_plots[1].plot(t_ns, impulse_plots["tx_out_h"], pen="r", name="Cumulative", clear=True)
+        self.impulse_plots[2].plot(t_ns, impulse_plots["ctle_out_h"], pen="r", name="Cumulative", clear=True)
+        self.impulse_plots[3].plot(t_ns, impulse_plots["dfe_out_h"], pen="r", name="Cumulative", clear=True)
 
-    def update_step_plots(self, t_ns, chnl_s, tx_s, tx_out_s, ctle_s, ctle_out_s, dfe_s, dfe_out_s):
+    def update_step_plots(self, t_ns, step_plots):
         """Update step response plots.
 
         Args:
             t_ns: Time points
-            chnl_s: Channel step response
-            tx_out_h: Tx output step response
-            ctle_out_h: CTLE output step response
-            dfe_out_h: DFE output step response
+            step_plots: Dictionary containing the step plots
         """
-        self.step_plots[0].plot(t_ns, chnl_s, pen="b", name="Channel", clear=True)
-        self.step_plots[1].plot(t_ns, tx_s, pen="b", name="Incremental", clear=True)
-        self.step_plots[1].plot(t_ns, tx_out_s, pen="r", name="Cumulative")
-        self.step_plots[2].plot(t_ns, ctle_s[: len(t_ns)], pen="b", name="Incremental", clear=True)
-        self.step_plots[2].plot(t_ns, ctle_out_s, pen="r", name="Cumulative")
-        self.step_plots[3].plot(t_ns, dfe_s, pen="b", name="Incremental", clear=True)
-        self.step_plots[3].plot(t_ns, dfe_out_s, pen="r", name="Cumulative")
+        self.step_plots[0].plot(t_ns, step_plots["chnl_s"], pen="b", name="Channel", clear=True)
+        self.step_plots[1].plot(t_ns, step_plots["tx_s"], pen="b", name="Incremental", clear=True)
+        self.step_plots[1].plot(t_ns, step_plots["tx_out_s"], pen="r", name="Cumulative")
+        self.step_plots[2].plot(t_ns, step_plots["ctle_s"][: len(t_ns)], pen="b", name="Incremental", clear=True)
+        self.step_plots[2].plot(t_ns, step_plots["ctle_out_s"], pen="r", name="Cumulative")
+        self.step_plots[3].plot(t_ns, step_plots["dfe_s"], pen="b", name="Incremental", clear=True)
+        self.step_plots[3].plot(t_ns, step_plots["dfe_out_s"], pen="r", name="Cumulative")
 
-    def update_pulse_plots(self, t_ns, chnl_p, tx_out_p, ctle_out_p, dfe_out_p):
+    def update_pulse_plots(self, t_ns, pulse_plots):
         """Update pulse response plots.
 
         Args:
             t_ns: Time points
-            chnl_p: Channel pulse response
-            tx_out_p: Tx output pulse response
-            ctle_out_p: CTLE output pulse response
-            dfe_out_p: DFE output pulse response
+            pulse_plots: Dictionary containing the pulse plots
         """
-        self.pulse_plots[0].plot(t_ns, chnl_p, pen="b", name="Incremental", clear=True)
-        self.pulse_plots[1].plot(t_ns, tx_out_p, pen="r", name="Cumulative", clear=True)
-        self.pulse_plots[2].plot(t_ns, ctle_out_p, pen="r", name="Cumulative", clear=True)
-        self.pulse_plots[3].plot(t_ns, dfe_out_p, pen="r", name="Cumulative", clear=True)
+        self.pulse_plots[0].plot(t_ns, pulse_plots["chnl_p"], pen="b", name="Incremental", clear=True)
+        self.pulse_plots[1].plot(t_ns, pulse_plots["tx_out_p"], pen="r", name="Cumulative", clear=True)
+        self.pulse_plots[2].plot(t_ns, pulse_plots["ctle_out_p"], pen="r", name="Cumulative", clear=True)
+        self.pulse_plots[3].plot(t_ns, pulse_plots["dfe_out_p"], pen="r", name="Cumulative", clear=True)
 
     def update_freq_plots(
         self, f_GHz, chnl_H, chnl_H_raw, chnl_trimmed_H, tx_H, tx_out_H, ctle_H, ctle_out_H, dfe_H, dfe_out_H
@@ -687,6 +663,174 @@ class ResultsTab(QWidget):
             total_curve.setData(f_MHz, total)
             di_curve.setData(f_MHz, di)
             thresh_curve.setData(f_MHz, th)
+
+    def add_reference_plots(self, results):
+        """Add reference plots to the results tab.
+
+        Args:
+            results: Dictionary containing the simulation results including reference data
+        """
+        # Clear existing reference plots first
+        self.clear_reference_plots()
+
+        # Add reference plots to impulse response plots
+        if "chnl_h" in results["impulse_plots"]:
+            ref = self.impulse_plots[0].plot(
+                results["t_ns_chnl"], results["impulse_plots"]["chnl_h"], pen=pg.mkPen("darkcyan"), name="I Reference"
+            )
+            self.reference_plots.append(ref)
+        if "tx_out_h" in results["impulse_plots"]:
+            ref = self.impulse_plots[1].plot(
+                results["t_ns_chnl"],
+                results["impulse_plots"]["tx_out_h"],
+                pen=pg.mkPen("darkmagenta"),
+                name="C Reference",
+            )
+            self.reference_plots.append(ref)
+        if "ctle_out_h" in results["impulse_plots"]:
+            ref = self.impulse_plots[2].plot(
+                results["t_ns_chnl"],
+                results["impulse_plots"]["ctle_out_h"],
+                pen=pg.mkPen("darkmagenta"),
+                name="C Reference",
+            )
+            self.reference_plots.append(ref)
+        if "dfe_out_h" in results["impulse_plots"]:
+            ref = self.impulse_plots[3].plot(
+                results["t_ns_chnl"],
+                results["impulse_plots"]["dfe_out_h"],
+                pen=pg.mkPen("darkmagenta"),
+                name="C Reference",
+            )
+            self.reference_plots.append(ref)
+
+        # Add reference plots to step response plots
+        if "chnl_s" in results["step_plots"]:
+            ref = self.step_plots[0].plot(
+                results["t_ns_chnl"], results["step_plots"]["chnl_s"], pen=pg.mkPen("darkcyan"), name="I Reference"
+            )
+            self.reference_plots.append(ref)
+        if "tx_s" in results["step_plots"]:
+            ref = self.step_plots[1].plot(
+                results["t_ns_chnl"], results["step_plots"]["tx_s"], pen=pg.mkPen("darkcyan"), name="I Reference"
+            )
+            self.reference_plots.append(ref)
+        if "tx_out_s" in results["step_plots"]:
+            ref = self.step_plots[1].plot(
+                results["t_ns_chnl"],
+                results["step_plots"]["tx_out_s"],
+                pen=pg.mkPen("darkmagenta"),
+                name="C Reference",
+            )
+            self.reference_plots.append(ref)
+        if "ctle_s" in results["step_plots"]:
+            ref = self.step_plots[2].plot(
+                results["t_ns_chnl"],
+                results["step_plots"]["ctle_s"][: len(results["t_ns_chnl"])],
+                pen=pg.mkPen("darkcyan"),
+                name="I Reference",
+            )
+            self.reference_plots.append(ref)
+        if "ctle_out_s" in results["step_plots"]:
+            ref = self.step_plots[2].plot(
+                results["t_ns_chnl"],
+                results["step_plots"]["ctle_out_s"],
+                pen=pg.mkPen("darkmagenta"),
+                name="C Reference",
+            )
+            self.reference_plots.append(ref)
+        if "dfe_s" in results["step_plots"]:
+            ref = self.step_plots[3].plot(
+                results["t_ns_chnl"], results["step_plots"]["dfe_s"], pen=pg.mkPen("darkcyan"), name="I Reference"
+            )
+            self.reference_plots.append(ref)
+        if "dfe_out_s" in results["step_plots"]:
+            ref = self.step_plots[3].plot(
+                results["t_ns_chnl"],
+                results["step_plots"]["dfe_out_s"],
+                pen=pg.mkPen("darkmagenta"),
+                name="C Reference",
+            )
+            self.reference_plots.append(ref)
+
+        # Add reference plots to pulse response plots
+        if "chnl_p" in results["pulse_plots"]:
+            ref = self.pulse_plots[0].plot(
+                results["t_ns_chnl"], results["pulse_plots"]["chnl_p"], pen=pg.mkPen("darkcyan"), name="I Reference"
+            )
+            self.reference_plots.append(ref)
+        if "tx_out_p" in results["pulse_plots"]:
+            ref = self.pulse_plots[1].plot(
+                results["t_ns_chnl"],
+                results["pulse_plots"]["tx_out_p"],
+                pen=pg.mkPen("darkmagenta"),
+                name="C Reference",
+            )
+            self.reference_plots.append(ref)
+        if "ctle_out_p" in results["pulse_plots"]:
+            ref = self.pulse_plots[2].plot(
+                results["t_ns_chnl"],
+                results["pulse_plots"]["ctle_out_p"],
+                pen=pg.mkPen("darkmagenta"),
+                name="C Reference",
+            )
+            self.reference_plots.append(ref)
+        if "dfe_out_p" in results["pulse_plots"]:
+            ref = self.pulse_plots[3].plot(
+                results["t_ns_chnl"],
+                results["pulse_plots"]["dfe_out_p"],
+                pen=pg.mkPen("darkmagenta"),
+                name="C Reference",
+            )
+            self.reference_plots.append(ref)
+
+        # Add reference plots to frequency response plots
+        f_Ghz = results["f_GHz"][1:]
+        if "chnl_H" in results["freq_responses"]:
+            ref = self.freq_plots[0].plot(
+                f_Ghz, results["freq_responses"]["chnl_H"], pen=pg.mkPen("darkcyan"), name="I Reference"
+            )
+            self.reference_plots.append(ref)
+        if "tx_H" in results["freq_responses"]:
+            ref = self.freq_plots[1].plot(
+                f_Ghz, results["freq_responses"]["tx_H"], pen=pg.mkPen("darkcyan"), name="I Reference"
+            )
+            self.reference_plots.append(ref)
+        if "tx_out_H" in results["freq_responses"]:
+            ref = self.freq_plots[1].plot(
+                f_Ghz, results["freq_responses"]["tx_out_H"], pen=pg.mkPen("darkmagenta"), name="C Reference"
+            )
+            self.reference_plots.append(ref)
+        if "ctle_H" in results["freq_responses"]:
+            ref = self.freq_plots[2].plot(
+                f_Ghz, results["freq_responses"]["ctle_H"], pen=pg.mkPen("darkcyan"), name="I Reference"
+            )
+            self.reference_plots.append(ref)
+        if "ctle_out_H" in results["freq_responses"]:
+            ref = self.freq_plots[2].plot(
+                f_Ghz, results["freq_responses"]["ctle_out_H"], pen=pg.mkPen("darkmagenta"), name="C Reference"
+            )
+            self.reference_plots.append(ref)
+        if "dfe_H" in results["freq_responses"]:
+            ref = self.freq_plots[3].plot(
+                f_Ghz, results["freq_responses"]["dfe_H"], pen=pg.mkPen("darkcyan"), name="I Reference"
+            )
+            self.reference_plots.append(ref)
+        if "dfe_out_H" in results["freq_responses"]:
+            ref = self.freq_plots[3].plot(
+                f_Ghz, results["freq_responses"]["dfe_out_H"], pen=pg.mkPen("darkmagenta"), name="C Reference"
+            )
+            self.reference_plots.append(ref)
+
+    def clear_reference_plots(self):
+        """Clear only the reference plots while keeping the main plots."""
+        # Remove all reference plot items from their respective plots
+        for ref in self.reference_plots:
+            for plot in self.impulse_plots + self.step_plots + self.pulse_plots + self.freq_plots:
+                if ref in plot.items:
+                    plot.removeItem(ref)
+
+        self.reference_plots.clear()  # Clear the reference list
 
 
 def get_custom_colormap() -> pg.ColorMap:

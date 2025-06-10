@@ -137,7 +137,7 @@ def setup_logger(level: int = logging.INFO) -> logging.Logger:
     logger.setLevel(level)
 
     # Create a file handler that logs all information using the structured formatter
-    fh = logging.FileHandler("pybert.log")
+    fh = logging.FileHandler("pybert.log", mode="w")
     fh.setLevel(logging.DEBUG)
     fh.setFormatter(StructuredLogger())
     logger.addHandler(fh)

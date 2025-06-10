@@ -217,7 +217,6 @@ class ChannelConfigWidget(QGroupBox):
         if pybert is not None:
             self.update_from_model()
             self.connect_signals(pybert)
-        self._update_mode()
 
     def block_signals(self, block: bool = True) -> None:
         """Block or unblock all widget signals to prevent unnecessary updates.
@@ -252,8 +251,8 @@ class ChannelConfigWidget(QGroupBox):
         self.block_signals(True)
         try:
             # Update mode
-            self.native_radio.setChecked(self.pybert.channel_model == "Native")
-            self.file_radio.setChecked(self.pybert.channel_model == "From File(s)")
+            self.native_radio.setChecked(self.pybert.use_ch_file == False)
+            self.file_radio.setChecked(self.pybert.use_ch_file == True)
 
             self.length.setValue(self.pybert.l_ch)
             self.loss_tan.setValue(self.pybert.Theta0)
@@ -282,6 +281,7 @@ class ChannelConfigWidget(QGroupBox):
                 self.add_file_group()
         finally:
             self.block_signals(False)
+            self._update_mode()
 
     def connect_signals(self, pybert: "PyBERT") -> None:
         """Connect widget signals to PyBERT instance."""
@@ -290,7 +290,7 @@ class ChannelConfigWidget(QGroupBox):
 
         # Connect mode selection
         self.mode_group.buttonReleased.connect(
-            lambda val: setattr(pybert, "channel_model", "Native" if self.native_radio.isChecked() else "From File(s)")
+            lambda val: setattr(pybert, "use_ch_file", self.native_radio.isChecked() == False)
         )
 
         # Connect native parameters

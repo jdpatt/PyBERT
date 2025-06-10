@@ -42,12 +42,12 @@ from scipy.interpolate import interp1d
 
 from pybert import __version__ as VERSION
 from pybert.bert import SimulationThread
-from pybert.configuration import InvalidFileType, PyBertCfg
+from pybert.configuration import Configuration, InvalidConfigFileType
 from pybert.constants import gPeakFreq, gPeakMag
 from pybert.models.stimulus import BitPattern, ModulationType
 from pybert.models.tx_tap import TxTapTuner
 from pybert.optimization import OptThread
-from pybert.results import PyBertData
+from pybert.results import Results
 from pybert.utility import (
     calc_gamma,
     import_channel,
@@ -102,7 +102,6 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
         self.thresh: float = 3.0  #: Spectral threshold for identifying periodic components (sigma). (Default = 3.0)
 
         # - Channel Control
-        self.channel_model: str = "Native"  #: Channel model type.
         self.channel_elements: list[dict[str, str]] = []  #: Channel elements.
         self.ch_file: str = ""  #: Channel file name.
         self.use_ch_file: bool = False  #: Import channel description from file? (Default = False)
@@ -120,7 +119,6 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
         self.use_window: bool = False  #: Apply raised cosine to frequency response before FFT()-ing? (Default = False)
 
         # - EQ Tune
-        self.tx_eq: str = "Native"
         self.tx_tap_tuners: list[TxTapTuner] = [
             TxTapTuner(name="Pre-tap3", pos=-3, enabled=True, min_val=-0.05, max_val=0.05, step=0.025),
             TxTapTuner(name="Pre-tap2", pos=-2, enabled=True, min_val=-0.1, max_val=0.1, step=0.05),
@@ -160,7 +158,6 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
         ]  #: EQ optimizer list of DFE tap tuner objects.
 
         # - Tx
-        self.tx_model: str = "Native"
         self.vod: float = 1.0  #: Tx differential output voltage (V)
         self.rs: int = 100  #: Tx source impedance (Ohms)
         self.cout: float = 0.5  #: Tx parasitic output capacitance (pF)
@@ -190,12 +187,9 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
         self.tx_use_ibis: bool = False  #: (Bool)
 
         # - Rx
-        self.rx_model: str = "Native"
-        self.rx_eq: str = "Native"
         self.rin: int = 100  #: Rx input impedance (Ohm)
         self.cin: float = 0.5  #: Rx parasitic input capacitance (pF)
         self.cac: float = 1.0  #: Rx a.c. coupling capacitance (uF)
-        self.rx_ctle_model: str = "Native"
         self.use_ctle_file: bool = False  #: For importing CTLE impulse/step response directly.
         self.ctle_file: str = ""  #: CTLE response file (when use_ctle_file = True).
         self.rx_bw: float = 12.0  #: CTLE bandwidth (GHz).
@@ -231,8 +225,6 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
         self.lock_sustain: int = 500  #: CDR hysteresis to use in determining lock.
 
         # Misc.
-        self.cfg_file: str = ""  #: PyBERT configuration data storage file (File).
-        self.data_file: str = ""  #: PyBERT results data storage file (File).
 
         # Status
         self.len_h: float = 0
@@ -285,7 +277,7 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
         self.result_timer.timeout.connect(self.poll_results)
         self.result_timer.start(100)  # Poll every 100 ms
 
-        self.last_results = None
+        self.last_results: Results | None = None
 
         if run_simulation:
             self.simulate()
@@ -475,11 +467,17 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
 
         return taps
 
-    def load_new_tx_ibis_file(self, filepath: Path | str):
+    def load_new_tx_ibis_file(
+        self, filepath: Path | str, current_component: str = None, current_pin: str = None, current_model: str = None
+    ):
         logger.info("Parsing IBIS file: %s", str(filepath))
         try:
             # TODO: Some models are very large, we should lazy load them.
             ibis = IBISModel.from_file(filepath, is_tx=True)
+            if current_component and current_pin and current_model:
+                ibis.current_component = current_component
+                ibis.current_pin = current_pin
+                ibis.current_model = current_model
             logger.info("Loaded new Tx IBIS file. Tx switching to IBIS mode.")
             self._tx_ibis = ibis
             self.tx_use_ibis = True
@@ -750,10 +748,9 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
             filepath: A full filepath include the suffix.
         """
         try:
-            PyBertCfg.load_from_file(filepath, self)
-            self.cfg_file = filepath
+            Configuration.load_from_file(filepath, self)
             logger.info("Loaded configuration.")
-        except InvalidFileType:
+        except InvalidConfigFileType:
             logger.error("This filetype is not currently supported.")
         except Exception as err:  # pylint: disable=broad-exception-caught
             logger.error("Failed to load configuration. See the console for more detail.")
@@ -766,24 +763,28 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
             filepath: A full filepath include the suffix.
         """
         try:
-            PyBertCfg(self, time.asctime(), VERSION).save(filepath)
-            self.cfg_file = filepath
+            Configuration(self).save(filepath)
             logger.info("Configuration saved.")
-        except InvalidFileType:
+        except InvalidConfigFileType:
             logger.error("This filetype is not currently supported. Please try again as a yaml file.")
         except Exception as err:  # pylint: disable=broad-exception-caught
             logger.error(f"Failed to save configuration:\n\t{err}")
 
-    def load_results(self, filepath: Path):
+    def reset_configuration(self) -> None:
+        """Reset the PyBERT instance to default configuration values."""
+        Configuration.apply_default_config(self)
+        logger.info("Default configuration applied.")
+
+    def load_results(self, filepath: Path) -> Results:
         """Load results from a file into pybert.
 
         Args:
             filepath: A full filepath include the suffix.
         """
         try:
-            PyBertData.load_from_file(filepath, self)
-            self.data_file = filepath
+            self.last_results = Results.load_from_file(filepath)
             logger.info("Loaded results.")
+            return self.last_results
         except Exception as err:  # pylint: disable=broad-exception-caught
             logger.error("Failed to load results from file. See the console for more detail.")
             logger.exception(str(err))
@@ -794,15 +795,19 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
         Args:
             filepath: A full filepath include the suffix.
         """
-        try:
-            PyBertData(self, time.asctime(), VERSION).save(filepath)
-            self.data_file = filepath
-            logger.info("Saved results.")
-        except Exception as err:  # pylint: disable=broad-exception-caught
-            logger.error("Failed to save results to file. See the console for more detail.")
-            logger.exception(str(err))
+        if self.last_results:
+            try:
+                Results(results=self.last_results["results"], performance=self.last_results["performance"]).save(
+                    filepath
+                )
+                logger.info("Saved results.")
+            except Exception as err:  # pylint: disable=broad-exception-caught
+                logger.error("Failed to save results to file. See the console for more detail.")
+                logger.exception(str(err))
+        else:
+            logger.error("No results to save. Please run a simulation first.")
 
-    def simulate(self):
+    def simulate(self, wait_for_completion: bool = False):
         """Start a simulation of the current configuration in a separate thread."""
         logger.info("Starting simulation.")
         if self.simulation_thread and self.simulation_thread.is_alive():
@@ -811,6 +816,8 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
             self.simulation_thread = SimulationThread()
             self.simulation_thread.pybert = self
             self.simulation_thread.start()
+            if wait_for_completion:
+                self.simulation_thread.join()
 
     def stop_simulation(self):
         """Stop the running simulation."""

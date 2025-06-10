@@ -14,7 +14,7 @@ logging.basicConfig(level=logging.INFO)
 def dut():
     """Return an initialized pybert object that has already run the initial simulation."""
     dut = PyBERT()
-    dut.simulate()
+    dut.simulate(wait_for_completion=True)
     yield dut
 
 

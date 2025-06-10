@@ -219,9 +219,51 @@ def calculate_plotting_data(self):
         mu_l=self.mu_neg_dfe,
         extrap=True,
     )
+    len_t = len(self.t_ns)
 
     # Return all calculated plotting data
     return {
+        "t_ns": self.t_ns,
+        "t_ns_chnl": self.t_ns_chnl,
+        "output_plots": {
+            "ideal_signal": self.ideal_signal[:len_t],
+            "chnl_out": self.chnl_out[:len_t],
+            "rx_in": self.rx_in[:len_t],
+            "ctle_out": self.ctle_out[:len_t],
+            "dfe_out": self.dfe_out[:len_t],
+        },
+        "impulse_plots": {
+            "chnl_h": self.chnl_h,
+            "tx_out_h": self.tx_out_h,
+            "ctle_out_h": self.ctle_out_h,
+            "dfe_out_h": self.dfe_out_h,
+        },
+        "step_plots": {
+            "chnl_s": self.chnl_s,
+            "tx_s": self.tx_s,
+            "tx_out_s": self.tx_out_s,
+            "ctle_s": self.ctle_s,
+            "ctle_out_s": self.ctle_out_s,
+            "dfe_s": self.dfe_s,
+            "dfe_out_s": self.dfe_out_s,
+        },
+        "pulse_plots": {
+            "chnl_p": self.chnl_p,
+            "tx_out_p": self.tx_out_p,
+            "ctle_out_p": self.ctle_out_p,
+            "dfe_out_p": self.dfe_out_p,
+        },
+        "freq_plots": {
+            "chnl_H": self.chnl_H,
+            "chnl_H_raw": self.chnl_H_raw,
+            "chnl_trimmed_H": self.chnl_trimmed_H,
+            "tx_H": self.tx_H,
+            "tx_out_H": self.tx_out_H,
+            "ctle_H": self.ctle_H,
+            "ctle_out_H": self.ctle_out_H,
+            "dfe_H": self.dfe_H,
+            "dfe_out_H": self.dfe_out_H,
+        },
         # DFE plot data
         "ui_ests": ui_ests,
         "tap_weights": tap_weights,

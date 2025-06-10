@@ -154,7 +154,6 @@ class RxConfigWidget(QWidget):
         if pybert is not None:
             self.update_from_model()
             self.connect_signals(pybert)
-        self._update_mode()
 
     def block_signals(self, block: bool = True) -> None:
         """Block or unblock all widget signals to prevent unnecessary updates.
@@ -187,8 +186,8 @@ class RxConfigWidget(QWidget):
         self.block_signals(True)
         try:
             # Update mode
-            self.native_radio.setChecked(self.pybert.rx_model == "Native")
-            self.ibis_radio.setChecked(self.pybert.rx_model == "IBIS")
+            self.native_radio.setChecked(self.pybert.rx_use_ibis == False)
+            self.ibis_radio.setChecked(self.pybert.rx_use_ibis == True)
 
             # Update IBIS settings
             self.ibis_file.setText(self.pybert.rx_ibis_file)
@@ -203,6 +202,7 @@ class RxConfigWidget(QWidget):
             self.rx_equalization.update_from_model()
         finally:
             self.block_signals(False)
+            self._update_mode()
 
     def connect_signals(self, pybert: "PyBERT") -> None:
         """Connect widget signals to PyBERT instance."""
@@ -212,7 +212,7 @@ class RxConfigWidget(QWidget):
         self.use_ts4.toggled.connect(lambda val: setattr(pybert, "rx_use_ts4", val))
         self.ibis_file.textChanged.connect(lambda val: setattr(pybert, "rx_ibis_file", val))
         self.mode_group.buttonReleased.connect(
-            lambda val: setattr(pybert, "rx_model", "Native" if self.native_radio.isChecked() else "IBIS")
+            lambda val: setattr(pybert, "rx_use_ibis", self.native_radio.isChecked() == False)
         )
         self.rin.valueChanged.connect(lambda val: setattr(pybert, "rx_rin", val))
         self.cin.valueChanged.connect(lambda val: setattr(pybert, "rx_cin", val))

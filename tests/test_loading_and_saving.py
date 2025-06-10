@@ -9,14 +9,15 @@ import pytest
 import yaml
 
 from pybert import __version__
-from pybert.configuration import PyBertCfg
+from pybert.configuration import Configuration
 from pybert.models.stimulus import BitPattern, ModulationType
 from pybert.pybert import PyBERT
+from pybert.results import Results
 
 
 @pytest.mark.parametrize("filepath_converter", [str, Path])
 @pytest.mark.usefixtures("dut")
-def test_save_config_as_yaml(dut: PyBERT, filepath_converter, tmp_path: Path):
+def test_config_save_as_yaml(dut: PyBERT, filepath_converter, tmp_path: Path):
     """Make sure that pybert can correctly generate a yaml file that can get reloaded."""
     save_file = tmp_path.joinpath("config.yaml")
     dut.save_configuration(filepath_converter(save_file))
@@ -29,7 +30,7 @@ def test_save_config_as_yaml(dut: PyBERT, filepath_converter, tmp_path: Path):
 
 
 @pytest.mark.usefixtures("dut")
-def test_save_config_as_invalid(dut: PyBERT, tmp_path: Path, caplog):
+def test_config_save_as_invalid(dut: PyBERT, tmp_path: Path, caplog):
     """When given an unsupported file suffix, no file should be generated and an message logged."""
     save_file = tmp_path.joinpath("config.json")
     dut.save_configuration(save_file)
@@ -38,22 +39,9 @@ def test_save_config_as_invalid(dut: PyBERT, tmp_path: Path, caplog):
     assert "This filetype is not currently supported." in caplog.text
 
 
-@pytest.mark.usefixtures("dut")
-def test_save_results_as_pickle(dut: PyBERT, tmp_path: Path):
-    """Make sure that pybert can correctly generate a waveform pickle file that can get reloaded."""
-    save_file = tmp_path.joinpath("results.pybert_data")
-    dut.save_results(save_file)
-
-    assert save_file.exists()  # File was created.
-
-    with open(save_file, "rb") as saved_results_file:
-        results = pickle.load(saved_results_file)
-        assert results.the_data.arrays
-
-
 @pytest.mark.parametrize("filepath_converter", [str, Path])
 @pytest.mark.usefixtures("dut")
-def test_load_config_from_yaml(dut: PyBERT, filepath_converter, tmp_path: Path):
+def test_config_load_from_yaml(dut: PyBERT, filepath_converter, tmp_path: Path):
     """Make sure that pybert can correctly load a yaml file."""
     save_file = tmp_path.joinpath("config.yaml")
     dut.save_configuration(save_file)
@@ -91,7 +79,7 @@ def test_load_config_from_yaml(dut: PyBERT, filepath_converter, tmp_path: Path):
 
 
 @pytest.mark.usefixtures("dut")
-def test_load_config_from_invalid(dut: PyBERT, tmp_path: Path, caplog):
+def test_config_load_from_invalid(dut: PyBERT, tmp_path: Path, caplog):
     """When given an unsupported file suffix, no file should be read and an message logged."""
     save_file = tmp_path.joinpath("config.json")
     save_file.touch()
@@ -101,19 +89,32 @@ def test_load_config_from_invalid(dut: PyBERT, tmp_path: Path, caplog):
 
 
 @pytest.mark.usefixtures("dut")
-def test_load_results_from_pickle(dut: PyBERT, tmp_path: Path):
+def test_config_reset_to_default(dut: PyBERT, caplog):
+    """When given an unsupported file suffix, no file should be read and an message logged."""
+    dut.bit_rate = 100.0
+    assert dut.bit_rate == 100.0
+    dut.reset_configuration()
+    assert dut.bit_rate == 10.0
+
+
+@pytest.mark.usefixtures("dut")
+def test_results_load_from_pickle(dut: PyBERT, tmp_path: Path):
     """Make sure that pybert can correctly load a pickle file."""
     save_file = tmp_path.joinpath("config.pybert_data")
     dut.save_results(save_file)
 
-    # Modify the saved pickle file.
-    with open(save_file, "rb") as saved_results_file:
-        user_results = pickle.load(saved_results_file)
-        user_results.the_data.update_data({"chnl_h": np.array([1, 2, 3, 4])})
-    with open(save_file, "wb") as saved_results_file:
-        pickle.dump(user_results, saved_results_file)
+    results = dut.load_results(save_file)
+    np.testing.assert_allclose(dut.t_ns, results.results["t_ns"])
 
-    dut.load_results(save_file)
-    # pybert doesn't directly reload the waveform back into the same plot.
-    # instead if creates a reference plot to compare old vs. new.
-    assert dut.plotdata.get_data("chnl_h_ref").size == 4
+
+@pytest.mark.usefixtures("dut")
+def test_results_save_as_pickle(dut: PyBERT, tmp_path: Path):
+    """Make sure that pybert can correctly generate a waveform pickle file that can get reloaded."""
+    save_file = tmp_path.joinpath("results.pybert_data")
+    dut.save_results(save_file)
+
+    assert save_file.exists()  # File was created.
+
+    with open(save_file, "rb") as saved_results_file:
+        results: Results = pickle.load(saved_results_file)
+        assert results.version == __version__
