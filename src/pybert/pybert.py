@@ -811,10 +811,10 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
 
     def simulate(self, wait_for_completion: bool = False):
         """Start a simulation of the current configuration in a separate thread."""
-        logger.info("Starting simulation.")
         if self.simulation_thread and self.simulation_thread.is_alive():
             pass
-        else:
+        elif self.is_valid_configuration():
+            logger.info("Starting simulation.")
             self.simulation_thread = SimulationThread()
             self.simulation_thread.pybert = self
             self.simulation_thread.start()
@@ -840,10 +840,10 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
 
         If the user accidently sets a large number of trials, prompt them to confirm before proceeding.
         """
-        logger.info("Starting optimization.")
         if self.opt_thread and self.opt_thread.is_alive():
             pass
-        else:
+        elif self.is_valid_configuration():
+            logger.info("Starting optimization.")
             self.opt_thread = OptThread()
             self.opt_thread.pybert = self
             self.opt_thread.start()
@@ -876,6 +876,25 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
         self.peak_mag = self.peak_mag_tune
         self.rx_bw = self.rx_bw_tune
         self.ctle_enable = self.ctle_enable_tune
+
+    def is_valid_configuration(self):
+        """Validate that the user has selected a valid configuration for simulation or optimization."""
+        if not self.channel_elements and self.use_ch_file:
+            logger.error("No channel file selected. Please select a channel file.")
+            return False
+        if not self.tx_ibis_file and self.tx_use_ibis:
+            logger.error("No Tx IBIS file selected. Please select a Tx IBIS file.")
+            return False
+        if not self.rx_ibis_file and self.rx_use_ibis:
+            logger.error("No Rx IBIS file selected. Please select a Rx IBIS file.")
+            return False
+        if not self.tx_ami_valid and self.tx_use_ami:
+            logger.error("No Tx AMI loaded or configured.")
+            return False
+        if not self.rx_ami_valid and self.rx_use_ami:
+            logger.error("No Tx AMI loaded or configured.")
+            return False
+        return True
 
     def poll_results(self):
         """The Qt timer calls this function every 100ms to check if there are any results in the queue."""
