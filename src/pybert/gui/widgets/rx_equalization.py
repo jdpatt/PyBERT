@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (
 )
 
 from pybert.gui.dialogs import select_file_dialog
-from pybert.gui.widgets.utils import StatusIndicator
+from pybert.gui.widgets.utils import FilePickerWidget, StatusIndicator, block_signals
 from pybert.pybert import PyBERT
 
 
@@ -143,14 +143,10 @@ class RxEqualizationWidget(QGroupBox):
 
         # CTLE File Group
         file_group = QWidget(self)
-        file_group_layout = QHBoxLayout()
+        file_group_layout = QVBoxLayout()
         file_group.setLayout(file_group_layout)
-        self.ctle_file = QLineEdit()
-        self.browse_ctle_btn = QPushButton("Browse...")
-        self.browse_ctle_btn.clicked.connect(self._browse_ctle)
-        file_group_layout.addWidget(QLabel("Filename"))
+        self.ctle_file = FilePickerWidget("File", "CSV Files (*.csv);;All Files (*.*)", file_group)
         file_group_layout.addWidget(self.ctle_file)
-        file_group_layout.addWidget(self.browse_ctle_btn)
         self.ctle_stacked_layout.addWidget(file_group)
 
         # CTLE Model Group
@@ -313,7 +309,7 @@ class RxEqualizationWidget(QGroupBox):
         self.use_clocks.toggled.connect(lambda val: setattr(pybert, "rx_use_clocks", val))
         # CTLE
         self.ctle_enable.toggled.connect(lambda val: setattr(pybert, "ctle_enable", val))
-        self.ctle_file.textChanged.connect(lambda val: setattr(pybert, "ctle_file", val))
+        self.ctle_file.file_selected.connect(lambda filename: setattr(self.pybert, "rx_ctle_file", filename))
         # Use buttonReleased instead of toggled to avoid double signals
         self.ctle_mode_group.buttonReleased.connect(
             lambda: setattr(pybert, "rx_ctle_model", "File" if self.ctle_file_radio.isChecked() else "Native")
@@ -343,8 +339,7 @@ class RxEqualizationWidget(QGroupBox):
         if self.pybert is None:
             return
 
-        self.block_signals(True)
-        try:
+        with block_signals(self):
             # Update mode
             self.native_radio.setChecked(self.pybert.rx_use_ami == False)
             self.ibis_radio.setChecked(self.pybert.rx_use_ami == True)
@@ -373,7 +368,7 @@ class RxEqualizationWidget(QGroupBox):
             self.rx_bw.setValue(self.pybert.rx_bw)
             self.peak_mag.setValue(self.pybert.peak_mag)
             if hasattr(self.pybert, "rx_ctle_file"):
-                self.ctle_file.setText(self.pybert.ctle_file)
+                self.ctle_file.set_text(self.pybert.rx_ctle_file)
 
             # Update CDR parameters
             self.delta_t.setValue(self.pybert.delta_t)
@@ -388,36 +383,9 @@ class RxEqualizationWidget(QGroupBox):
             self.decision_scaler.setValue(self.pybert.decision_scaler)
             self.sum_bw.setValue(self.pybert.sum_bw)
             self.sum_ideal.setChecked(self.pybert.sum_ideal)
-
-        finally:
-            self._update_mode()
-            self._update_ctle_mode()
-            self._update_sum_bw_control()
-            self.block_signals(False)
-
-    def block_signals(self, block: bool = True) -> None:
-        """Block or unblock all widget signals to prevent unnecessary updates.
-
-        Args:
-            block: True to block signals, False to unblock
-        """
-        widgets = [
-            self.native_radio,
-            self.ibis_radio,
-            self.ctle_enable,
-            self.ctle_file_radio,
-            self.ctle_model_radio,
-            self.peak_freq,
-            self.rx_bw,
-            self.peak_mag,
-            self.use_getwave,
-            self.use_clocks,
-            self.ami_file,
-            self.dll_file,
-            self.ctle_file,
-        ]
-        for widget in widgets:
-            widget.blockSignals(block)
+        self._update_mode()
+        self._update_ctle_mode()
+        self._update_sum_bw_control()
 
     def _update_mode(self) -> None:
         """Show only the selected group (IBIS or Native) using stacked layout."""
@@ -434,12 +402,6 @@ class RxEqualizationWidget(QGroupBox):
             self.ctle_stacked_layout.setCurrentWidget(self.ctle_stacked_layout.widget(0))  # File widget
         else:
             self.ctle_stacked_layout.setCurrentWidget(self.ctle_stacked_layout.widget(1))  # Model widget
-
-    def _browse_ctle(self) -> None:
-        """Open file dialog to select CTLE file."""
-        filename = select_file_dialog(self, "Select CTLE File", "CSV Files (*.csv);;All Files (*.*)")
-        if filename:
-            self.ctle_file.setText(filename)
 
     def _update_sum_bw_control(self) -> None:
         """Enable/disable sum bandwidth control based on ideal checkbox."""

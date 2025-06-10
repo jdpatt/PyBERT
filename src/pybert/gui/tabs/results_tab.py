@@ -4,6 +4,9 @@ This tab shows simulation results including DFE adaptation, output
 waveforms, eye diagrams and bathtub curves.
 """
 
+from functools import lru_cache
+from typing import Any, Dict, List, Optional, Tuple
+
 import numpy as np
 import pyqtgraph as pg
 from PySide6.QtCore import Qt
@@ -16,52 +19,110 @@ from pybert.pybert import PyBERT
 from pybert.utility.math import make_bathtub, safe_log10
 from pybert.utility.sigproc import calc_eye
 
+# Global plot configuration
 pg.setConfigOption("background", "w")
 # TODO: Either limit auto sizing or limit the range of the plot(s) pyqtgraph defaults to a padding of non-zero values.
-pg.ViewBox.suggestPadding = lambda *_: 0.001  # Normally this is 0.02 but we want to reduce the padding.
 # pg.setConfigOption('foreground', 'k')
+pg.ViewBox.suggestPadding = lambda *_: 0.001  # Reduce padding from default 0.02
+
+
+class PlotConfig:
+    """Configuration for plot settings and appearance."""
+
+    # Common plot titles
+    PLOT_TITLES = [
+        "Channel",
+        "+ Tx De-emphasis & Noise",
+        "+ CTLE (& IBIS-AMI DFE if apropos)",
+        "+ PyBERT Native DFE if enabled",
+    ]
+
+    # Plot colors
+    COLORS = {
+        "ideal": "lightgray",
+        "output": "b",
+        "incremental": "b",
+        "cumulative": "r",
+        "reference_incremental": "darkcyan",
+        "reference_cumulative": "darkmagenta",
+    }
+
+    # Plot styles
+    STYLES = {
+        "solid": Qt.SolidLine,
+        "dash": Qt.DashLine,
+    }
+
+    # DFE tap colors
+    DFE_TAP_COLORS = ["m", "r", "orange", "y", "g", "c", "b", "purple", "brown", "k"]
+
+    @classmethod
+    @lru_cache(maxsize=32)
+    def get_pen(cls, color: str, style: str = "solid") -> pg.mkPen:
+        """Get a pen with the specified color and style."""
+        return pg.mkPen(color=cls.COLORS.get(color, color), style=cls.STYLES.get(style, Qt.SolidLine))
 
 
 class ResultsTab(QWidget):
     """Tab for displaying simulation results."""
 
-    def __init__(self, pybert: PyBERT | None = None, parent=None):
+    def __init__(self, pybert: Optional[PyBERT] = None, parent: Optional[QWidget] = None):
         """Initialize the results tab.
 
         Args:
+            pybert: PyBERT instance for simulation
             parent: Parent widget
         """
         super().__init__(parent)
         self.pybert = pybert
 
-        # Store references to reference plot items for selective clearing
-        self.reference_plots = []
+        # Initialize all plot lists
+        self.reference_plots: List[pg.PlotDataItem] = []
+        self.impulse_plots: List[pg.PlotItem] = []
+        self.step_plots: List[pg.PlotItem] = []
+        self.pulse_plots: List[pg.PlotItem] = []
+        self.freq_plots: List[pg.PlotItem] = []
+        self.output_plots: List[pg.PlotItem] = []
+        self.eye_plots: List[pg.ImageItem] = []
+        self.bathtub_plots: List[pg.PlotDataItem] = []
+        self.jitter_dist_plots: List[Tuple[pg.PlotDataItem, pg.PlotDataItem]] = []
+        self.jitter_spec_plots: List[Tuple[pg.PlotDataItem, pg.PlotDataItem, pg.PlotDataItem]] = []
+
+        # DFE specific plots
+        self.cdr_curve: Optional[pg.PlotDataItem] = None
+        self.dfe_curves: List[pg.PlotDataItem] = []
+        self.hist_curve: Optional[pg.PlotDataItem] = None
+        self.spec_curve: Optional[pg.PlotDataItem] = None
 
         # Create main layout
         layout = QVBoxLayout()
         self.setLayout(layout)
 
         # Create tab widget for different result types
-        tab_widget = QTabWidget(self)
-        layout.addWidget(tab_widget)
+        self.tab_widget = QTabWidget(self)
+        layout.addWidget(self.tab_widget)
 
-        for tab_name, creator_func in [
-            ("Impulses", self._create_response_tab),
-            ("Steps", self._create_response_tab),
-            ("Pulses", self._create_response_tab),
-            ("Frequency", self._create_response_tab),
-            ("DFE", self._create_dfe_tab),
-            ("Outputs", self._create_outputs_tab),
-            ("Eyes", self._create_eyes_tab),
-            ("Bathtubs", self._create_bathtub_tab),
-            ("Jitter Dist.", self._create_jitter_dist_tab),
-            ("Jitter Spec.", self._create_jitter_spec_tab),
-            ("Jitter Info", self._create_jitter_info_tab),
-        ]:
+        # Define tab creation mapping
+        self.tab_creators: Dict[str, callable] = {
+            "Impulses": self._create_response_tab,
+            "Steps": self._create_response_tab,
+            "Pulses": self._create_response_tab,
+            "Frequency": self._create_response_tab,
+            "DFE": self._create_dfe_tab,
+            "Outputs": self._create_outputs_tab,
+            "Eyes": self._create_eyes_tab,
+            "Bathtubs": self._create_bathtub_tab,
+            "Jitter Dist.": self._create_jitter_dist_tab,
+            "Jitter Spec.": self._create_jitter_spec_tab,
+            "Jitter Info": self._create_jitter_info_tab,
+        }
+
+        # Create tabs
+        for tab_name, creator_func in self.tab_creators.items():
             tab = creator_func(tab_name)
-            tab_widget.addTab(tab, tab_name)
+            self.tab_widget.addTab(tab, tab_name)
             if tab_name == "Eyes":
-                tab_widget.setCurrentWidget(tab)
+                self.tab_widget.setCurrentWidget(tab)
 
         if pybert:
             self.connect_signals(pybert)
@@ -214,156 +275,21 @@ class ResultsTab(QWidget):
 
         return widget
 
-    def _create_outputs_tab(self, _: str):
-        """Create the outputs tab.
+    def _create_standard_plot_grid(
+        self, parent: QWidget, num_plots: int = 4
+    ) -> Tuple[pg.GraphicsLayoutWidget, List[pg.PlotItem]]:
+        """Create a standard 2x2 plot grid with common configuration.
 
         Args:
-            _: The name of the tab, which is ignored but passed to allow us to loop over creation.
+            parent: Parent widget
+            num_plots: Number of plots to create (default 4 for 2x2 grid)
 
         Returns:
-            QWidget: Widget containing the output plots
+            Tuple containing:
+                - pg.GraphicsLayoutWidget: The plot grid
+                - List[pg.PlotItem]: List of created plots
         """
-        widget = QWidget(self)
-        layout = QVBoxLayout()
-        widget.setLayout(layout)
-
-        # Create plot grid
-        plot_grid = pg.GraphicsLayoutWidget(parent=self)
-        layout.addWidget(plot_grid)
-
-        # Create 2x2 grid of plots
-        titles = [
-            "Channel",
-            "+ Tx De-emphasis & Noise",
-            "+ CTLE (& IBIS-AMI DFE if apropos)",
-            "+ PyBERT Native DFE if enabled",
-        ]
-        self.output_plots = []
-
-        for i in range(4):
-            row = i // 2
-            col = i % 2
-
-            plot = plot_grid.addPlot(row=row, col=col)
-            plot.showGrid(x=True, y=True)
-            plot.setTitle(titles[i])
-            plot.getAxis("left").setLabel("Output", units="V")
-            plot.getAxis("bottom").setLabel("Time", units="ns")
-
-            # Add curves
-            if i == 0:  # Channel output includes ideal signal
-                plot.plot(pen=pg.mkPen("lightgray"), name="Ideal")
-            plot.plot(pen=pg.mkPen("b"), name="Output")
-
-            # Link x-axes for synchronized zooming
-            if i > 0:
-                plot.setXLink(self.output_plots[0])
-
-            self.output_plots.append(plot)
-
-        return widget
-
-    def _create_eyes_tab(self, _: str):
-        """Create the eye diagrams tab.
-
-        Args:
-            _: The name of the tab, which is ignored but passed to allow us to loop over creation.
-
-        Returns:
-            QWidget: Widget containing the eye diagrams
-        """
-        widget = QWidget(self)
-        layout = QVBoxLayout()
-        widget.setLayout(layout)
-
-        # Create plot grid
-        plot_grid = pg.GraphicsLayoutWidget(parent=self)
-        layout.addWidget(plot_grid)
-
-        # Create 2x2 grid of eye diagrams
-        titles = [
-            "Channel",
-            "+ Tx De-emphasis & Noise",
-            "+ CTLE (& IBIS-AMI DFE if apropos)",
-            "+ PyBERT Native DFE if enabled",
-        ]
-        self.eye_plots = []
-
-        for i in range(4):
-            row = i // 2
-            col = i % 2
-
-            plot = plot_grid.addPlot(row=row, col=col)
-            plot.setMouseEnabled(False, False)
-            plot.showGrid(x=True, y=True)
-            plot.setTitle(titles[i])
-            plot.getAxis("left").setLabel("Signal Level", units="V")
-            plot.getAxis("bottom").setLabel("Time", units="ps")
-
-            # Create image item for eye diagram
-            img = pg.ImageItem()
-            plot.addItem(img)
-            self.eye_plots.append(img)
-
-        return widget
-
-    def _create_bathtub_tab(self, _: str):
-        """Create the bathtub curves tab.
-
-        Args:
-            _: The name of the tab, which is ignored but passed to allow us to loop over creation.
-
-        Returns:
-            QWidget: Widget containing the bathtub plots
-        """
-        widget = QWidget(self)
-        layout = QVBoxLayout()
-        widget.setLayout(layout)
-
-        # Create plot grid
-        plot_grid = pg.GraphicsLayoutWidget(parent=self)
-        layout.addWidget(plot_grid)
-
-        # Create 2x2 grid of bathtub plots
-        titles = [
-            "Channel",
-            "+ Tx De-emphasis & Noise",
-            "+ CTLE (& IBIS-AMI DFE if apropos)",
-            "+ PyBERT Native DFE if enabled",
-        ]
-        self.bathtub_plots = []
-
-        for i in range(4):
-            row = i // 2
-            col = i % 2
-
-            plot = plot_grid.addPlot(row=row, col=col)
-            plot.setMouseEnabled(False, False)
-            plot.showGrid(x=True, y=True)
-            plot.setTitle(titles[i])
-            plot.getAxis("left").setLabel("Log10(P(Transition occurs inside))")
-            plot.getAxis("bottom").setLabel("Time", units="ps")
-
-            # Set y-axis range
-            plot.setYRange(-12, 0, padding=0)
-            plot.getAxis("left").setTickSpacing(3, 1)
-
-            # Add curve
-            curve = plot.plot(pen="b")
-            self.bathtub_plots.append(curve)
-
-        return widget
-
-    def _create_response_tab(self, response_name: str):
-        """Create a tab with a 2x2 grid of plots.
-
-        Args:
-            response_name: The type of response to create.
-
-        Returns:
-            QWidget: Widget containing the response plots
-        """
-        widget = QWidget(self)
+        widget = QWidget(parent)
         layout = QVBoxLayout()
         widget.setLayout(layout)
 
@@ -371,39 +297,49 @@ class ResultsTab(QWidget):
         layout.addWidget(plot_grid)
 
         plots = []
-        titles = [
-            "Channel",
-            "+ Tx De-emphasis & Noise",
-            "+ CTLE (& IBIS-AMI DFE if apropos)",
-            "+ PyBERT Native DFE if enabled",
-        ]
-        for i, title in enumerate(titles):
+        for i in range(num_plots):
             row = i // 2
             col = i % 2
             plot = plot_grid.addPlot(row=row, col=col)
             plot.showGrid(x=True, y=True)
-            plot.setTitle(title)
+            plot.setTitle(PlotConfig.PLOT_TITLES[i])
+            plots.append(plot)
+
+        return plot_grid, plots
+
+    def _create_response_tab(self, response_name: str) -> QWidget:
+        """Create a tab with a 2x2 grid of response plots.
+
+        Args:
+            response_name: The type of response to create.
+
+        Returns:
+            QWidget: Widget containing the response plots
+        """
+        plot_grid, plots = self._create_standard_plot_grid(self)
+
+        # Configure plots based on response type
+        for i, plot in enumerate(plots):
             if response_name == "Frequency":
-                plot.addLegend(offset=(-1, 1))  # Upper Right
+                plot.addLegend(offset=(-1, 1))
                 plot.getAxis("left").setLabel("Frequency Response", units="dB")
                 plot.getAxis("bottom").setLabel("Frequency", units="GHz")
-                plot.setMouseEnabled(False, False)  # Disable zooming for freq response
-                plot.setYRange(-40, 10, padding=0)  # Set min/max y values for freq response
+                plot.setMouseEnabled(False, False)
+                plot.setYRange(-40, 10, padding=0)
             elif response_name == "Impulses":
-                plot.addLegend(offset=(-1, 1))  # Upper Right
+                plot.addLegend(offset=(-1, 1))
                 plot.getAxis("left").setLabel("Impulse Response", units="V/sample")
                 plot.getAxis("bottom").setLabel("Time", units="ns")
             elif response_name == "Steps":
-                plot.addLegend(offset=(-1, -1))  # Lower Right
+                plot.addLegend(offset=(-1, -1))
                 plot.getAxis("left").setLabel("Step Response", units="V")
                 plot.getAxis("bottom").setLabel("Time", units="ns")
             elif response_name == "Pulses":
-                plot.addLegend(offset=(-1, 1))  # Upper Right
+                plot.addLegend(offset=(-1, 1))
                 plot.getAxis("left").setLabel("Pulse Response", units="V")
                 plot.getAxis("bottom").setLabel("Time", units="ns")
-            plots.append(plot)
 
-        # Only link x-axes for non-frequency response plots
+        # Link x-axes for non-frequency plots
         if response_name != "Frequency":
             for plot in plots[1:]:
                 plot.setXLink(plots[0])
@@ -418,7 +354,86 @@ class ResultsTab(QWidget):
         elif response_name == "Frequency":
             self.freq_plots = plots
 
-        return widget
+        return plot_grid.parent()
+
+    def _create_outputs_tab(self, _: str) -> QWidget:
+        """Create the outputs tab.
+
+        Args:
+            _: The name of the tab, which is ignored but passed to allow us to loop over creation.
+
+        Returns:
+            QWidget: Widget containing the output plots
+        """
+        plot_grid, plots = self._create_standard_plot_grid(self)
+
+        for i, plot in enumerate(plots):
+            plot.getAxis("left").setLabel("Output", units="V")
+            plot.getAxis("bottom").setLabel("Time", units="ns")
+
+            # Add curves
+            if i == 0:  # Channel output includes ideal signal
+                plot.plot(pen=PlotConfig.get_pen("ideal"), name="Ideal")
+            plot.plot(pen=PlotConfig.get_pen("output"), name="Output")
+
+            # Link x-axes for synchronized zooming
+            if i > 0:
+                plot.setXLink(plots[0])
+
+        self.output_plots = plots
+        return plot_grid.parent()
+
+    def _create_eyes_tab(self, _: str) -> QWidget:
+        """Create the eye diagrams tab.
+
+        Args:
+            _: The name of the tab, which is ignored but passed to allow us to loop over creation.
+
+        Returns:
+            QWidget: Widget containing the eye diagrams
+        """
+        plot_grid, plots = self._create_standard_plot_grid(self)
+
+        # Clear any existing eye plots
+        self.eye_plots.clear()
+
+        for plot in plots:
+            plot.setMouseEnabled(False, False)
+            plot.getAxis("left").setLabel("Signal Level", units="V")
+            plot.getAxis("bottom").setLabel("Time", units="ps")
+
+            # Create image item for eye diagram
+            img = pg.ImageItem()
+            plot.addItem(img)
+            self.eye_plots.append(img)
+
+        return plot_grid.parent()
+
+    def _create_bathtub_tab(self, _: str) -> QWidget:
+        """Create the bathtub curves tab.
+
+        Args:
+            _: The name of the tab, which is ignored but passed to allow us to loop over creation.
+
+        Returns:
+            QWidget: Widget containing the bathtub plots
+        """
+        plot_grid, plots = self._create_standard_plot_grid(self)
+
+        for plot in plots:
+            plot.setMouseEnabled(False, False)
+            plot.getAxis("left").setLabel("Log10(P(Transition occurs inside))")
+            plot.getAxis("bottom").setLabel("Time", units="ps")
+
+            # Set y-axis range
+            plot.setYRange(-12, 0, padding=0)
+            plot.getAxis("left").setTickSpacing(3, 1)
+
+            # Add curve
+            curve = plot.plot(pen=PlotConfig.get_pen("output"))
+            self.bathtub_plots.append(curve)
+
+        return plot_grid.parent()
 
     def _create_jitter_dist_tab(self, _: str):
         """Create the jitter distribution tab.
@@ -519,7 +534,7 @@ class ResultsTab(QWidget):
         self.hist_curve.setData(clk_per_hist_bins, clk_per_hist_vals)
         self.spec_curve.setData(clk_freqs, clk_spec)
 
-    def update_output_plots(self, t_ns, output_plots):
+    def update_output_plots(self, t_ns: np.ndarray, output_plots: Dict[str, np.ndarray]) -> None:
         """Update output waveform plots.
 
         Args:
@@ -536,8 +551,8 @@ class ResultsTab(QWidget):
         for plot, (ideal, signal) in zip(self.output_plots, signals):
             plot.clear()
             if ideal is not None:
-                plot.plot(t_ns, ideal, pen=pg.mkPen("lightgray"), name="Ideal")
-            plot.plot(t_ns, signal, pen=pg.mkPen("b"), name="Output")
+                self.update_plot_data(plot, t_ns, ideal, pen="ideal", name="Ideal", clear=False)
+            self.update_plot_data(plot, t_ns, signal, pen="output", name="Output", clear=False)
 
     def update_eye_plots(self, xs, eye_data, y_max_values):
         """Update eye diagram plots.
@@ -831,6 +846,29 @@ class ResultsTab(QWidget):
                     plot.removeItem(ref)
 
         self.reference_plots.clear()  # Clear the reference list
+
+    def update_plot_data(
+        self,
+        plot: pg.PlotItem,
+        x_data: np.ndarray,
+        y_data: np.ndarray,
+        pen: str = "output",
+        name: Optional[str] = None,
+        clear: bool = True,
+    ) -> None:
+        """Update plot data with standard configuration.
+
+        Args:
+            plot: Plot to update
+            x_data: X-axis data
+            y_data: Y-axis data
+            pen: Pen color/style name
+            name: Curve name for legend
+            clear: Whether to clear existing data
+        """
+        if clear:
+            plot.clear()
+        plot.plot(x_data, y_data, pen=PlotConfig.get_pen(pen), name=name)
 
 
 def get_custom_colormap() -> pg.ColorMap:

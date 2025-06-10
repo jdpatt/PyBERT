@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
 )
 
 from pybert.gui.dialogs import select_file_dialog
-from pybert.gui.widgets.utils import StatusIndicator
+from pybert.gui.widgets.utils import StatusIndicator, block_signals
 from pybert.models.tx_tap import TxTapTuner
 from pybert.pybert import PyBERT
 
@@ -164,8 +164,7 @@ class TxEqualizationWidget(QGroupBox):
         if self.pybert is None:
             return
 
-        self.block_signals(True)
-        try:
+        with block_signals(self):
             # Update mode
             self.native_radio.setChecked(self.pybert.tx_use_ami == False)
             self.ibis_radio.setChecked(self.pybert.tx_use_ami == True)
@@ -186,19 +185,7 @@ class TxEqualizationWidget(QGroupBox):
             # Update native parameters
             if hasattr(self.pybert, "tx_taps"):
                 self.set_taps(self.pybert.tx_taps)
-        finally:
-            self._update_mode()
-            self.block_signals(False)
-
-    def block_signals(self, block: bool = True) -> None:
-        """Block or unblock all widget signals to prevent unnecessary updates.
-
-        Args:
-            block: True to block signals, False to unblock
-        """
-        widgets = [self.native_radio, self.ibis_radio, self.use_getwave, self.ami_file, self.dll_file, self.ffe_table]
-        for widget in widgets:
-            widget.blockSignals(block)
+        self._update_mode()
 
     def _update_mode(self) -> None:
         """Show only the selected group (IBIS or Native) using stacked layout."""

@@ -27,7 +27,7 @@ from PySide6.QtWidgets import (
 from pybert.gui import dialogs
 from pybert.gui.dialogs import select_file_dialog
 from pybert.gui.widgets.rx_equalization import RxEqualizationWidget
-from pybert.gui.widgets.utils import StatusIndicator
+from pybert.gui.widgets.utils import FilePickerWidget, StatusIndicator, block_signals
 from pybert.pybert import PyBERT
 
 logger = logging.getLogger("pybert.rx")
@@ -79,15 +79,10 @@ class RxConfigWidget(QWidget):
         self.ibis_group.setLayout(ibis_layout)
 
         # IBIS file selection
-        file_layout = QHBoxLayout()
-        file_layout.addWidget(QLabel("File"))
-        self.ibis_file = QLineEdit()
-        self.ibis_file.setReadOnly(True)
-        file_layout.addWidget(self.ibis_file)
-        self.browse_btn = QPushButton("Browse")
-        self.browse_btn.clicked.connect(self._browse_ibis)
-        file_layout.addWidget(self.browse_btn)
-        ibis_layout.addLayout(file_layout)
+        self.ibis_file = FilePickerWidget(
+            "File", "IBIS Files (*.ibs);;IBIS Files (*.ibis);;All Files (*.*)", self.ibis_group
+        )
+        ibis_layout.addWidget(self.ibis_file)
 
         # Bottom row with status, checkbox, and configure
         bottom_layout = QHBoxLayout()
@@ -155,25 +150,6 @@ class RxConfigWidget(QWidget):
             self.update_from_model()
             self.connect_signals(pybert)
 
-    def block_signals(self, block: bool = True) -> None:
-        """Block or unblock all widget signals to prevent unnecessary updates.
-
-        Args:
-            block: True to block signals, False to unblock
-        """
-        widgets = [
-            self.use_ts4,
-            self.ibis_file,
-            self.native_radio,
-            self.ibis_radio,
-            self.rin,
-            self.cin,
-            self.cac,
-            self.rx_equalization,
-        ]
-        for widget in widgets:
-            widget.blockSignals(block)
-
     def update_from_model(self) -> None:
         """Update all widget values from the PyBERT model.
 
@@ -183,14 +159,13 @@ class RxConfigWidget(QWidget):
         if self.pybert is None:
             return
 
-        self.block_signals(True)
-        try:
+        with block_signals(self):
             # Update mode
             self.native_radio.setChecked(self.pybert.rx_use_ibis == False)
             self.ibis_radio.setChecked(self.pybert.rx_use_ibis == True)
 
             # Update IBIS settings
-            self.ibis_file.setText(self.pybert.rx_ibis_file)
+            self.ibis_file.set_text(self.pybert.rx_ibis_file)
             self.use_ts4.setChecked(self.pybert.rx_use_ts4)
 
             # Update native parameters
@@ -200,9 +175,7 @@ class RxConfigWidget(QWidget):
 
             # Update equalization
             self.rx_equalization.update_from_model()
-        finally:
-            self.block_signals(False)
-            self._update_mode()
+        self._update_mode()
 
     def connect_signals(self, pybert: "PyBERT") -> None:
         """Connect widget signals to PyBERT instance."""
@@ -210,7 +183,7 @@ class RxConfigWidget(QWidget):
         self.ibis_radio.toggled.connect(self._update_mode)
 
         self.use_ts4.toggled.connect(lambda val: setattr(pybert, "rx_use_ts4", val))
-        self.ibis_file.textChanged.connect(lambda val: setattr(pybert, "rx_ibis_file", val))
+        self.ibis_file.file_selected.connect(self._new_ibis_file)
         self.mode_group.buttonReleased.connect(
             lambda val: setattr(pybert, "rx_use_ibis", self.native_radio.isChecked() == False)
         )
@@ -218,35 +191,31 @@ class RxConfigWidget(QWidget):
         self.cin.valueChanged.connect(lambda val: setattr(pybert, "rx_cin", val))
         self.cac.valueChanged.connect(lambda val: setattr(pybert, "rx_cac", val))
 
-    def _browse_ibis(self) -> None:
-        """Open file dialog to select IBIS file."""
-        filename = select_file_dialog(
-            self, "Select IBIS File", "IBIS Files (*.ibs);;IBIS Files (*.ibis);;All Files (*.*)"
-        )
-        if filename:
-            self.ibis_file.setText(filename)
-            ibis = self.pybert.load_new_rx_ibis_file(filename)
-            if ibis:
-                self.ibis_valid.set_status("valid")
-                self.view_btn.setEnabled(True)
-                self.view_btn.clicked.connect(ibis.gui)
+    def _new_ibis_file(self, filename: str) -> None:
+        """Handle IBIS file selection."""
+        setattr(self.pybert, "rx_ibis_file", filename)
+        ibis = self.pybert.load_new_rx_ibis_file(filename)
+        if ibis:
+            self.ibis_valid.set_status("valid")
+            self.view_btn.setEnabled(True)
+            self.view_btn.clicked.connect(ibis.gui)
 
-                if ibis.has_algorithmic_model:
-                    dialogs.info_dialog(
-                        "IBIS Algorithmic Model",
-                        "There was an [Algorithmic Model] keyword in this model.\n \
-    If you wish to use the AMI model associated with this IBIS model,\n \
-    please, configure it now.",
-                    )
-                else:
-                    logger.warning(
-                        "There was no [Algorithmic Model] keyword for this model or a valid executable for this platform;\n \
-    PyBERT native equalization modeling being used instead.",
-                    )
+            if ibis.has_algorithmic_model:
+                dialogs.info_dialog(
+                    "IBIS Algorithmic Model",
+                    "There was an [Algorithmic Model] keyword in this model.\n \
+If you wish to use the AMI model associated with this IBIS model,\n \
+please, configure it now.",
+                )
             else:
-                self.ibis_valid.set_status("invalid")
-                self.view_btn.setEnabled(False)
-                self.view_btn.clicked.disconnect()
+                logger.warning(
+                    "There was no [Algorithmic Model] keyword for this model or a valid executable for this platform;\n \
+PyBERT native equalization modeling being used instead.",
+                )
+        else:
+            self.ibis_valid.set_status("invalid")
+            self.view_btn.setEnabled(False)
+            self.view_btn.clicked.disconnect()
 
     def _update_mode(self) -> None:
         """Show only the selected group (Native or IBIS) using stacked layout."""

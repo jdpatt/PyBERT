@@ -134,22 +134,6 @@ class RxOptimizationCTLEWidget(QGroupBox):
         self.max_boost.setEnabled(enabled)
         self.step_boost.setEnabled(enabled)
 
-    def get_ctle_settings(self) -> tuple[bool, float, float, float, float, float, str]:
-        """Get the current CTLE settings.
-
-        Returns:
-            tuple: (enabled, peak_freq, rx_bw, min_boost, max_boost, step_boost, current_boost)
-        """
-        return (
-            self.ctle_enable.isChecked(),
-            self.peak_freq.value(),
-            self.rx_bw.value(),
-            self.min_boost.value(),
-            self.max_boost.value(),
-            self.step_boost.value(),
-            self.boost_result.value(),
-        )
-
     def set_ctle_boost(self, value: str) -> None:
         """Set the current CTLE boost value.
 

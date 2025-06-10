@@ -1,7 +1,27 @@
+from contextlib import contextmanager
 from typing import List, Literal, Optional
 
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QLabel, QPushButton, QTableWidget
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import (
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QTableWidget,
+    QWidget,
+)
+
+
+@contextmanager
+def block_signals(widget: QWidget):
+    """Context manager to temporarily block all signals from a widget and its children."""
+    try:
+        for child in widget.findChildren(QWidget):
+            child.blockSignals(True)
+        yield
+    finally:
+        for child in widget.findChildren(QWidget):
+            child.blockSignals(False)
 
 
 def setup_table(table: QTableWidget, headers: List[str], editable_cols: Optional[List[int]] = None):
@@ -69,3 +89,64 @@ class StatusIndicator(QLabel):
         # Force style update
         self.style().unpolish(self)
         self.style().polish(self)
+
+
+class FilePickerWidget(QWidget):
+    """A reusable widget that combines a label, readonly line edit, and browse button for file selection.
+
+    This widget encapsulates the common pattern of having a label, readonly line edit for displaying
+    a file path, and a browse button to open a file dialog.
+    """
+
+    file_selected = Signal(str)  # Signal emitted when a file is selected
+
+    def __init__(
+        self,
+        label_text: str = "File",
+        file_filter: str = "All Files (*.*)",
+        parent: Optional[QWidget] = None,
+    ) -> None:
+        """Initialize the file picker widget.
+
+        Args:
+            label_text: Text to display in the label
+            file_filter: Filter string for the file dialog (e.g. "IBIS Files (*.ibs);;All Files (*.*)")
+            parent: Parent widget
+        """
+        super().__init__(parent)
+
+        layout = QHBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        self.setLayout(layout)
+
+        # Add label
+        layout.addWidget(QLabel(label_text))
+
+        # Add readonly line edit
+        self.file_edit = QLineEdit()
+        self.file_edit.setReadOnly(True)
+        layout.addWidget(self.file_edit)
+
+        # Add browse button
+        self.browse_btn = QPushButton("Browse")
+        self.browse_btn.clicked.connect(self._browse_file)
+        layout.addWidget(self.browse_btn)
+
+        self.file_filter = file_filter
+
+    def _browse_file(self) -> None:
+        """Open file dialog and emit signal if file is selected."""
+        from pybert.gui.dialogs import select_file_dialog
+
+        filename = select_file_dialog(self, "Select File", self.file_filter)
+        if filename:
+            self.file_edit.setText(filename)
+            self.file_selected.emit(filename)
+
+    def set_text(self, text: str) -> None:
+        """Set the text in the line edit."""
+        self.file_edit.setText(text)
+
+    def text(self) -> str:
+        """Get the current text from the line edit."""
+        return self.file_edit.text()

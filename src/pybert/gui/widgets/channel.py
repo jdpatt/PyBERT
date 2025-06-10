@@ -27,6 +27,8 @@ from PySide6.QtWidgets import (
 )
 
 MAX_CHANNEL_FILES = 5
+SPARAMETER_FILE_FILTER = "S-parameters (*.s*p);;CSV files (*.csv);;Text files (*.txt);;All files (*.*)"
+from pybert.gui.widgets.utils import FilePickerWidget, block_signals
 from pybert.pybert import PyBERT
 
 
@@ -37,40 +39,47 @@ class FileGroupWidget(QWidget):
 
     def __init__(self, order=1, remove_callback=None, parent=None, file_changed_callback=None):
         super().__init__(parent)
-        self.order_label = QLabel(str(order))
-        layout = QHBoxLayout(self)
-        layout.addWidget(self.order_label)
-        self.channel_file = QLineEdit()
-        self.channel_file.setReadOnly(True)
-        self.channel_file.textChanged.connect(lambda _: self.text_changed.emit())
         self.file_changed_callback = file_changed_callback
-        layout.addWidget(self.channel_file)
-        self.browse_btn = QPushButton("Browse")
-        self.browse_btn.clicked.connect(self._browse_channel)
-        layout.addWidget(self.browse_btn)
+
+        # Create main layout
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(4, 2, 4, 2)  # Reduced margins for list widget items
+        layout.setSpacing(8)  # Consistent spacing between elements
+
+        # Order label
+        self.order_label = QLabel(str(order))
+        self.order_label.setMinimumWidth(20)  # Fixed width for order number
+        layout.addWidget(self.order_label)
+
+        # File selection using FilePickerWidget
+        self.channel_file = FilePickerWidget(
+            label_text="",  # Empty label since we have the order number
+            file_filter=SPARAMETER_FILE_FILTER,
+            parent=self,
+        )
+        self.channel_file.file_selected.connect(lambda _: self.text_changed.emit())
+        self.channel_file.file_selected.connect(
+            lambda _: self.file_changed_callback() if self.file_changed_callback else None
+        )
+        self.channel_file.file_edit.setPlaceholderText("Select channel file...")
+        layout.addWidget(self.channel_file, stretch=1)  # Allow file path to expand
+
+        # Port order
+        layout.addWidget(QLabel("Port:"))
         self.port_combo = QComboBox()
         self.port_combo.addItems(["Even", "Odd"])
         self.port_combo.setCurrentText("Odd")
         self.port_combo.currentIndexChanged.connect(lambda _: self.text_changed.emit())
-        layout.addWidget(QLabel("Port Order"))
+        self.port_combo.setFixedWidth(80)  # Fixed width for port combo
         layout.addWidget(self.port_combo)
+
+        # Remove button
         self.remove_btn = QPushButton("✕")
-        self.remove_btn.setFixedWidth(24)  # Make it square and compact
+        self.remove_btn.setFixedWidth(24)
+        self.remove_btn.setToolTip("Remove this channel file")
         if remove_callback:
             self.remove_btn.clicked.connect(remove_callback)
         layout.addWidget(self.remove_btn)
-
-    def _browse_channel(self):
-        filename, _ = QFileDialog.getOpenFileName(
-            self,
-            "Select Channel File",
-            "",
-            "S-parameters (*.s*p);;CSV files (*.csv);;Text files (*.txt);;All files (*.*)",
-        )
-        if filename:
-            self.channel_file.setText(filename)
-            if self.file_changed_callback:
-                self.file_changed_callback()
 
     def set_order(self, order):
         self.order_label.setText(str(order))
@@ -132,7 +141,7 @@ class ChannelConfigWidget(QGroupBox):
         add_btn_layout = QHBoxLayout()
         add_btn_layout.addStretch()
         add_btn = QPushButton("Add Channel File")
-        add_btn.clicked.connect(self.add_file_group)
+        add_btn.clicked.connect(self._add_file_group)
         self.add_btn = add_btn  # Store reference for enabling/disabling
         add_btn_layout.addWidget(add_btn)
         file_layout.addLayout(add_btn_layout)
@@ -145,7 +154,7 @@ class ChannelConfigWidget(QGroupBox):
             QListWidget::item { background: #ffffff; }
             """
         )
-        self.file_list.model().rowsMoved.connect(self.update_file_group_orders)
+        self.file_list.model().rowsMoved.connect(self._update_file_groups_state)
         self.file_list.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
         file_layout.addWidget(self.file_list, stretch=1)
         file_layout.addStretch()
@@ -218,27 +227,6 @@ class ChannelConfigWidget(QGroupBox):
             self.update_from_model()
             self.connect_signals(pybert)
 
-    def block_signals(self, block: bool = True) -> None:
-        """Block or unblock all widget signals to prevent unnecessary updates.
-
-        Args:
-            block: True to block signals, False to unblock
-        """
-        widgets = [
-            self.native_radio,
-            self.file_radio,
-            self.length,
-            self.loss_tan,
-            self.z0,
-            self.v0,
-            self.rdc,
-            self.w0,
-            self.r0,
-            self.file_list,
-        ]
-        for widget in widgets:
-            widget.blockSignals(block)
-
     def update_from_model(self) -> None:
         """Update all widget values from the PyBERT model.
 
@@ -248,12 +236,12 @@ class ChannelConfigWidget(QGroupBox):
         if self.pybert is None:
             return
 
-        self.block_signals(True)
-        try:
+        with block_signals(self):
             # Update mode
             self.native_radio.setChecked(self.pybert.use_ch_file == False)
             self.file_radio.setChecked(self.pybert.use_ch_file == True)
 
+            # Update native parameters
             self.length.setValue(self.pybert.l_ch)
             self.loss_tan.setValue(self.pybert.Theta0)
             self.z0.setValue(self.pybert.Z0)
@@ -267,21 +255,20 @@ class ChannelConfigWidget(QGroupBox):
             for file_info in self.pybert.channel_elements:
                 group = FileGroupWidget(
                     order=len(self.file_list) + 1,
-                    remove_callback=lambda: self._validate_existing_groups(),
+                    remove_callback=lambda: self._update_file_groups_state(),
                     parent=self,
-                    file_changed_callback=lambda: self._validate_existing_groups(),
+                    file_changed_callback=lambda: self._update_file_groups_state(),
                 )
                 group.channel_file.setText(file_info["file"])
                 group.port_combo.setCurrentText(file_info["port"])
                 item = QListWidgetItem()
                 self.file_list.addItem(item)
                 self.file_list.setItemWidget(item, group)
-            self.update_add_btn_state()
+
+            self._update_file_groups_state()
             if self.file_list.count() == 0:
-                self.add_file_group()
-        finally:
-            self.block_signals(False)
-            self._update_mode()
+                self._add_file_group()
+        self._update_mode()
 
     def connect_signals(self, pybert: "PyBERT") -> None:
         """Connect widget signals to PyBERT instance."""
@@ -326,16 +313,30 @@ class ChannelConfigWidget(QGroupBox):
         else:
             self.stacked_layout.setCurrentWidget(self.file_group)
 
-    def _validate_existing_groups(self):
-        """Check if any existing file groups are empty."""
-        for i in range(self.file_list.count()):
+    def _update_file_groups_state(self):
+        """Update all file group related state in one place."""
+        count = self.file_list.count()
+        has_empty = False
+
+        # Update orders and check for empty groups
+        for i in range(count):
             item = self.file_list.item(i)
             widget = self.file_list.itemWidget(item)
-            if widget and widget.is_empty():
-                return False
-        return True
+            if widget:
+                widget.set_order(i + 1)
+                widget.set_remove_enabled(count > 1)
+                if widget.is_empty():
+                    has_empty = True
 
-    def add_file_group(self):
+        # Update add button state
+        can_add = (count < MAX_CHANNEL_FILES) and not has_empty
+        self.add_btn.setEnabled(can_add)
+
+        # Update PyBERT if available
+        if self.pybert:
+            setattr(self.pybert, "elements", self.get_channel_elements())
+
+    def _add_file_group(self):
         """Add a new file group if validation passes."""
         if self.file_list.count() >= MAX_CHANNEL_FILES:
             return
@@ -350,35 +351,25 @@ class ChannelConfigWidget(QGroupBox):
             if self.file_list.count() > 1:
                 row = self.file_list.row(item)
                 self.file_list.takeItem(row)
-                self.update_file_group_orders()
-                self.update_add_btn_state()
+                self._update_file_groups_state()
 
         widget = FileGroupWidget(
             parent=self,
             order=self.file_list.count() + 1,
             remove_callback=remove,
-            file_changed_callback=self.update_add_btn_state,
+            file_changed_callback=self._update_file_groups_state,
         )
         widget.text_changed.connect(lambda: setattr(self.pybert, "elements", self.get_channel_elements()))
         item.setSizeHint(widget.sizeHint())
         self.file_list.addItem(item)
         self.file_list.setItemWidget(item, widget)
-        self.update_file_group_orders()
-        self.update_add_btn_state()
+        self._update_file_groups_state()
 
-    def update_add_btn_state(self):
-        """Update the state of the add button based on validation."""
-        can_add = (self.file_list.count() < MAX_CHANNEL_FILES) and self._validate_existing_groups()
-        self.add_btn.setEnabled(can_add)
-
-    def update_file_group_orders(self):
-        count = self.file_list.count()
-        for i in range(count):
+    def _validate_existing_groups(self):
+        """Check if any existing file groups are empty."""
+        for i in range(self.file_list.count()):
             item = self.file_list.item(i)
             widget = self.file_list.itemWidget(item)
-            if widget:
-                widget.set_order(i + 1)
-                widget.set_remove_enabled(count > 1)
-        self.update_add_btn_state()
-        if self.pybert:
-            setattr(self.pybert, "elements", self.get_channel_elements())
+            if widget and widget.is_empty():
+                return False
+        return True

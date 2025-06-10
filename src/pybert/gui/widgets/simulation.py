@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
 )
 
 from pybert.gui.dialogs import warning_dialog
+from pybert.gui.widgets.utils import block_signals
 from pybert.models.stimulus import BitPattern, ModulationType
 from pybert.pybert import PyBERT
 
@@ -208,32 +209,6 @@ class SimulationConfiglWidget(QGroupBox):
             self.update_from_model()
             self.connect_signals(self.pybert)
 
-    def block_signals(self, block: bool = True) -> None:
-        """Block or unblock all widget signals to prevent unnecessary updates.
-
-        Args:
-            block: True to block signals, False to unblock
-        """
-        widgets = [
-            self.bit_rate,
-            self.nspui,
-            self.modulation,
-            self.pattern,
-            self.seed,
-            self.nbits,
-            self.eye_bits,
-            self.vod,
-            self.rn,
-            self.pn_mag,
-            self.pn_freq,
-            self.impulse_length,
-            self.thresh,
-            self.f_max,
-            self.f_step,
-        ]
-        for widget in widgets:
-            widget.blockSignals(block)
-
     def update_from_model(self) -> None:
         """Update all widget values from the PyBERT model.
 
@@ -243,8 +218,7 @@ class SimulationConfiglWidget(QGroupBox):
         if self.pybert is None:
             return
 
-        self.block_signals(True)
-        try:
+        with block_signals(self):
             # Update rate & modulation
             self.bit_rate.setValue(self.pybert.bit_rate)
             self.nspui.setValue(self.pybert.nspui)
@@ -268,8 +242,6 @@ class SimulationConfiglWidget(QGroupBox):
             self.thresh.setValue(self.pybert.thresh)
             self.f_max.setValue(self.pybert.f_max)
             self.f_step.setValue(self.pybert.f_step)
-        finally:
-            self.block_signals(False)
 
     def connect_signals(self, pybert: "PyBERT") -> None:
         """Connect widget signals to PyBERT stimulus model."""
