@@ -334,7 +334,7 @@ class ChannelConfigWidget(QGroupBox):
 
         # Update PyBERT if available
         if self.pybert:
-            setattr(self.pybert, "elements", self.get_channel_elements())
+            setattr(self.pybert, "channel_elements", self.get_channel_elements())
 
     def _add_file_group(self):
         """Add a new file group if validation passes."""

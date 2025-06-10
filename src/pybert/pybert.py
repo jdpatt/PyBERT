@@ -607,6 +607,8 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
 
         # Form the pre-on-die S-parameter 2-port network for the channel.
         if self.use_ch_file:
+            # TODO: This is temporary until we support multiple channel files.
+            self.ch_file = self.channel_elements[0][0]
             ch_s2p_pre = import_channel(self.ch_file, ts, f, renumber=self.renumber)
             logger.info(str(ch_s2p_pre))
             H = ch_s2p_pre.s21.s.flatten()
