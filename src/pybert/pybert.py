@@ -28,7 +28,7 @@ import time
 from datetime import datetime
 from os.path import dirname, join
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 import numpy as np  # type: ignore
 import skrf as rf
@@ -72,8 +72,6 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
     opt_complete = Signal(object)  # Optimization complete signal, update the boost and plot
     opt_loop_complete = Signal(object)  # Optimization loop complete signal
     status_update = Signal(str)  # Tells the GUI to update the status bar but do not use the logger instance.
-    new_tx_model = Signal()  # New Tx model (an ibis file was loaded and potentially an AMI/DLL file was loaded)
-    new_rx_model = Signal()  # New Rx model (an ibis file was loaded and potentially an AMI/DLL file was loaded)
 
     def __init__(self, run_simulation: bool = False) -> None:
         """Initialize the PyBERT class.
@@ -233,14 +231,14 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
         self.run_count: int = 0  # Used as a mechanism to force bit stream regeneration.
         self.dfe_out_p: list = []
 
-        self._tx_ibis = None
-        self._tx_ibis_dir = ""
-        self._tx_cfg = None
-        self._tx_model = None
-        self._rx_ibis = None
-        self._rx_ibis_dir = ""
-        self._rx_cfg = None
-        self._rx_model = None
+        self.tx_ibis = None
+        self.tx_ibis_dir = ""
+        self.tx_cfg = None
+        self.tx_model = None
+        self.rx_ibis = None
+        self.rx_ibis_dir = ""
+        self.rx_cfg = None
+        self.rx_model = None
 
         self.isi_chnl = 0
         self.dcd_chnl = 0
@@ -467,104 +465,74 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
 
         return taps
 
-    def load_new_tx_ibis_file(
-        self, filepath: Path | str, current_component: str = None, current_pin: str = None, current_model: str = None
-    ):
-        logger.info("Parsing IBIS file: %s", str(filepath))
+    def load_ibis_file(
+        self,
+        filepath: Path | str,
+        is_tx: bool = True,
+        current_component: str = None,
+        current_pin: str = None,
+        current_model: str = None,
+    ) -> IBISModel:
+        """Load a new IBIS file and return the IBISModel object."""
         try:
+            logger.info("Parsing IBIS file: %s", str(filepath))
             # TODO: Some models are very large, we should lazy load them.
-            ibis = IBISModel.from_file(filepath, is_tx=True)
+            ibis = IBISModel.from_file(filepath, is_tx=is_tx)
             if current_component and current_pin and current_model:
-                ibis.current_component = current_component
-                ibis.current_pin = current_pin
-                ibis.current_model = current_model
-            logger.info("Loaded new Tx IBIS file. Tx switching to IBIS mode.")
-            self._tx_ibis = ibis
-            self.tx_use_ibis = True
-            if ibis.has_algorithmic_model:  # If the IBIS has both a valid .ami and .dll/so file
-                # TODO: Create a new class IbisAmiModel that initializes this directly vs pybert managing it.
-                pcfg = self.load_ami_model(ibis.ami_file)
-                model = self.load_dll_model(ibis.dll_file)
-                if pcfg and model:
-                    logger.info("Loaded new Tx AMI file. Tx switching to AMI equalization mode.")
-                    self._tx_cfg = pcfg
-                    self._tx_model = model
-                    self.tx_has_ts4 = pcfg.ts4file is not None
-                    self.tx_use_ami = True
-                else:
-                    logger.warning("Failed to load AMI file for Tx IBIS file. Tx will use native equalization.")
-                    self.tx_use_ami = False
-            else:
-                logger.warning("No AMI file found for Tx IBIS file. Tx will use native equalization.")
-                self.tx_use_ami = False
-            self.new_tx_model.emit()  # Alert the GUI that a new IBIS file has been loaded and potentially an AMI file and Model.
+                ibis.current_component = current_component  # This updates the pin dictionary
+                ibis.current_pin = current_pin  # This updates the model dictionary
+                ibis.current_model = current_model  # Finally set the model.
+
+            ibis_type = "tx" if is_tx else "rx"
+            setattr(self, f"{ibis_type}_ibis", ibis)
+            setattr(self, f"{ibis_type}_use_ibis", True)
+            logger.info("Loaded new IBIS file. Switching to IBIS mode.")
             return ibis
         except Exception as err:  # pylint: disable=broad-exception-caught
             error_message = f"Failed to open and/or parse IBIS file!\n{err}"
             logger.exception(error_message)
 
-    def load_new_rx_ibis_file(self, filepath: Path | str):
-        logger.info("Parsing IBIS file: %s", str(filepath))
-        try:
-            ibis = IBISModel.from_file(filepath, is_tx=False)
-            logger.info("Loaded new Rx IBIS file. Rx switching to IBIS mode.")
-            self._rx_ibis = ibis
-            self.rx_use_ibis = True
-            if ibis.has_algorithmic_model:  # If the IBIS has both a valid .ami and .dll/so file
-                # TODO: Create a new class IbisAmiModel that initializes this directly vs pybert managing it.
-                # TODO: ami/dll are under the current model and can change.
-                pcfg = self.load_ami_model(ibis.ami_file)
-                model = self.load_dll_model(ibis.dll_file)
-                if pcfg and model:
-                    logger.info("Loaded new Rx AMI file. Rx switching to AMI equalization mode.")
-                    self._rx_cfg = pcfg
-                    self._rx_model = model
-                    self.rx_has_ts4 = pcfg.ts4file is not None
-                    self.rx_use_ami = True
-                else:
-                    logger.warning("Failed to load AMI file for Rx IBIS file. Rx will use native equalization.")
-                    self.rx_use_ami = False
-            else:
-                logger.warning("No AMI file found for Rx IBIS file. Rx will use native equalization.")
-                self.rx_use_ami = False
-            self.new_rx_model.emit()  # Alert the GUI that a new IBIS file has been loaded and potentially an AMI file and Model.
-            return ibis
-        except Exception as err:  # pylint: disable=broad-exception-caught
-            error_message = f"Failed to open and/or parse IBIS file!\n{err}"
-            logger.exception(error_message)
-
-    @staticmethod
-    def load_ami_model(ami_file: Path | str):
+    def load_ami_configurator(self, ami_file: Path | str, is_tx: bool = True) -> AMIParamConfigurator:
         """Load the AMI file and return the AMIParamConfigurator object."""
         try:
             logger.info("Parsing AMI file, '%s'...", str(ami_file))
             pcfg = AMIParamConfigurator.from_file(ami_file)
+            ibis_type = "tx" if is_tx else "rx"
             # TODO: Move all of this into the AMIParamConfigurator class, pybert.py should just call the methods.
-            # if pcfg.ami_parsing_errors:
-            #     logger.warning(f"Non-fatal parsing errors:\n{pcfg.ami_parsing_errors}")
-            # else:
-            #     logger.info("Success.")
-            # self.tx_has_getwave = pcfg.fetch_param_val(["Reserved_Parameters", "GetWave_Exists"])
-            # _tx_returns_impulse = pcfg.fetch_param_val(["Reserved_Parameters", "Init_Returns_Impulse"])
-            # if not _tx_returns_impulse:
-            #     self.tx_use_getwave = True
-            # if pcfg.fetch_param_val(["Reserved_Parameters", "Ts4file"]):
-            #     self.tx_has_ts4 = True
-            # else:
-            #     self.tx_has_ts4 = False
-
-            # self._tx_cfg = pcfg
-            # self.tx_ami_valid = True
+            if pcfg is not None:
+                setattr(self, f"{ibis_type}_cfg", pcfg)
+                setattr(self, f"{ibis_type}_has_ts4", pcfg.ts4file is not None)
+                setattr(self, f"{ibis_type}_use_ami", True)
+                logger.info("Loaded new Tx AMI file. Tx switching to AMI equalization mode.")
+            else:
+                logger.warning("Failed to load AMI file for Tx IBIS file. Tx will use native equalization.")
+                setattr(self, f"{ibis_type}_use_ami", False)
+            if pcfg.ami_parsing_errors:
+                logger.warning(f"Non-fatal parsing errors:\n{pcfg.ami_parsing_errors}")
+            else:
+                logger.info("Success.")
+            has_getwave = pcfg.getwave_exists()
+            init_returns_impulse = pcfg.returns_impulse()
+            if not init_returns_impulse:
+                setattr(self, f"{ibis_type}_use_getwave", True)
+            if pcfg.ts4file():
+                has_ts4 = True
+            else:
+                has_ts4 = False
+            setattr(self, f"{ibis_type}_has_ts4", has_ts4)
+            setattr(self, f"{ibis_type}_use_ami", True)
             return pcfg
         except Exception as err:  # pylint: disable=broad-exception-caught
             error_message = f"Failed to open and/or parse AMI file!\n{err}"
             logger.exception(error_message)
 
-    @staticmethod
-    def load_dll_model(dll_file: Path | str):
+    def load_dll_model(self, dll_file: Path | str, is_tx: bool = True):
         """Load the DLL/SO file and return the AMIModel object."""
         try:
-            return AMIModel(dll_file)
+            model = AMIModel(dll_file)
+            ibis_type = "tx" if is_tx else "rx"
+            setattr(self, f"{ibis_type}_model", model)
+            return model
         except Exception as err:  # pylint: disable=broad-exception-caught
             logger.exception("Failed to open DLL/SO file! %s", err)
 
@@ -669,25 +637,25 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
             return (res, ts4N, ntwk2)
 
         if self.tx_use_ibis:
-            model = self._tx_ibis.current_model
+            model = self.tx_ibis.current_model
             Rs = model.impedance * 2
             Cs = model.ccomp[0] / 2  # They're in series.
             self.Rs = Rs  # Primarily for debugging.
             self.Cs = Cs
             if self.tx_use_ts4:
-                fname = join(self._tx_ibis_dir, self._tx_cfg.fetch_param_val(["Reserved_Parameters", "Ts4file"]))
+                fname = join(self.tx_ibis_dir, self._tx_cfg.fetch_param_val(["Reserved_Parameters", "Ts4file"]))
                 ch_s2p, ts4N, ntwk = add_ondie_s(ch_s2p, fname)
                 self.ts4N = ts4N
                 self.ntwk = ntwk
         if self.rx_use_ibis:
-            model = self._rx_ibis.current_model
+            model = self.rx_ibis.current_model
             RL = model.impedance * 2
             Cp = model.ccomp[0] / 2
             self.RL = RL  # Primarily for debugging.
             self.Cp = Cp
             logger.debug(f"RL: {round(RL, 2)}, Cp: {round(Cp, 2)}")
             if self.rx_use_ts4:
-                fname = join(self._rx_ibis_dir, self._rx_cfg.fetch_param_val(["Reserved_Parameters", "Ts4file"]))
+                fname = join(self.rx_ibis_dir, self._rx_cfg.fetch_param_val(["Reserved_Parameters", "Ts4file"]))
                 ch_s2p, ts4N, ntwk = add_ondie_s(ch_s2p, fname, isRx=True)
                 self.ts4N = ts4N
                 self.ntwk = ntwk
@@ -882,16 +850,16 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
         if not self.channel_elements and self.use_ch_file:
             logger.error("No channel file selected. Please select a channel file.")
             return False
-        if not self.tx_ibis_file and self.tx_use_ibis:
+        if not self.tx_ibis and self.tx_use_ibis:
             logger.error("No Tx IBIS file selected. Please select a Tx IBIS file.")
             return False
-        if not self.rx_ibis_file and self.rx_use_ibis:
+        if not self.rx_ibis and self.rx_use_ibis:
             logger.error("No Rx IBIS file selected. Please select a Rx IBIS file.")
             return False
-        if not self.tx_ami_valid and self.tx_use_ami:
+        if not self.tx_cfg and self.tx_model and self.tx_use_ami:
             logger.error("No Tx AMI loaded or configured.")
             return False
-        if not self.rx_ami_valid and self.rx_use_ami:
+        if not self.rx_cfg and self.rx_model and self.rx_use_ami:
             logger.error("No Tx AMI loaded or configured.")
             return False
         return True

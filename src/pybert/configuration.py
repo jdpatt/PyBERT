@@ -356,6 +356,7 @@ class Configuration:  # pylint: disable=too-many-instance-attributes
                     # Load IBIS file
                     ibis = pybert.load_new_tx_ibis_file(value)
                     if ibis:
+                        setattr(pybert, prop, value)
                         # If we have component/pin/model in the config, set them
                         if hasattr(config, "tx_component") and config.tx_component:
                             ibis.current_component = config.tx_component
@@ -370,6 +371,7 @@ class Configuration:  # pylint: disable=too-many-instance-attributes
                     # Load IBIS file
                     ibis = pybert.load_new_rx_ibis_file(value)
                     if ibis:
+                        setattr(pybert, prop, value)
                         # If we have component/pin/model in the config, set them
                         if hasattr(config, "rx_component") and config.rx_component:
                             ibis.current_component = config.rx_component

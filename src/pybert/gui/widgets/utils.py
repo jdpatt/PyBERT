@@ -150,3 +150,7 @@ class FilePickerWidget(QWidget):
     def text(self) -> str:
         """Get the current text from the line edit."""
         return self.file_edit.text()
+
+    def clear(self) -> None:
+        """Clear the text in the line edit."""
+        self.file_edit.clear()

@@ -7,7 +7,6 @@ model selection and native parameters.
 import logging
 from typing import Optional
 
-from pyibisami import IBISModel
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QButtonGroup,
@@ -20,13 +19,14 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QPushButton,
     QRadioButton,
-    QStackedLayout,
+    QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
 
 from pybert.gui import dialogs
 from pybert.gui.dialogs import select_file_dialog
+from pybert.gui.widgets.ibis_manager import IbisAmiManager
 from pybert.gui.widgets.tx_equalization import TxEqualizationWidget
 from pybert.gui.widgets.utils import FilePickerWidget, StatusIndicator, block_signals
 from pybert.pybert import PyBERT
@@ -36,8 +36,6 @@ logger = logging.getLogger("pybert.tx")
 
 class TxConfigWidget(QWidget):
     """Widget for configuring transmitter parameters."""
-
-    ibis_has_ami = Signal(bool)
 
     def __init__(self, pybert: PyBERT | None = None, parent: Optional[QWidget] = None) -> None:
         """Initialize the transmitter configuration widget.
@@ -61,6 +59,7 @@ class TxConfigWidget(QWidget):
         # --- Mode selection radio buttons ---
         mode_layout = QHBoxLayout()
         self.native_radio = QRadioButton("Native")
+        self.native_radio.setChecked(True)
         self.ibis_radio = QRadioButton("IBIS")
         self.mode_group = QButtonGroup(self)
         self.mode_group.addButton(self.native_radio)
@@ -71,44 +70,14 @@ class TxConfigWidget(QWidget):
         tx_layout.addLayout(mode_layout)
 
         # --- Stacked layout for transmitter config groups ---
-        self.stacked_layout = QStackedLayout()
+        self.stacked_widget = QStackedWidget()
 
-        # IBIS group
-        self.ibis_group = QWidget(self)
-        ibis_layout = QVBoxLayout()
-        self.ibis_group.setLayout(ibis_layout)
-
-        # IBIS file selection
-        self.ibis_file = FilePickerWidget(
-            "File", "IBIS Files (*.ibs);;IBIS Files (*.ibis);;All Files (*.*)", self.ibis_group
+        # Create IBIS-AMI manager
+        self.ibis_ami_manager = IbisAmiManager(
+            pybert=self.pybert,
+            is_tx=True,
+            parent=self,
         )
-
-        ibis_layout.addWidget(self.ibis_file)
-
-        # Bottom row with status, checkbox, and configure
-        bottom_layout = QHBoxLayout()
-        # Status indicator
-        bottom_layout.addWidget(QLabel("Status:"))
-        self.ibis_valid = StatusIndicator()
-        bottom_layout.addWidget(self.ibis_valid)
-        bottom_layout.addSpacing(20)  # Add some spacing between status and checkbox
-
-        # On-die S-parameters
-        self.use_ts4 = QCheckBox("Use on-die S-parameters")
-        self.use_ts4.setEnabled(False)
-        bottom_layout.addWidget(self.use_ts4)
-        bottom_layout.addStretch()  # Push configure button to the right
-
-        # Configure button
-        self.view_btn = QPushButton("Configure")
-        self.view_btn.setEnabled(False)
-        bottom_layout.addWidget(self.view_btn)
-
-        ibis_layout.addLayout(bottom_layout)
-        ibis_layout.addStretch()
-
-        # Add both groups to stacked layout (after both are constructed)
-        self.stacked_layout.addWidget(self.ibis_group)
 
         # Native parameters group
         self.native_group = QWidget(self)
@@ -127,13 +96,13 @@ class TxConfigWidget(QWidget):
         self.cout.setSuffix(" pF")
         native_form.addRow(QLabel("Capacitance"), self.cout)
 
-        # Add both groups to stacked layout (after both are constructed)
-        self.stacked_layout.addWidget(self.native_group)
-
-        tx_layout.addLayout(self.stacked_layout)
+        # Add native group to stacked widget
+        self.stacked_widget.addWidget(self.native_group)
+        self.stacked_widget.addWidget(self.ibis_ami_manager.get_ibis_widget())
+        tx_layout.addWidget(self.stacked_widget)
 
         layout.addWidget(self.tx_config, stretch=1)
-        self.tx_equalization = TxEqualizationWidget(pybert=self.pybert, parent=self)
+        self.tx_equalization = TxEqualizationWidget(pybert=self.pybert, parent=self, ami_manager=self.ibis_ami_manager)
         layout.addWidget(self.tx_equalization, stretch=2)
 
         if pybert is not None:
@@ -141,22 +110,11 @@ class TxConfigWidget(QWidget):
             self.connect_signals(pybert)
 
     def update_from_model(self) -> None:
-        """Update all widget values from the PyBERT model.
-
-        Args:
-            pybert: PyBERT model instance to update from
-        """
-        if self.pybert is None:
-            return
-
+        """Update all widget values from the PyBERT model."""
         with block_signals(self):
-            # Update mode
-            self.native_radio.setChecked(self.pybert.tx_use_ibis == False)
-            self.ibis_radio.setChecked(self.pybert.tx_use_ibis == True)
-
-            # Update IBIS settings
-            self.ibis_file.set_text(self.pybert.tx_ibis_file)
-            self.use_ts4.setChecked(self.pybert.tx_use_ts4)
+            # Update ibis parameters
+            self.ibis_radio.setChecked(self.pybert.tx_use_ibis)
+            self.native_radio.setChecked(not self.pybert.tx_use_ibis)
 
             # Update native parameters
             self.rs.setValue(self.pybert.rs)
@@ -164,57 +122,17 @@ class TxConfigWidget(QWidget):
 
             # Update equalization
             self.tx_equalization.update_from_model()
-        self._update_mode()
+            self.ibis_ami_manager.update_from_model()
+        self._toggle_ibis_native_or_model()
 
     def connect_signals(self, pybert: "PyBERT") -> None:
         """Connect widget signals to PyBERT instance."""
+        self.mode_group.buttonReleased.connect(self._toggle_ibis_native_or_model)
+        self.rs.valueChanged.connect(lambda val: setattr(pybert, "tx_rs", val))
+        self.cout.valueChanged.connect(lambda val: setattr(pybert, "tx_cout", val))
+        self.ibis_ami_manager.ibis_changed.connect(self.update_from_model)
 
-        # Connect signals for radio buttons
-        self.native_radio.toggled.connect(self._update_mode)
-        self.ibis_radio.toggled.connect(self._update_mode)
-        self.ibis_has_ami.connect(self.tx_equalization.switch_equalization_modes)
-
-        if pybert is not None:
-            self.use_ts4.toggled.connect(lambda val: setattr(pybert, "tx_use_ts4", val))
-            self.rs.valueChanged.connect(lambda val: setattr(pybert, "tx_rs", val))
-            self.cout.valueChanged.connect(lambda val: setattr(pybert, "tx_cout", val))
-            self.ibis_file.file_selected.connect(self._new_ibis_file)
-            self.mode_group.buttonReleased.connect(
-                lambda val: setattr(pybert, "tx_use_ibis", self.native_radio.isChecked() == False)
-            )
-
-    def _new_ibis_file(self, filename: str) -> None:
-        """Handle IBIS file selection."""
-        setattr(self.pybert, "tx_ibis_file", filename)
-        ibis: IBISModel | None = self.pybert.load_new_tx_ibis_file(filename)
-        if ibis:
-            self.ibis_valid.set_status("valid")
-            self.view_btn.setEnabled(True)
-            self.view_btn.clicked.connect(ibis.gui)
-
-            if ibis.has_algorithmic_model:
-                dialogs.info_dialog(
-                    "IBIS Algorithmic Model",
-                    "There was an [Algorithmic Model] keyword in this model.\n \
-If you wish to use the AMI model associated with this IBIS model,\n \
-please, configure it now.",
-                )
-            else:
-                logger.warning(
-                    "There was no [Algorithmic Model] keyword for this model or a valid executable for this platform;\n \
-PyBERT native equalization modeling being used instead.",
-                )
-        else:
-            self.ibis_valid.set_status("invalid")
-            self.view_btn.setEnabled(False)
-            self.view_btn.clicked.disconnect()
-            self.use_ts4.setEnabled(False)
-
-    def _update_mode(self) -> None:
-        """Show only the selected group (IBIS or Native) using stacked layout."""
-        if self.ibis_radio.isChecked():
-            self.stacked_layout.setCurrentWidget(self.ibis_group)
-            self.pybert.tx_use_ibis = True
-        else:
-            self.stacked_layout.setCurrentWidget(self.native_group)
-            self.pybert.tx_use_ibis = False
+    def _toggle_ibis_native_or_model(self) -> None:
+        """Show only the selected group (IBIS or Native) using stacked widget."""
+        self.stacked_widget.setCurrentIndex(1 if self.ibis_radio.isChecked() else 0)
+        setattr(self.pybert, "tx_use_ibis", self.ibis_radio.isChecked())
