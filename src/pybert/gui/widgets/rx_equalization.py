@@ -244,7 +244,7 @@ class RxEqualizationWidget(QGroupBox):
         layout.addStretch()
 
         if pybert:
-            self.update_from_model()
+            self.update_widget_from_model()
             self.connect_signals(pybert)
 
     def connect_signals(self, pybert) -> None:
@@ -252,7 +252,7 @@ class RxEqualizationWidget(QGroupBox):
         self.mode_group.buttonReleased.connect(self._toggle_ami_native_or_ibis)
         self.ctle_mode_group.buttonReleased.connect(self._toggle_ctle_file_or_model)
         self.sum_ideal.toggled.connect(self._toggle_bandwidth_sum_spinbox)
-        self.ami_manager.ami_changed.connect(self.update_from_model)
+        self.ami_manager.ami_changed.connect(self.update_widget_from_model)
 
         # CTLE
         self.ctle_enable.toggled.connect(lambda val: setattr(pybert, "ctle_enable", val))
@@ -273,7 +273,7 @@ class RxEqualizationWidget(QGroupBox):
         self.sum_bw.valueChanged.connect(lambda val: setattr(pybert, "sum_bw", val))
         self.sum_ideal.toggled.connect(lambda val: setattr(pybert, "sum_ideal", val))
 
-    def update_from_model(self) -> None:
+    def update_widget_from_model(self) -> None:
         """Update all widget values from the PyBERT model."""
         with block_signals(self):
             # Update ibis parameters
@@ -288,7 +288,7 @@ class RxEqualizationWidget(QGroupBox):
             self.rx_bw.setValue(self.pybert.rx_bw)
             self.peak_mag.setValue(self.pybert.peak_mag)
             if hasattr(self.pybert, "rx_ctle_file"):
-                self.ctle_file.set_text(self.pybert.rx_ctle_file)
+                self.ctle_file.set_filepath(self.pybert.rx_ctle_file)
 
             # Update CDR parameters
             self.delta_t.setValue(self.pybert.delta_t)

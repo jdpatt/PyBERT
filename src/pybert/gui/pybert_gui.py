@@ -111,10 +111,10 @@ class PyBERTGUI(QMainWindow):
             return
 
         # Connect to all configuration widgets
-        self._signals.configuration_loaded.connect(self.config_tab.sim_control.update_from_model)
-        self._signals.configuration_loaded.connect(self.config_tab.channel_config.update_from_model)
-        self._signals.configuration_loaded.connect(self.config_tab.tx_config.update_from_model)
-        self._signals.configuration_loaded.connect(self.config_tab.rx_config.update_from_model)
+        self._signals.configuration_loaded.connect(self.config_tab.sim_control.update_widget_from_model)
+        self._signals.configuration_loaded.connect(self.config_tab.channel_config.update_widget_from_model)
+        self._signals.configuration_loaded.connect(self.config_tab.tx_config.update_widget_from_model)
+        self._signals.configuration_loaded.connect(self.config_tab.rx_config.update_widget_from_model)
 
         # Connect to all results widgets
         self._signals.results_loaded.connect(self.results_tab.update_results)

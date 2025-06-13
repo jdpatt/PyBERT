@@ -224,10 +224,10 @@ class ChannelConfigWidget(QGroupBox):
         layout.addStretch()
 
         if pybert is not None:
-            self.update_from_model()
+            self.update_widget_from_model()
             self.connect_signals(pybert)
 
-    def update_from_model(self) -> None:
+    def update_widget_from_model(self) -> None:
         """Update all widget values from the PyBERT model.
 
         Args:

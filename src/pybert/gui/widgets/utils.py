@@ -143,7 +143,7 @@ class FilePickerWidget(QWidget):
             self.file_edit.setText(filename)
             self.file_selected.emit(filename)
 
-    def set_text(self, text: str) -> None:
+    def set_filepath(self, text: str) -> None:
         """Set the text in the line edit."""
         self.file_edit.setText(text)
 

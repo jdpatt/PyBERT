@@ -101,9 +101,9 @@ class IbisAmiConfigWidget(QWidget):
         layout.addLayout(bottom_layout)
         layout.addStretch()
 
-        self.update_from_model()
+        self.update_widget_from_model()
 
-    def update_from_model(self) -> None:
+    def update_widget_from_model(self) -> None:
         """Update the widget from the PyBERT model.
 
         This method ensures the widget is fully synchronized with the PyBERT model,

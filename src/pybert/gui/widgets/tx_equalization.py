@@ -96,16 +96,16 @@ class TxEqualizationWidget(QGroupBox):
         layout.addStretch()
 
         if pybert:
-            self.update_from_model()
+            self.update_widget_from_model()
             self.connect_signals(pybert)
 
     def connect_signals(self, pybert) -> None:
         """Connect signals to PyBERT instance."""
         self.mode_group.buttonReleased.connect(self._toggle_ami_native_or_ibis)
-        self.ami_manager.ami_changed.connect(self.update_from_model)
+        self.ami_manager.ami_changed.connect(self.update_widget_from_model)
         self.ffe_table.itemChanged.connect(lambda item: setattr(pybert, "tx_taps", self.get_tap_values()))
 
-    def update_from_model(self) -> None:
+    def update_widget_from_model(self) -> None:
         """Update all widget values from the PyBERT model."""
         with block_signals(self):
             self.ibis_radio.setChecked(self.pybert.tx_use_ami)

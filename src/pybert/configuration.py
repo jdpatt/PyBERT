@@ -352,11 +352,11 @@ class Configuration:  # pylint: disable=too-many-instance-attributes
             elif prop == "pattern":
                 setattr(pybert, prop, BitPattern[value])
             elif prop == "tx_ibis_file":
+                setattr(pybert, prop, value)
                 if value:
                     # Load IBIS file
                     ibis = pybert.load_new_tx_ibis_file(value)
                     if ibis:
-                        setattr(pybert, prop, value)
                         # If we have component/pin/model in the config, set them
                         if hasattr(config, "tx_component") and config.tx_component:
                             ibis.current_component = config.tx_component
@@ -364,14 +364,13 @@ class Configuration:  # pylint: disable=too-many-instance-attributes
                             ibis.current_pin = config.tx_pin
                         if hasattr(config, "tx_model") and config.tx_model:
                             ibis.current_model = config.tx_model
-                        # AMI/DLL files are handled automatically by load_new_tx_ibis_file
-                        # if the IBIS model has algorithmic models
+                        setattr(pybert, "tx_ibis", ibis)
             elif prop == "rx_ibis_file":
+                setattr(pybert, prop, value)
                 if value:
                     # Load IBIS file
                     ibis = pybert.load_new_rx_ibis_file(value)
                     if ibis:
-                        setattr(pybert, prop, value)
                         # If we have component/pin/model in the config, set them
                         if hasattr(config, "rx_component") and config.rx_component:
                             ibis.current_component = config.rx_component
@@ -379,8 +378,7 @@ class Configuration:  # pylint: disable=too-many-instance-attributes
                             ibis.current_pin = config.rx_pin
                         if hasattr(config, "rx_model") and config.rx_model:
                             ibis.current_model = config.rx_model
-                        # AMI/DLL files are handled automatically by load_new_rx_ibis_file
-                        # if the IBIS model has algorithmic models
+                        setattr(pybert, "rx_ibis", ibis)
             else:
                 setattr(pybert, prop, value)
 

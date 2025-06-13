@@ -84,7 +84,7 @@ class IbisConfigWidget(QWidget):
         layout.addStretch()
 
         self.connect_signals()
-        self.update_from_model()
+        self.update_widget_from_model()
 
     def connect_signals(self) -> None:
         """Connect signals to PyBERT instance."""
@@ -94,7 +94,7 @@ class IbisConfigWidget(QWidget):
         """Set the status of the IBIS file."""
         self.ibis_valid.set_status(status)
 
-    def update_from_model(self) -> None:
+    def update_widget_from_model(self) -> None:
         """Update the widget from the PyBERT model.
 
         This method ensures the widget is fully synchronized with the PyBERT model,
@@ -108,7 +108,7 @@ class IbisConfigWidget(QWidget):
             has_ts4 = getattr(self.pybert, self.has_ts4_attr, False)
 
             # Update file path
-            self.file_picker.set_text(ibis_file)
+            self.file_picker.set_filepath(ibis_file)
 
             # Update status and button states
             self.set_status("valid" if ibis_valid else "not_loaded")
@@ -121,7 +121,7 @@ class IbisConfigWidget(QWidget):
     def reset(self) -> None:
         """Reset the widget to its initial state."""
         with block_signals(self):
-            self.file_picker.set_text("")
+            self.file_picker.set_filepath("")
             self.set_status("not_loaded")
             self.view_btn.setEnabled(False)
             self.use_ts4.setEnabled(False)

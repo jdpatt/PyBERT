@@ -106,10 +106,10 @@ class TxConfigWidget(QWidget):
         layout.addWidget(self.tx_equalization, stretch=2)
 
         if pybert is not None:
-            self.update_from_model()
+            self.update_widget_from_model()
             self.connect_signals(pybert)
 
-    def update_from_model(self) -> None:
+    def update_widget_from_model(self) -> None:
         """Update all widget values from the PyBERT model."""
         with block_signals(self):
             # Update ibis parameters
@@ -121,8 +121,8 @@ class TxConfigWidget(QWidget):
             self.cout.setValue(self.pybert.cout)
 
             # Update equalization
-            self.tx_equalization.update_from_model()
-            self.ibis_ami_manager.update_from_model()
+            self.tx_equalization.update_widget_from_model()
+            self.ibis_ami_manager.update_widget_from_model()
         self._toggle_ibis_native_or_model()
 
     def connect_signals(self, pybert: "PyBERT") -> None:
@@ -130,7 +130,7 @@ class TxConfigWidget(QWidget):
         self.mode_group.buttonReleased.connect(self._toggle_ibis_native_or_model)
         self.rs.valueChanged.connect(lambda val: setattr(pybert, "tx_rs", val))
         self.cout.valueChanged.connect(lambda val: setattr(pybert, "tx_cout", val))
-        self.ibis_ami_manager.ibis_changed.connect(self.update_from_model)
+        self.ibis_ami_manager.ibis_changed.connect(self.update_widget_from_model)
 
     def _toggle_ibis_native_or_model(self) -> None:
         """Show only the selected group (IBIS or Native) using stacked widget."""

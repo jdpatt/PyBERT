@@ -56,10 +56,11 @@ class IbisAmiManager(QObject):
         self.ibis_widget.view_btn.clicked.connect(self._handle_ibis_view_btn_clicked)
         self.ami_widget.configure_btn.clicked.connect(self._handle_ami_configure_btn_clicked)
 
-    def update_from_model(self) -> None:
+    def update_widget_from_model(self) -> None:
         """Update the widgets from the model."""
-        self.ibis_widget.update_from_model()
-        self.ami_widget.update_from_model()
+        # TODO: This currently doesn't handle parsing the IBIS and AMI files if loaded from a configuration file.
+        self.ibis_widget.update_widget_from_model()
+        self.ami_widget.update_widget_from_model()
 
     def get_ibis_widget(self) -> IbisConfigWidget:
         """Get the IBIS and AMI configuration widgets.

@@ -206,10 +206,10 @@ class SimulationConfiglWidget(QGroupBox):
 
         # Initialize widget values from model if available
         if self.pybert is not None:
-            self.update_from_model()
+            self.update_widget_from_model()
             self.connect_signals(self.pybert)
 
-    def update_from_model(self) -> None:
+    def update_widget_from_model(self) -> None:
         """Update all widget values from the PyBERT model.
 
         Args:

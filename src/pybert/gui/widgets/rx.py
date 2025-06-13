@@ -116,16 +116,16 @@ class RxConfigWidget(QWidget):
         layout.addWidget(self.rx_equalization, stretch=2)
 
         if pybert is not None:
-            self.update_from_model()
+            self.update_widget_from_model()
             self.connect_signals(pybert)
 
-    def update_from_model(self) -> None:
+    def update_widget_from_model(self) -> None:
         """Update all widget values from the PyBERT model."""
         with block_signals(self):
             # Update ibis parameters
             self.ibis_radio.setChecked(self.pybert.rx_use_ibis)
             self.native_radio.setChecked(not self.pybert.rx_use_ibis)
-            # self.ibis_ami_manager.update_from_model()
+            # self.ibis_ami_manager.update_widget_from_model()
 
             # Update native parameters
             self.rin.setValue(self.pybert.rin)
@@ -133,14 +133,14 @@ class RxConfigWidget(QWidget):
             self.cac.setValue(self.pybert.cac)
 
             # Update equalization
-            self.rx_equalization.update_from_model()
-            self.ibis_ami_manager.update_from_model()
+            self.rx_equalization.update_widget_from_model()
+            self.ibis_ami_manager.update_widget_from_model()
         self._toggle_ibis_native_or_model()
 
     def connect_signals(self, pybert: "PyBERT") -> None:
         """Connect widget signals to PyBERT instance."""
         self.mode_group.buttonReleased.connect(self._toggle_ibis_native_or_model)
-        self.ibis_ami_manager.ibis_changed.connect(self.update_from_model)
+        self.ibis_ami_manager.ibis_changed.connect(self.update_widget_from_model)
         self.rin.valueChanged.connect(lambda val: setattr(pybert, "rx_rin", val))
         self.cin.valueChanged.connect(lambda val: setattr(pybert, "rx_cin", val))
         self.cac.valueChanged.connect(lambda val: setattr(pybert, "rx_cac", val))
