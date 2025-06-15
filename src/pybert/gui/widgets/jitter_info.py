@@ -1,4 +1,6 @@
+from dataclasses import dataclass
 from itertools import product
+from typing import Optional, Tuple
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QGuiApplication, QKeySequence
@@ -13,6 +15,7 @@ from PySide6.QtWidgets import (
 )
 
 from pybert.pybert import PyBERT
+from pybert.utility.jitter import JitterAnalysis
 from pybert.utility.math import safe_log10
 
 
@@ -32,11 +35,53 @@ class ThickBottomBorderDelegate(QStyledItemDelegate):
             painter.drawLine(rect.bottomLeft(), rect.bottomRight())
 
 
+@dataclass
+class JitterComponent:
+    """Represents a single jitter component (ISI, DCD, Pj, Rj) with input and output values."""
+
+    name: str
+    input_val: float  # in ps
+    output_val: float  # in ps
+
+    @property
+    def rejection_ratio(self) -> Optional[float]:
+        """Calculate rejection ratio in dB if possible."""
+        if not self.output_val:
+            return None
+        ratio = self.input_val / self.output_val
+        if ratio != ratio or ratio in (float("inf"), float("-inf")):  # Check for NaN or inf
+            return None
+        return 10.0 * safe_log10(ratio)
+
+
+@dataclass
+class JitterStage:
+    """Represents a stage in the signal chain with its jitter components."""
+
+    name: str
+    input_jitter: JitterAnalysis
+    output_jitter: JitterAnalysis
+
+    def get_components(self) -> list[JitterComponent]:
+        """Get all jitter components for this stage."""
+        return [
+            JitterComponent("ISI", self.input_jitter.isi * 1e12, self.output_jitter.isi * 1e12),
+            JitterComponent("DCD", self.input_jitter.dcd * 1e12, self.output_jitter.dcd * 1e12),
+            JitterComponent("Pj", self.input_jitter.pj * 1e12, self.output_jitter.pj * 1e12),
+            JitterComponent("Rj", self.input_jitter.rj * 1e12, self.output_jitter.rj * 1e12),
+        ]
+
+
 class JitterInfoTable(QTableWidget):
+    """Table widget displaying jitter analysis information."""
+
     def __init__(self, pybert: PyBERT | None = None, parent=None):
         super().__init__(parent)
         self.pybert = pybert
+        self.setup_ui()
 
+    def setup_ui(self):
+        """Initialize the table UI."""
         self.setAlternatingRowColors(True)
         self.setStyleSheet(
             """
@@ -97,65 +142,29 @@ class JitterInfoTable(QTableWidget):
         QGuiApplication.clipboard().setText(s)
 
     def update_rejection(self):
-        # Gather jitter values from pybert (in ps)
-        isi_chnl = self.pybert.isi_chnl * 1.0e12
-        dcd_chnl = self.pybert.dcd_chnl * 1.0e12
-        pj_chnl = self.pybert.pj_chnl * 1.0e12
-        rj_chnl = self.pybert.rj_chnl * 1.0e12
-        isi_tx = self.pybert.isi_tx * 1.0e12
-        dcd_tx = self.pybert.dcd_tx * 1.0e12
-        pj_tx = self.pybert.pj_tx * 1.0e12
-        rj_tx = self.pybert.rj_tx * 1.0e12
-        isi_ctle = self.pybert.isi_ctle * 1.0e12
-        dcd_ctle = self.pybert.dcd_ctle * 1.0e12
-        pj_ctle = self.pybert.pj_ctle * 1.0e12
-        rj_ctle = self.pybert.rj_ctle * 1.0e12
-        isi_dfe = self.pybert.isi_dfe * 1.0e12
-        dcd_dfe = self.pybert.dcd_dfe * 1.0e12
-        pj_dfe = self.pybert.pj_dfe * 1.0e12
-        rj_dfe = self.pybert.rj_dfe * 1.0e12
+        """Update the jitter rejection table with current values."""
+        if not self.pybert or not all(
+            [self.pybert.chnl_jitter, self.pybert.tx_jitter, self.pybert.ctle_jitter, self.pybert.dfe_jitter]
+        ):
+            return
 
-        # Calculate rejection ratios
-        def rej(in_val, out_val):
-            if out_val:
-                return in_val / out_val
-            return float("nan")
-
-        # Table order: locations x components
-        # locations = ["Tx Preemphasis", "CTLE (+ AMI DFE)", "DFE", "Total"]
-        # components = ["ISI", "DCD", "Pj", "Rj"]
-        values = [
-            # Tx Preemphasis
-            (isi_chnl, isi_tx, rej(isi_chnl, isi_tx)),
-            (dcd_chnl, dcd_tx, rej(dcd_chnl, dcd_tx)),
-            (pj_chnl, pj_tx, float("nan")),
-            (rj_chnl, rj_tx, float("nan")),
-            # CTLE (+ AMI DFE)
-            (isi_tx, isi_ctle, rej(isi_tx, isi_ctle)),
-            (dcd_tx, dcd_ctle, rej(dcd_tx, dcd_ctle)),
-            (pj_tx, pj_ctle, rej(pj_tx, pj_ctle)),
-            (rj_tx, rj_ctle, rej(rj_tx, rj_ctle)),
-            # DFE
-            (isi_ctle, isi_dfe, rej(isi_ctle, isi_dfe)),
-            (dcd_ctle, dcd_dfe, rej(dcd_ctle, dcd_dfe)),
-            (pj_ctle, pj_dfe, rej(pj_ctle, pj_dfe)),
-            (rj_ctle, rj_dfe, rej(rj_ctle, rj_dfe)),
-            # Total
-            (isi_chnl, isi_dfe, rej(isi_chnl, isi_dfe)),
-            (dcd_chnl, dcd_dfe, rej(dcd_chnl, dcd_dfe)),
-            (pj_tx, pj_dfe, rej(pj_tx, pj_dfe)),
-            (rj_tx, rj_dfe, rej(rj_tx, rj_dfe)),
+        # Define the stages in the signal chain
+        stages = [
+            JitterStage("Tx Preemphasis", self.pybert.chnl_jitter, self.pybert.tx_jitter),
+            JitterStage("CTLE (+ AMI DFE)", self.pybert.tx_jitter, self.pybert.ctle_jitter),
+            JitterStage("DFE", self.pybert.ctle_jitter, self.pybert.dfe_jitter),
+            JitterStage("Total", self.pybert.chnl_jitter, self.pybert.dfe_jitter),
         ]
 
-        for row, (input_val, output_val, rejection) in enumerate(values):
-            # Input (ps)
-            self.item(row, 2).setText(f"{input_val:6.3f}")
-            # Output (ps)
-            self.item(row, 3).setText(f"{output_val:6.3f}")
-            # Rejection (dB)
-            if not (
-                rejection is None or rejection != rejection or rejection == float("inf") or rejection == float("-inf")
-            ):
-                self.item(row, 4).setText(f"{10.0 * safe_log10(rejection):4.1f}")
-            else:
-                self.item(row, 4).setText("n/a")
+        # Update table with values
+        row = 0
+        for stage in stages:
+            for component in stage.get_components():
+                # Input value
+                self.item(row, 2).setText(f"{component.input_val:6.3f}")
+                # Output value
+                self.item(row, 3).setText(f"{component.output_val:6.3f}")
+                # Rejection ratio
+                rejection = component.rejection_ratio
+                self.item(row, 4).setText(f"{rejection:4.1f}" if rejection is not None else "n/a")
+                row += 1

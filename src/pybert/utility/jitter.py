@@ -10,6 +10,7 @@ A partial extraction of the old `pybert/utility.py`, as part of a refactoring.
 """
 
 import logging
+from dataclasses import dataclass
 from typing import Optional
 
 import numpy as np
@@ -41,6 +42,52 @@ from pybert.models.stimulus import ModulationType
 from ..constants import Rvec
 from .math import gaus_pdf
 from .sigproc import moving_average
+
+
+@dataclass
+class JitterAnalysis:
+    """Results from jitter analysis calculation.
+
+    Attributes:
+        tie: Total jitter error (TIE) values
+        t_jitter: Times corresponding to TIE values
+        isi: Peak-to-peak jitter due to intersymbol interference
+        dcd: Peak-to-peak jitter due to duty cycle distortion
+        pj: Peak-to-peak jitter due to uncorrelated periodic sources
+        rj: Standard deviation of jitter due to uncorrelated unbounded random sources
+        pjDD: Dual-Dirac peak-to-peak jitter
+        rjDD: Dual-Dirac random jitter
+        tie_ind: Data independent jitter
+        thresh: Threshold for determining periodic components
+        jitter_spectrum: Spectral magnitude of total jitter
+        jitter_ind_spectrum: Spectral magnitude of data independent jitter
+        spectrum_freqs: Frequencies corresponding to spectrum components
+        hist: Smoothed histogram of total jitter
+        hist_synth: Smoothed histogram of data-independent jitter
+        bin_centers: Bin center values for histograms
+        mu_pos: Mean of Gaussian distribution fitted to right tail
+        mu_neg: Mean of Gaussian distribution fitted to left tail
+    """
+
+    tie: Rvec
+    t_jitter: Rvec
+    isi: float
+    dcd: float
+    pj: float
+    rj: float
+    pjDD: float
+    rjDD: float
+    tie_ind: Rvec
+    thresh: Rvec
+    jitter_spectrum: Rvec
+    jitter_ind_spectrum: Rvec
+    spectrum_freqs: Rvec
+    hist: Rvec
+    hist_synth: Rvec
+    bin_centers: Rvec
+    mu_pos: float
+    mu_neg: float
+
 
 debug = False
 logger = logging.getLogger("pybert.utils")
@@ -237,9 +284,7 @@ def calc_jitter(  # pylint: disable=too-many-arguments,too-many-locals,too-many-
     zero_mean: bool = True,
     dbg_obj: Optional[object] = None,
     smooth_width: int = 5,
-) -> tuple[
-    Rvec, Rvec, float, float, float, float, float, float, Rvec, Rvec, Rvec, Rvec, Rvec, Rvec, Rvec, Rvec, float, float
-]:
+) -> JitterAnalysis:
     """
     Calculate the jitter in a set of actual zero crossings,
     given the ideal crossings and unit interval.
@@ -264,25 +309,7 @@ def calc_jitter(  # pylint: disable=too-many-arguments,too-many-locals,too-many-
             Default: 5
 
     Returns:
-        ( Jtot: The total jitter.
-        , times: The times (taken from 'ideal_xings') corresponding to the returned jitter values.
-        , jISI: The peak to peak jitter due to intersymbol interference (ISI).
-        , jDCD: The peak to peak jitter due to duty cycle distortion (DCD).
-        , jPj: The peak to peak jitter due to uncorrelated periodic sources (Pj).
-        , jRj: The standard deviation of the jitter due to uncorrelated unbounded random sources (Rj).
-        , jPjDD: Dual-Dirac peak to peak jitter.
-        , jRjDD: Dual-Dirac random jitter.
-        , Jind: The data independent jitter.
-        , thresh: Threshold for determining periodic components.
-        , Stot: The spectral magnitude of the total jitter.
-        , Sind: The spectral magnitude of the data independent jitter.
-        , freqs: The frequencies corresponding to the spectrum components.
-        , histTOT: The smoothed histogram of the total jitter.
-        , histIND: The smoothed histogram of the data-independent jitter.
-        , centers: The bin center values for both histograms.
-        , mu_pos: The mean of the Gaussian distribution best fitted to the right tail.
-        , mu_neg: The mean of the Gaussian distribution best fitted to the left tail.
-        )
+        JitterAnalysis: Dataclass containing all jitter analysis results
 
     Raises:
         ValueError: If input checking fails, or curve fitting goes awry.
@@ -551,23 +578,23 @@ def calc_jitter(  # pylint: disable=too-many-arguments,too-many-locals,too-many-
     if dbg_obj:
         dbg_obj.dd_soltn = dd_soltn  # type: ignore
 
-    return (  # pylint: disable=duplicate-code
-        jitter,
-        array(t_jitter),
-        isi,
-        dcd,
-        float(pj),
-        rj,
-        pjDD,
-        rjDD,
-        tie_ind,
-        thresh[:half_len],
-        jitter_spectrum,
-        tie_ind_spectrum,
-        jitter_freqs,
-        hist_tot_smooth,
-        hist_ind_smooth,
-        centers,  # Returning just one requires `use_my_hist` True.
-        mu_pos,
-        mu_neg,
+    return JitterAnalysis(
+        tie=jitter,
+        t_jitter=array(t_jitter),
+        isi=isi,
+        dcd=dcd,
+        pj=float(pj),
+        rj=rj,
+        pjDD=pjDD,
+        rjDD=rjDD,
+        tie_ind=tie_ind,
+        thresh=thresh[:half_len],
+        jitter_spectrum=jitter_spectrum,
+        jitter_ind_spectrum=tie_ind_spectrum,
+        spectrum_freqs=jitter_freqs,
+        hist=hist_tot_smooth,
+        hist_synth=hist_ind_smooth,
+        bin_centers=centers,
+        mu_pos=mu_pos,
+        mu_neg=mu_neg,
     )

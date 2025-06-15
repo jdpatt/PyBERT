@@ -56,6 +56,7 @@ from pybert.utility import (
     safe_log10,
     trim_impulse,
 )
+from pybert.utility.jitter import JitterAnalysis
 
 clock = perf_counter
 
@@ -182,41 +183,41 @@ def calculate_plotting_data(self):
         )
 
     # Bathtub curve calculations
-    jitter_bins = self.jitter_bins
+    jitter_bins = self.chnl_jitter.bin_centers
     bathtub_chnl = make_bathtub(
         jitter_bins,
-        self.jitter_chnl,
+        self.chnl_jitter.hist,
         min_val=0.1 * MIN_BATHTUB_VAL,
-        rj=self.rjDD_chnl,
-        mu_r=self.mu_pos_chnl,
-        mu_l=self.mu_neg_chnl,
+        rj=self.chnl_jitter.rjDD,
+        mu_r=self.chnl_jitter.mu_pos,
+        mu_l=self.chnl_jitter.mu_neg,
         extrap=True,
     )
     bathtub_tx = make_bathtub(
         jitter_bins,
-        self.jitter_tx,
+        self.tx_jitter.hist,
         min_val=0.1 * MIN_BATHTUB_VAL,
-        rj=self.rjDD_tx,
-        mu_r=self.mu_pos_tx,
-        mu_l=self.mu_neg_tx,
+        rj=self.tx_jitter.rjDD,
+        mu_r=self.tx_jitter.mu_pos,
+        mu_l=self.tx_jitter.mu_neg,
         extrap=True,
     )
     bathtub_ctle = make_bathtub(
         jitter_bins,
-        self.jitter_ctle,
+        self.ctle_jitter.hist,
         min_val=0.1 * MIN_BATHTUB_VAL,
-        rj=self.rjDD_ctle,
-        mu_r=self.mu_pos_ctle,
-        mu_l=self.mu_neg_ctle,
+        rj=self.ctle_jitter.rjDD,
+        mu_r=self.ctle_jitter.mu_pos,
+        mu_l=self.ctle_jitter.mu_neg,
         extrap=True,
     )
     bathtub_dfe = make_bathtub(
         jitter_bins,
-        self.jitter_dfe,
+        self.dfe_jitter.hist,
         min_val=0.1 * MIN_BATHTUB_VAL,
-        rj=self.rjDD_dfe,
-        mu_r=self.mu_pos_dfe,
-        mu_l=self.mu_neg_dfe,
+        rj=self.dfe_jitter.rjDD,
+        mu_r=self.dfe_jitter.mu_pos,
+        mu_l=self.dfe_jitter.mu_neg,
         extrap=True,
     )
     len_t = len(self.t_ns)
@@ -285,36 +286,36 @@ def calculate_plotting_data(self):
         ],
         # Jitter data
         "jitter_data": [
-            self.jitter_chnl * 1e-12,
-            self.jitter_tx * 1e-12,
-            self.jitter_ctle * 1e-12,
-            self.jitter_dfe * 1e-12,
+            self.chnl_jitter.hist * 1e-12,
+            self.tx_jitter.hist * 1e-12,
+            self.ctle_jitter.hist * 1e-12,
+            self.dfe_jitter.hist * 1e-12,
         ],
         "jitter_ext_data": [
-            self.jitter_ext_chnl * 1e-12,
-            self.jitter_ext_tx * 1e-12,
-            self.jitter_ext_ctle * 1e-12,
-            self.jitter_ext_dfe * 1e-12,
+            self.chnl_jitter.hist_synth * 1e-12,
+            self.tx_jitter.hist_synth * 1e-12,
+            self.ctle_jitter.hist_synth * 1e-12,
+            self.dfe_jitter.hist_synth * 1e-12,
         ],
         # Jitter spectrum data
-        "f_MHz": self.f_MHz[1:],
+        "f_MHz": self.chnl_jitter.spectrum_freqs[1:] * 1e-6,
         "jitter_spectrum": [
-            10.0 * (safe_log10(self.jitter_spectrum_chnl[1:]) - safe_log10(self.ui)),
-            10.0 * (safe_log10(self.jitter_spectrum_tx[1:]) - safe_log10(self.ui)),
-            10.0 * (safe_log10(self.jitter_spectrum_ctle[1:]) - safe_log10(self.ui)),
-            10.0 * (safe_log10(self.jitter_spectrum_dfe[1:]) - safe_log10(self.ui)),
+            10.0 * (safe_log10(self.chnl_jitter.jitter_spectrum[1:]) - safe_log10(self.ui)),
+            10.0 * (safe_log10(self.tx_jitter.jitter_spectrum[1:]) - safe_log10(self.ui)),
+            10.0 * (safe_log10(self.ctle_jitter.jitter_spectrum[1:]) - safe_log10(self.ui)),
+            10.0 * (safe_log10(self.dfe_jitter.jitter_spectrum[1:]) - safe_log10(self.ui)),
         ],
         "jitter_ind_spectrum": [
-            10.0 * (safe_log10(self.jitter_ind_spectrum_chnl[1:]) - safe_log10(self.ui)),
-            10.0 * (safe_log10(self.jitter_ind_spectrum_tx[1:]) - safe_log10(self.ui)),
-            10.0 * (safe_log10(self.jitter_ind_spectrum_ctle[1:]) - safe_log10(self.ui)),
-            10.0 * (safe_log10(self.jitter_ind_spectrum_dfe[1:]) - safe_log10(self.ui)),
+            10.0 * (safe_log10(self.chnl_jitter.jitter_ind_spectrum[1:]) - safe_log10(self.ui)),
+            10.0 * (safe_log10(self.tx_jitter.jitter_ind_spectrum[1:]) - safe_log10(self.ui)),
+            10.0 * (safe_log10(self.ctle_jitter.jitter_ind_spectrum[1:]) - safe_log10(self.ui)),
+            10.0 * (safe_log10(self.dfe_jitter.jitter_ind_spectrum[1:]) - safe_log10(self.ui)),
         ],
         "jitter_thresh": [
-            10.0 * (safe_log10(self.thresh_chnl[1:]) - safe_log10(self.ui)),
-            10.0 * (safe_log10(self.thresh_tx[1:]) - safe_log10(self.ui)),
-            10.0 * (safe_log10(self.thresh_ctle[1:]) - safe_log10(self.ui)),
-            10.0 * (safe_log10(self.thresh_dfe[1:]) - safe_log10(self.ui)),
+            10.0 * (safe_log10(self.chnl_jitter.thresh[1:]) - safe_log10(self.ui)),
+            10.0 * (safe_log10(self.tx_jitter.thresh[1:]) - safe_log10(self.ui)),
+            10.0 * (safe_log10(self.ctle_jitter.thresh[1:]) - safe_log10(self.ui)),
+            10.0 * (safe_log10(self.dfe_jitter.thresh[1:]) - safe_log10(self.ui)),
         ],
         # Frequency response data
         "f_GHz": self.f / 1.0e9,
@@ -815,23 +816,10 @@ def run_simulation(self, aborted_sim: Optional[Callable[[], bool]] = None):
     self.clock_times = sample_times
 
     # Analyze the jitter.
-    self.thresh_tx = array([])
-    self.jitter_ext_tx = array([])
-    self.jitter_tx = array([])
-    self.jitter_spectrum_tx = array([])
-    self.jitter_ind_spectrum_tx = array([])
-    self.thresh_ctle = array([])
-    self.jitter_ext_ctle = array([])
-    self.jitter_ctle = array([])
-    self.jitter_spectrum_ctle = array([])
-    self.jitter_ind_spectrum_ctle = array([])
-    self.thresh_dfe = array([])
-    self.jitter_ext_dfe = array([])
-    self.jitter_dfe = array([])
-    self.jitter_spectrum_dfe = array([])
-    self.jitter_ind_spectrum_dfe = array([])
-    self.f_MHz_dfe = array([])
-    self.jitter_rejection_ratio = array([])
+    self.chnl_jitter = None
+    self.tx_jitter = None
+    self.ctle_jitter = None
+    self.dfe_jitter = None
 
     # The pattern length must be doubled in the duo-binary and PAM-4 cases anyway, because:
     #  - in the duo-binary case, the XOR pre-coding can invert every other pattern rep., and
@@ -867,170 +855,29 @@ def run_simulation(self, aborted_sim: Optional[Callable[[], bool]] = None):
         ofst = (argmax(sig.correlate(chnl_out, x)) - len_x_m1) * Ts
         actual_xings = find_crossings(t, chnl_out, decision_scaler, mod_type=mod_type)
         actual_xings_jit = eye_xings(actual_xings, ofst)
-        (
-            tie,
-            t_jitter,
-            isi,
-            dcd,
-            pj,
-            rj,
-            pjDD,
-            rjDD,
-            tie_ind,
-            thresh,
-            jitter_spectrum,
-            jitter_ind_spectrum,
-            spectrum_freqs,
-            hist,
-            hist_synth,
-            bin_centers,
-            mu_pos,
-            mu_neg,
-        ) = calc_jitter(ui, eye_uis, pattern_len, ideal_xings_jit, actual_xings_jit, rel_thresh)
-        self.t_jitter = t_jitter
-        self.isi_chnl = isi
-        self.dcd_chnl = dcd
-        self.pj_chnl = pj
-        self.rj_chnl = rj
-        self.pjDD_chnl = pjDD
-        self.rjDD_chnl = rjDD
-        self.mu_pos_chnl = mu_pos
-        self.mu_neg_chnl = mu_neg
-        self.thresh_chnl = thresh
-        self.jitter_chnl = hist
-        self.jitter_ext_chnl = hist_synth
-        self.jitter_bins = bin_centers
-        self.jitter_spectrum_chnl = jitter_spectrum
-        self.jitter_ind_spectrum_chnl = jitter_ind_spectrum
-        self.f_MHz = array(spectrum_freqs) * 1.0e-6
+        self.chnl_jitter = calc_jitter(ui, eye_uis, pattern_len, ideal_xings_jit, actual_xings_jit, rel_thresh)
         self.ofst_chnl = ofst
-        self.tie_chnl = tie
-        self.tie_ind_chnl = tie_ind
 
         # - Tx output
         ofst = (argmax(sig.correlate(rx_in, x)) - len_x_m1) * Ts
         actual_xings = find_crossings(t, rx_in, decision_scaler, mod_type=mod_type)
         actual_xings_jit = eye_xings(actual_xings, ofst)
-        (
-            tie,
-            t_jitter,
-            isi,
-            dcd,
-            pj,
-            rj,
-            pjDD,
-            rjDD,
-            tie_ind,
-            thresh,
-            jitter_spectrum,
-            jitter_ind_spectrum,
-            spectrum_freqs,
-            hist,
-            hist_synth,
-            bin_centers,
-            mu_pos,
-            mu_neg,
-        ) = calc_jitter(ui, eye_uis, pattern_len, ideal_xings_jit, actual_xings_jit, rel_thresh)
-        self.isi_tx = isi
-        self.dcd_tx = dcd
-        self.pj_tx = pj
-        self.rj_tx = rj
-        self.pjDD_tx = pjDD
-        self.rjDD_tx = rjDD
-        self.mu_pos_tx = mu_pos
-        self.mu_neg_tx = mu_neg
-        self.thresh_tx = thresh
-        self.jitter_tx = hist
-        self.jitter_ext_tx = hist_synth
-        self.jitter_centers_tx = bin_centers
-        self.jitter_spectrum_tx = jitter_spectrum
-        self.jitter_ind_spectrum_tx = jitter_ind_spectrum
-        self.jitter_freqs_tx = spectrum_freqs
-        self.t_jitter_tx = t_jitter
-        self.tie_tx = tie
-        self.tie_ind_tx = tie_ind
+        self.tx_jitter = calc_jitter(ui, eye_uis, pattern_len, ideal_xings_jit, actual_xings_jit, rel_thresh)
 
         # - CTLE output
         ofst = (argmax(sig.correlate(ctle_out, x)) - len_x_m1) * Ts
         actual_xings = find_crossings(t, ctle_out, decision_scaler, mod_type=mod_type)
         actual_xings_jit = eye_xings(actual_xings, ofst)
-        (
-            tie,
-            t_jitter,
-            isi,
-            dcd,
-            pj,
-            rj,
-            pjDD,
-            rjDD,
-            tie_ind,
-            thresh,
-            jitter_spectrum,
-            jitter_ind_spectrum,
-            spectrum_freqs,
-            hist,
-            hist_synth,
-            bin_centers,
-            mu_pos,
-            mu_neg,
-        ) = calc_jitter(ui, eye_uis, pattern_len, ideal_xings_jit, actual_xings_jit, rel_thresh)
-        self.isi_ctle = isi
-        self.dcd_ctle = dcd
-        self.pj_ctle = pj
-        self.rj_ctle = rj
-        self.pjDD_ctle = pjDD
-        self.rjDD_ctle = rjDD
-        self.mu_pos_ctle = mu_pos
-        self.mu_neg_ctle = mu_neg
-        self.thresh_ctle = thresh
-        self.jitter_ctle = hist
-        self.jitter_ext_ctle = hist_synth
-        self.jitter_spectrum_ctle = jitter_spectrum
-        self.jitter_ind_spectrum_ctle = jitter_ind_spectrum
-        self.tie_ctle = tie
-        self.tie_ind_ctle = tie_ind
+        self.ctle_jitter = calc_jitter(ui, eye_uis, pattern_len, ideal_xings_jit, actual_xings_jit, rel_thresh)
 
         # - DFE output
         ofst = (argmax(sig.correlate(dfe_out, x)) - len_x_m1) * Ts
         actual_xings = find_crossings(t, dfe_out, decision_scaler, mod_type=mod_type)
         actual_xings_jit = eye_xings(actual_xings, ofst)
-        (
-            tie,
-            t_jitter,
-            isi,
-            dcd,
-            pj,
-            rj,
-            pjDD,
-            rjDD,
-            tie_ind,
-            thresh,
-            jitter_spectrum,
-            jitter_ind_spectrum,
-            spectrum_freqs,
-            hist,
-            hist_synth,
-            bin_centers,
-            mu_pos,
-            mu_neg,
-        ) = calc_jitter(ui, eye_uis, pattern_len, ideal_xings_jit, actual_xings_jit, rel_thresh, dbg_obj=self)
-        self.isi_dfe = isi
-        self.dcd_dfe = dcd
-        self.pj_dfe = pj
-        self.rj_dfe = rj
-        self.pjDD_dfe = pjDD
-        self.rjDD_dfe = rjDD
-        self.mu_pos_dfe = mu_pos
-        self.mu_neg_dfe = mu_neg
-        self.thresh_dfe = thresh
-        self.jitter_dfe = hist
-        self.jitter_ext_dfe = hist_synth
-        self.jitter_spectrum_dfe = jitter_spectrum
-        self.jitter_ind_spectrum_dfe = jitter_ind_spectrum
-        self.tie_dfe = tie
-        self.tie_ind_dfe = tie_ind
-        self.f_MHz_dfe = array(spectrum_freqs) * 1.0e-6
-        dfe_spec = self.jitter_spectrum_dfe
+        self.dfe_jitter = calc_jitter(
+            ui, eye_uis, pattern_len, ideal_xings_jit, actual_xings_jit, rel_thresh, dbg_obj=self
+        )
+        dfe_spec = self.dfe_jitter.jitter_spectrum
         self.jitter_rejection_ratio = zeros(len(dfe_spec))
 
         perf.jitter = nbits * nspb / (clock() - split_time)

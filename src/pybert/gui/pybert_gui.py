@@ -168,16 +168,25 @@ class PyBERTGUI(QMainWindow):
         logger.addHandler(status_bar_handler)
         status_bar_handler.new_record.connect(self.status_bar.showMessage)
 
-    def update_status_bar(self, results, perf):
-        """Update the status bar with the performance metrics."""
-        self.perf_label.setText(f"Perf: {perf.total * 6e-05:6.3f} Msmpls/min")
-        self.delay_label.setText(f"Channel Delay: {self.pybert.chnl_dly * 1000000000.0:5.3f} ns")
-        self.errors_label.setText(f"Bit Errors: {int(self.pybert.bit_errs)}")
-        self.power_label.setText(f"Tx Power: {self.pybert.rel_power * 1e3:3.0f} mW")
-        self.isi_label.setText(f"ISI: {self.pybert.isi_dfe* 1.0e12:6.1f} ps")
-        self.dcd_label.setText(f"DCD: {self.pybert.dcd_dfe* 1.0e12:6.1f} ps")
-        self.pj_label.setText(f"Pj: {self.pybert.pj_dfe* 1.0e12:6.1f} ({self.pybert.pjDD_dfe * 1.0e12:6.1f}) ps")
-        self.rj_label.setText(f"Rj: {self.pybert.rj_dfe* 1.0e12:6.1f} ({self.pybert.rjDD_dfe * 1.0e12:6.1f}) ps")
+    def update_status_bar(self, results=None, perf=None):
+        """Update the status bar with performance metrics and jitter values.
+
+        Args:
+            results: Optional simulation results
+            perf: Optional performance metrics
+        """
+        # Update performance metrics if available
+        if perf:
+            self.perf_label.setText(f"Perf: {perf.total * 6e-05:6.3f} Msmpls/min")
+            self.delay_label.setText(f"Channel Delay: {self.pybert.chnl_dly * 1e9:5.3f} ns")
+            self.errors_label.setText(f"Bit Errors: {int(self.pybert.bit_errs)}")
+            self.power_label.setText(f"Tx Power: {self.pybert.rel_power * 1e3:3.0f} mW")
+
+        jitter = self.pybert.dfe_jitter
+        self.isi_label.setText(f"ISI: {jitter.isi * 1.0e12:6.1f} ps")
+        self.dcd_label.setText(f"DCD: {jitter.dcd * 1.0e12:6.1f} ps")
+        self.pj_label.setText(f"Pj: {jitter.pj * 1.0e12:6.1f} ({jitter.pjDD * 1.0e12:6.1f}) ps")
+        self.rj_label.setText(f"Rj: {jitter.rj * 1.0e12:6.1f} ({jitter.rjDD * 1.0e12:6.1f}) ps")
 
     def create_file_menu(self):
         """Create the file menu for the application with the basic resetting, loading, saving, and quitting."""
