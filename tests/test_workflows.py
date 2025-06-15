@@ -57,19 +57,19 @@ class TestAcrossAllSimulationWorkflows:
 
     def test_isi(self):
         """Test ISI portion of jitter."""
-        assert self.dut.isi_dfe < 50e-12, "ISI is too high!"
+        assert self.dut.dfe_jitter.isi < 50e-12, "ISI is too high!"
 
     def test_dcd(self):
         """Test DCD portion of jitter."""
-        assert self.dut.dcd_dfe < 20e-12, "DCD is too high!"
+        assert self.dut.dfe_jitter.dcd < 20e-12, "DCD is too high!"
 
     def test_pj(self):
         """Test periodic portion of jitter."""
-        assert self.dut.pj_dfe < 20e-12, "Periodic jitter is too high!"
+        assert self.dut.dfe_jitter.pj < 20e-12, "Periodic jitter is too high!"
 
     def test_rj(self):
         """Test random portion of jitter."""
-        assert self.dut.rj_dfe < 20e-12, "Random jitter is too high!"
+        assert self.dut.dfe_jitter.rj < 20e-12, "Random jitter is too high!"
 
     def test_lock(self):
         """Test CDR lock, by ensuring that last 20% of locked indication vector

@@ -57,6 +57,7 @@ from pybert.utility import (
     sdd_21,
     trim_impulse,
 )
+from pybert.utility.jitter import JitterAnalysis
 
 logger = logging.getLogger("pybert")
 
@@ -240,30 +241,11 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
         self.rx_cfg = None
         self.rx_model = None
 
-        self.isi_chnl = 0
-        self.dcd_chnl = 0
-        self.pj_chnl = 0
-        self.rj_chnl = 0
-        self.pjDD_chnl = 0
-        self.rjDD_chnl = 0
-        self.isi_tx = 0
-        self.dcd_tx = 0
-        self.pj_tx = 0
-        self.rj_tx = 0
-        self.pjDD_tx = 0
-        self.rjDD_tx = 0
-        self.isi_ctle = 0
-        self.dcd_ctle = 0
-        self.pj_ctle = 0
-        self.rj_ctle = 0
-        self.pjDD_ctle = 0
-        self.rjDD_ctle = 0
-        self.isi_dfe = 0
-        self.dcd_dfe = 0
-        self.pj_dfe = 0
-        self.rj_dfe = 0
-        self.pjDD_dfe = 0
-        self.rjDD_dfe = 0
+        # Initialize jitter analysis objects
+        self.chnl_jitter: JitterAnalysis | None = None
+        self.tx_jitter: JitterAnalysis | None = None
+        self.ctle_jitter: JitterAnalysis | None = None
+        self.dfe_jitter: JitterAnalysis | None = None
 
         # Threading and Processing
         self.simulation_thread: Optional[SimulationThread] = None  # Simulation Thread
