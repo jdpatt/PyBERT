@@ -60,7 +60,7 @@ def run_ami_model(
     """
 
     if not isinstance(model, AMIModel):
-        raise TypeError("model must be an AMIModel instance")
+        raise TypeError(f"Model must be an AMIModel instance, got {type(model)}")
 
     # Validate the model against the requested use mode.
     if use_getwave:
@@ -79,6 +79,7 @@ def run_ami_model(
     model_init.sample_interval = ts  # Must be set, before 'channel_response'!
     model_init.channel_response = chnl_h / ts
     model_init.bit_time = ui
+    logger.debug(f"Initializing model with {model_init}")
     model.initialize(model_init)
     params_out = model.ami_params_out
     msg = "\n".join(

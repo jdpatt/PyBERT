@@ -135,7 +135,7 @@ class RxConfigWidget(QWidget):
             # Update equalization
             self.rx_equalization.update_widget_from_model()
             self.ibis_ami_manager.update_widget_from_model()
-        self._toggle_ibis_native_or_model()
+        self.stacked_widget.setCurrentIndex(1 if self.ibis_radio.isChecked() else 0)
 
     def connect_signals(self, pybert: "PyBERT") -> None:
         """Connect widget signals to PyBERT instance."""

@@ -44,7 +44,7 @@ class IbisAmiManager(QObject):
         self.parent = parent
 
         self.ibis_model = None
-        self.ami_model = None
+        self.ami_config = None
         self.dll_model = None
 
         # Create the widgets with their respective parents
@@ -112,27 +112,30 @@ class IbisAmiManager(QObject):
 
     def _handle_ami_configure_btn_clicked(self) -> None:
         """The user has clicked the configure button, show the AMI configurator."""
-        if self.ami_model is not None:
-            self.ami_model.gui()
+        if self.ami_config is not None:
+            self.ami_config.gui()
 
     def _handle_new_ami_model_selected(self) -> None:
         """The user has selected a new AMI model, load it and update the view."""
-        self.ami_model = self.pybert.load_ami_configurator(self.ibis_model.ami_file, is_tx=self.is_tx)
-        if self.ami_model is not None:
+        self.ami_config = self.pybert.load_ami_configurator(self.ibis_model.ami_file, is_tx=self.is_tx)
+        self.dll_model = self.pybert.load_dll_model(self.ibis_model.dll_file, is_tx=self.is_tx)
+        if self.ami_config is not None and self.dll_model is not None:
             self.ami_widget.set_status("valid")
-            setattr(self.pybert, f"{self.direction}_ami", self.ami_model)
+            setattr(self.pybert, f"{self.direction}_ami", self.ami_config)
             setattr(self.pybert, f"{self.direction}_ami_valid", True)
             setattr(self.pybert, f"{self.direction}_use_ami", True)
             setattr(self.pybert, f"{self.direction}_ami_file", self.ibis_model.ami_file)
             setattr(self.pybert, f"{self.direction}_dll_file", self.ibis_model.dll_file)
-            setattr(self.pybert, f"{self.direction}_has_getwave", self.ami_model.getwave_exists())
-            setattr(self.pybert, f"{self.direction}_has_ts4", self.ami_model.ts4file() is not None)
+            setattr(self.pybert, f"{self.direction}_has_getwave", self.ami_config.getwave_exists())
+            setattr(self.pybert, f"{self.direction}_has_ts4", self.ami_config.ts4file() is not None)
+            setattr(self.pybert, f"{self.direction}_model", self.dll_model)
             self.ami_widget.configure_btn.setEnabled(True)
             self.ami_widget.set_filepaths(self.ibis_model.ami_file, self.ibis_model.dll_file)
             self.ami_changed.emit()
         else:
             self.ami_widget.set_status("invalid")
             setattr(self.pybert, f"{self.direction}_ami", None)
+            setattr(self.pybert, f"{self.direction}_model", None)
             setattr(self.pybert, f"{self.direction}_ami_valid", False)
             setattr(self.pybert, f"{self.direction}_use_ami", False)
             setattr(self.pybert, f"{self.direction}_has_getwave", False)

@@ -115,7 +115,7 @@ class TxEqualizationWidget(QGroupBox):
             if hasattr(self.pybert, "tx_taps"):
                 self.set_taps(self.pybert.tx_taps)
 
-        self._toggle_ami_native_or_ibis()
+        self.stacked_widget.setCurrentIndex(1 if self.ibis_radio.isChecked() else 0)
 
     def _toggle_ami_native_or_ibis(self) -> None:
         """Show only the selected group (IBIS or Native) using stacked layout."""

@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from pybert.gui.widgets.utils import block_signals
 from pybert.models.tx_tap import TxTapTuner
 
 
@@ -108,19 +109,17 @@ class RxOptimizationDFEWidget(QGroupBox):
 
     def _disable_all_taps(self) -> None:
         """Disable all DFE taps."""
-        self.dfe_table.blockSignals(True)
-        for i in range(self.dfe_table.rowCount()):
-            self.dfe_table.item(i, 1).setCheckState(Qt.Unchecked)
-        self.dfe_table.blockSignals(False)
+        with block_signals(self.dfe_table):
+            for i in range(self.dfe_table.rowCount()):
+                self.dfe_table.item(i, 1).setCheckState(Qt.Unchecked)
         # Manually trigger the update once
         setattr(self.pybert, "dfe_tap_tuners", self.get_dfe_tap_values())
 
     def _enable_all_taps(self) -> None:
         """Enable all DFE taps."""
-        self.dfe_table.blockSignals(True)
-        for i in range(self.dfe_table.rowCount()):
-            self.dfe_table.item(i, 1).setCheckState(Qt.Checked)
-        self.dfe_table.blockSignals(False)
+        with block_signals(self.dfe_table):
+            for i in range(self.dfe_table.rowCount()):
+                self.dfe_table.item(i, 1).setCheckState(Qt.Checked)
         # Manually trigger the update once
         setattr(self.pybert, "dfe_tap_tuners", self.get_dfe_tap_values())
 

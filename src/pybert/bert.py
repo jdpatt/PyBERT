@@ -524,7 +524,7 @@ def run_simulation(self, aborted_sim: Optional[Callable[[], bool]] = None):
             logger.info("Running CTLE...")
             if self.rx_use_ami and self.rx_use_getwave:
                 ctle_out, _, ctle_h, ctle_out_h, msg, _params = run_ami_model(
-                    self.rx_ibis, self.rx_cfg, True, ui, ts, tx_out_h, convolve(tx_out, chnl_h)
+                    self.rx_model, self.rx_cfg, True, ui, ts, tx_out_h, convolve(tx_out, chnl_h)
                 )
                 params = _params
                 logger.info(f"Rx IBIS-AMI model initialization results:\n{msg}")
@@ -533,7 +533,7 @@ def run_simulation(self, aborted_sim: Optional[Callable[[], bool]] = None):
             else:  # Rx is either AMI_Init() or PyBERT native.
                 if self.rx_use_ami:  # Rx Init()
                     _, _, ctle_h, ctle_out_h, msg, _ = run_ami_model(
-                        self.rx_ibis, self.rx_cfg, False, ui, ts, chnl_h, tx_out
+                        self.rx_model, self.rx_cfg, False, ui, ts, chnl_h, tx_out
                     )
                     logger.info(f"Rx IBIS-AMI model initialization results:\n{msg}")
                     ctle_out = convolve(tx_out, ctle_out_h)[: len(tx_out)]
@@ -543,7 +543,7 @@ def run_simulation(self, aborted_sim: Optional[Callable[[], bool]] = None):
                     ctle_out = convolve(tx_out, convolve(ctle_h, chnl_h))[: len(tx_out)]
         else:  # Tx is either AMI_Init() or PyBERT native.
             if self.tx_use_ami:  # Tx is AMI_Init().
-                rx_in, _, tx_h, tx_out_h, msg, _ = run_ami_model(self.tx_ibis, self.tx_cfg, False, ui, ts, chnl_h, x)
+                rx_in, _, tx_h, tx_out_h, msg, _ = run_ami_model(self.tx_model, self.tx_cfg, False, ui, ts, chnl_h, x)
                 logger.info(f"Tx IBIS-AMI model initialization results:\n{msg}")
                 rx_in += noise
             else:  # Tx is PyBERT native.
@@ -560,7 +560,7 @@ def run_simulation(self, aborted_sim: Optional[Callable[[], bool]] = None):
             logger.info("Running CTLE...")
             if self.rx_use_ami and self.rx_use_getwave:
                 ctle_out, clock_times, ctle_h, ctle_out_h, msg, _params = run_ami_model(
-                    self.rx_ibis, self.rx_cfg, True, ui, ts, tx_out_h, rx_in
+                    self.rx_model, self.rx_cfg, True, ui, ts, tx_out_h, rx_in
                 )
                 params = _params
                 logger.info(f"Rx IBIS-AMI model initialization results:\n{msg}")
@@ -621,7 +621,7 @@ def run_simulation(self, aborted_sim: Optional[Callable[[], bool]] = None):
             else:  # Rx is either AMI_Init() or PyBERT native.
                 if self.rx_use_ami:  # Rx Init()
                     ctle_out, _, ctle_h, ctle_out_h, msg, _ = run_ami_model(
-                        self.rx_ibis, self.rx_cfg, False, ui, ts, tx_out_h, x
+                        self.rx_model, self.rx_cfg, False, ui, ts, tx_out_h, x
                     )
                     logger.info(f"Rx IBIS-AMI model initialization results:\n{msg}")
                     ctle_out += noise

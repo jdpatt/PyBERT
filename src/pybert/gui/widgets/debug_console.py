@@ -6,6 +6,7 @@ messages.
 
 import logging
 
+from PySide6.QtCore import QMutex
 from PySide6.QtWidgets import QDockWidget, QTextEdit
 
 from pybert.utility.logger import QTextEditHandler, log_user_system_information
@@ -21,6 +22,7 @@ class DebugConsoleWidget(QDockWidget):
             parent: Optional parent widget
         """
         super().__init__("Debug Console", parent)
+        self._mutex = QMutex()
 
         # Create text edit widget
         self.text_edit = QTextEdit()
@@ -59,10 +61,14 @@ class DebugConsoleWidget(QDockWidget):
         Args:
             msg: Message to append
         """
-        self.text_edit.append(msg)
-        # Scroll to bottom
-        scrollbar = self.text_edit.verticalScrollBar()
-        scrollbar.setValue(scrollbar.maximum())
+        self._mutex.lock()
+        try:
+            self.text_edit.append(msg)
+            # Scroll to bottom
+            scrollbar = self.text_edit.verticalScrollBar()
+            scrollbar.setValue(scrollbar.maximum())
+        finally:
+            self._mutex.unlock()
 
 
 class DebugConsoleHandler(logging.Handler):
