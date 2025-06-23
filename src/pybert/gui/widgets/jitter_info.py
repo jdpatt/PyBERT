@@ -83,14 +83,6 @@ class JitterInfoTable(QTableWidget):
     def setup_ui(self):
         """Initialize the table UI."""
         self.setAlternatingRowColors(True)
-        self.setStyleSheet(
-            """
-            QTableWidget {
-                alternate-background-color: #f0f0f0;
-                background-color: white;
-            }
-        """
-        )
         self.setColumnCount(5)
         self.setRowCount(16)
         self.setHorizontalHeaderLabels(["Location", "Component", "Input (ps)", "Output (ps)", "Rejection (dB)"])

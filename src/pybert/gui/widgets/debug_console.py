@@ -34,10 +34,10 @@ class DebugConsoleWidget(QDockWidget):
         self.setWidget(self.text_edit)
 
         # Create and add log handler using the existing QTextEditHandler
-        log_handler = QTextEditHandler(level=logging.DEBUG if show_debug else logging.INFO)
+        self.log_handler = QTextEditHandler(level=logging.DEBUG if show_debug else logging.INFO)
         logger = logging.getLogger("pybert")
-        logger.addHandler(log_handler)
-        log_handler.new_record.connect(self.append_message)  # Use the slot/signal to remain thread safe.
+        logger.addHandler(self.log_handler)
+        self.log_handler.new_record.connect(self.append_message)  # Use the slot/signal to remain thread safe.
 
         if show_debug:
             self.show()

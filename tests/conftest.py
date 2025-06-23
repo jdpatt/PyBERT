@@ -14,7 +14,7 @@ logging.basicConfig(level=logging.INFO)
 def dut():
     """Return an initialized pybert object that has already run the initial simulation."""
     dut = PyBERT()
-    dut.simulate(wait_for_completion=True)
+    dut.simulate(block=True)
     yield dut
 
 
@@ -23,7 +23,7 @@ def dut_imp_len():
     """Return an initialized pybert object with manually controlled channel impulse response length."""
     dut = PyBERT(run_simulation=False)
     dut.impulse_length = 10  # (ns)
-    dut.simulate()
+    dut.simulate(block=True)
     yield dut
 
 
@@ -37,7 +37,7 @@ def ibisami_rx_init():
     dut.rx_ibis_file = "models/ibisami/example_rx.ibs"
     dut.rx_use_ibis = True
     dut.rx_use_ami = True
-    dut.simulate()
+    dut.simulate(block=True)
     yield dut
 
 
@@ -52,7 +52,7 @@ def ibisami_rx_getwave():
     dut.rx_use_ibis = True
     dut.rx_use_ami = True
     dut.rx_use_getwave = True
-    dut.simulate()
+    dut.simulate(block=True)
     yield dut
 
 
@@ -68,5 +68,5 @@ def ibisami_rx_getwave_clocked():
     dut.rx_use_ami = True
     dut.rx_use_getwave = True
     dut.rx_use_clocks = True
-    dut.simulate()
+    dut.simulate(block=True)
     yield dut

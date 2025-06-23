@@ -46,7 +46,7 @@ def sim(config_file, results):
     """
     pybert = PyBERT()
     pybert.load_configuration(config_file)
-    pybert.simulate(wait_for_completion=True)
+    pybert.simulate(block=True)
     if not results:
         results = Path(config_file).with_suffix(".pybert_data")
     pybert.save_results(results)

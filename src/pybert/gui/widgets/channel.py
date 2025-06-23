@@ -148,12 +148,6 @@ class ChannelConfigWidget(QGroupBox):
         self.file_list = QListWidget(self)
         self.file_list.setDragDropMode(QListWidget.InternalMove)
         self.file_list.setAlternatingRowColors(True)
-        self.file_list.setStyleSheet(
-            """
-            QListWidget::item:alternate { background: #f0f0f0; }
-            QListWidget::item { background: #ffffff; }
-            """
-        )
         self.file_list.model().rowsMoved.connect(self._update_file_groups_state)
         self.file_list.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
         file_layout.addWidget(self.file_list, stretch=1)

@@ -380,7 +380,6 @@ def calc_jitter(  # pylint: disable=too-many-arguments,too-many-locals,too-many-
         t_jitter.append(ideal_xing)
     jitter = array(jitterL)
 
-    # ToDo: Report this in the status bar.
     if len(jitter) == 0 or len(t_jitter) == 0:
         logger.error("No crossings found!")
 

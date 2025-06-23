@@ -885,14 +885,12 @@ def run_simulation(self, aborted_sim: Optional[Callable[[], bool]] = None):
         logger.error(f"The jitter calculation could not be completed, due to the following error:\n{err}")
         # raise
 
-    split_time = clock()
+    perf.total = nbits * nspb / (clock() - perf.start_time)
+    perf.end_time = clock()
     logger.info("Generating plot data...")
 
     plotting_data = calculate_plotting_data(self)
-    perf.plotting = nbits * nspb / (clock() - split_time)
-
-    perf.total = nbits * nspb / (clock() - perf.start_time)
-    perf.end_time = clock()
+    perf.plotting = nbits * nspb / (clock() - perf.end_time)
     logger.info(f"Simulation complete. Duration: {round(perf.end_time - perf.start_time, 3)} s")
     logger.info(str(perf))
 

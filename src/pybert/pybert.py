@@ -759,17 +759,56 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
         else:
             logger.error("No results to save. Please run a simulation first.")
 
-    def simulate(self, wait_for_completion: bool = False):
-        """Start a simulation of the current configuration in a separate thread."""
+    def _wait_for_results(self, timeout: int):
+        """Wait for simulation results to be available by polling the result queue.
+
+        Args:
+            timeout: Maximum time to wait in seconds.
+
+        Returns:
+            The simulation results.
+
+        Raises:
+            TimeoutError: If results are not available within the timeout period.
+        """
+        import time
+        start_time = time.time()
+        while self.last_results is None and (time.time() - start_time) < timeout:
+            # Poll the result queue to process any pending results
+            self.poll_results()
+            time.sleep(0.1)  # Small delay to avoid busy waiting
+
+        if self.last_results is None:
+            raise TimeoutError(f"Simulation results not available after {timeout} seconds")
+
+        return self.last_results
+
+    def simulate(self, block: bool = False, timeout: int = 180):
+        """Start a simulation of the current configuration in a separate thread.
+
+        Args:
+            block: If True, wait for the simulation to complete and return results.
+            timeout: Maximum time to wait for simulation completion in seconds.
+
+        Returns:
+            If block is True, returns the simulation results. Otherwise returns None.
+        """
         if self.simulation_thread and self.simulation_thread.is_alive():
-            pass
+            if block:
+                # Wait for the current simulation to complete
+                return self._wait_for_results(timeout)
+            return None
         elif self.is_valid_configuration():
             logger.info("Starting simulation.")
             self.simulation_thread = SimulationThread()
             self.simulation_thread.pybert = self
             self.simulation_thread.start()
-            if wait_for_completion:
+            if block:
+                # Wait for the thread to complete
                 self.simulation_thread.join()
+                # Wait for results to be processed
+                return self._wait_for_results(timeout)
+        return None
 
     def stop_simulation(self):
         """Stop the running simulation."""
