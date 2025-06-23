@@ -134,7 +134,7 @@ class RxOptimizationCTLEWidget(QGroupBox):
         self.max_boost.setEnabled(enabled)
         self.step_boost.setEnabled(enabled)
 
-    def set_ctle_boost(self, value: str) -> None:
+    def set_ctle_boost(self, value: float) -> None:
         """Set the current CTLE boost value.
 
         Args:

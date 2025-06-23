@@ -124,16 +124,6 @@ class ResultsTab(QWidget):
             if tab_name == "Eyes":
                 self.tab_widget.setCurrentWidget(tab)
 
-        if pybert:
-            self.connect_signals(pybert)
-
-    def connect_signals(self, pybert) -> None:
-        """Connect the simulation complete signal to the update_results method.
-
-        This is triggered by the PyBERT instance's when a simulation is complete and the GUI needs to be updated.
-        """
-        pybert.sim_complete.connect(self.update_results)
-
     def update_results(self, results, perf):
         """Update all plots using the current PyBERT simulation results."""
         self.jitter_info_table.update_rejection()

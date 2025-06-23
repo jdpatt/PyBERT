@@ -46,7 +46,13 @@ class PyBERTSignals(QObject):
 class PyBERTGUI(QMainWindow):
     """Main window for the PyBERT application."""
 
-    def __init__(self, pybert: PyBERT | None = None, show_debug: bool = False, parent: Optional[QWidget] = None):
+    # Qt Signals for GUI updates from worker threads
+    sim_complete = Signal(object, object)
+    opt_complete = Signal(object)
+    opt_loop_complete = Signal(object)
+    status_update = Signal(str)
+
+    def __init__(self, pybert: PyBERT, show_debug: bool = False, parent: Optional[QWidget] = None):
         """Initialize the main window.
 
         Args:
@@ -55,7 +61,7 @@ class PyBERTGUI(QMainWindow):
             parent: Optional parent widget
         """
         super().__init__(parent)
-        self.pybert: PyBERT = pybert
+        self.pybert = pybert
         self._signals = PyBERTSignals()
 
         self.setWindowTitle(f"PyBERT v{__version__} - Untitled")
@@ -95,15 +101,61 @@ class PyBERTGUI(QMainWindow):
         self.last_config_filepath = None
         self.last_results_filepath = None
 
-        # Connect PyBERT signals if available
+        self.connect_ui_signals()
         if self.pybert:
-            self.connect_signals()
+            self.connect_callbacks()
             self.connect_configuration_signals()
 
-    def connect_signals(self):
-        """Connect PyBERT signals to status bar update slots."""
-        self.pybert.sim_complete.connect(self.update_status_bar)
-        self.pybert.status_update.connect(lambda msg: self.status_bar.showMessage(msg))
+    def connect_callbacks(self):
+        """Connect PyBERT callbacks to GUI update methods."""
+        if not self.pybert:
+            return
+
+        self.pybert.add_simulation_callback(self.handle_simulation_complete)
+        self.pybert.add_optimization_callback(self.handle_optimization_complete)
+        self.pybert.add_optimization_loop_callback(self.handle_optimization_loop)
+        self.pybert.add_status_callback(self.handle_status_update)
+
+    def handle_simulation_complete(self, results: dict, performance: dict):
+        """Handle simulation completion from the worker thread.
+
+        This must just emit a signal so that the GUI thread can schedule the GUI update without
+        blocking the worker thread.
+        """
+        if not self.pybert:
+            return
+        self.sim_complete.emit(results, performance)
+
+    def handle_optimization_complete(self, result: dict):
+        """Handle optimization completion from the worker thread.
+
+        This must just emit a signal so that the GUI thread can schedule the GUI update without
+        blocking the worker thread.
+        """
+        if not self.pybert:
+            return
+        tx_weights = result.get("tx_weights", [])
+        rx_peaking = result.get("rx_peaking", 0)
+        for k, tx_weight in enumerate(tx_weights):
+            self.pybert.tx_tap_tuners[k].value = tx_weight
+        self.pybert.peak_mag_tune = rx_peaking
+        self.opt_complete.emit(self.pybert.peak_mag_tune)
+
+    def handle_optimization_loop(self, result: dict):
+        """Handle optimization loop update from the worker thread.
+
+        This must just emit a signal so that the GUI thread can schedule the GUI update without
+        blocking the worker thread.
+        """
+        self.opt_loop_complete.emit(result)
+
+    def handle_status_update(self, message: str):
+        """Handle status update from the worker thread.
+
+        This must just emit a signal so that the GUI thread can schedule the GUI update without
+        blocking the worker thread.
+        """
+        self.status_update.emit(message)
 
     def connect_configuration_signals(self) -> None:
         """Connect configuration_loaded signal to all configuration widgets."""
@@ -175,6 +227,9 @@ class PyBERTGUI(QMainWindow):
             results: Optional simulation results
             perf: Optional performance metrics
         """
+        if not self.pybert:
+            return
+
         # Update performance metrics if available
         if perf:
             self.perf_label.setText(f"Perf: {perf.total * 6e-05:6.3f} Msmpls/min")
@@ -183,10 +238,11 @@ class PyBERTGUI(QMainWindow):
             self.power_label.setText(f"Tx Power: {self.pybert.rel_power * 1e3:3.0f} mW")
 
         jitter = self.pybert.dfe_jitter
-        self.isi_label.setText(f"ISI: {jitter.isi * 1.0e12:6.1f} ps")
-        self.dcd_label.setText(f"DCD: {jitter.dcd * 1.0e12:6.1f} ps")
-        self.pj_label.setText(f"Pj: {jitter.pj * 1.0e12:6.1f} ({jitter.pjDD * 1.0e12:6.1f}) ps")
-        self.rj_label.setText(f"Rj: {jitter.rj * 1.0e12:6.1f} ({jitter.rjDD * 1.0e12:6.1f}) ps")
+        if jitter:
+            self.isi_label.setText(f"ISI: {jitter.isi * 1.0e12:6.1f} ps")
+            self.dcd_label.setText(f"DCD: {jitter.dcd * 1.0e12:6.1f} ps")
+            self.pj_label.setText(f"Pj: {jitter.pj * 1.0e12:6.1f} ({jitter.pjDD * 1.0e12:6.1f}) ps")
+            self.rj_label.setText(f"Rj: {jitter.rj * 1.0e12:6.1f} ({jitter.rjDD * 1.0e12:6.1f}) ps")
 
     def create_file_menu(self):
         """Create the file menu for the application with the basic resetting, loading, saving, and quitting."""
@@ -473,3 +529,21 @@ class PyBERTGUI(QMainWindow):
         # Update debug console if it exists
         if hasattr(self, "debug_console"):
             self.debug_console.set_logging_level(level)
+
+    def connect_ui_signals(self):
+        """Connect signals to their corresponding UI update slots."""
+        self.sim_complete.connect(self._update_simulation_results)
+        self.opt_complete.connect(self._update_optimization_results)
+        self.opt_loop_complete.connect(self.optimizer_tab.update_plot)
+        self.status_update.connect(self.status_bar.showMessage)
+
+    def _update_simulation_results(self, results: dict, performance: dict):
+        """Slot to update all simulation results widgets. Runs on the main GUI thread."""
+        if not self.pybert:
+            return
+        self.update_status_bar(results, performance)
+        self.results_tab.update_results(results, performance)
+
+    def _update_optimization_results(self, peak_mag: float):
+        """Slot to update optimization result widgets. Runs on the main GUI thread."""
+        self.optimizer_tab.rx_ctle.set_ctle_boost(peak_mag)

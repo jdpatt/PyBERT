@@ -81,8 +81,7 @@ class SimulationThread(StoppableThread):
         """Run the simulation(s)."""
         try:
             results, perf = run_simulation(self.pybert, aborted_sim=self.stopped)
-            self.pybert.result_queue.put({"type": "simulation_complete", "results": results, "performance": perf})
-
+            self.pybert._notify_simulation_complete(results, perf)
         except RuntimeError as err:
             logger.critical(f"Error in `pybert.threads.sim.SimulationThread`: {err}")
             raise

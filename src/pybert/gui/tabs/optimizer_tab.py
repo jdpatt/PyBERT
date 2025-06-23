@@ -98,5 +98,3 @@ class OptimizerTab(QWidget):
         self.tx_optimization.connect_signals(pybert)
         self.rx_ctle.connect_signals(pybert)
         self.rx_dfe.connect_signals(pybert)
-        pybert.opt_loop_complete.connect(self.update_plot)
-        pybert.opt_complete.connect(self.rx_ctle.set_ctle_boost)

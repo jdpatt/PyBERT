@@ -25,6 +25,7 @@ import logging
 import platform
 import queue
 import time
+from concurrent.futures import Future
 from datetime import datetime
 from os.path import dirname, join
 from pathlib import Path
@@ -37,7 +38,6 @@ from numpy.fft import irfft, rfft  # type: ignore
 from numpy.random import randint  # type: ignore
 from pyibisami import AMIModel, AMIParamConfigurator, IBISModel
 from pyibisami import __version__ as PyAMI_VERSION  # type: ignore
-from PySide6.QtCore import QObject, QTimer, Signal
 from scipy.interpolate import interp1d
 
 from pybert import __version__ as VERSION
@@ -62,17 +62,11 @@ from pybert.utility.jitter import JitterAnalysis
 logger = logging.getLogger("pybert")
 
 
-class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
+class PyBERT:  # pylint: disable=too-many-instance-attributes
     """A serial communication link bit error rate tester (BERT) simulator with a GUI interface.
 
     Useful for exploring the concepts of serial communication link design.
     """
-
-    # QT Signals - Most are emitted from the `handle_results()` method
-    sim_complete = Signal(object, object)  # Simulation complete signal, update all the plots
-    opt_complete = Signal(object)  # Optimization complete signal, update the boost and plot
-    opt_loop_complete = Signal(object)  # Optimization loop complete signal
-    status_update = Signal(str)  # Tells the GUI to update the status bar but do not use the logger instance.
 
     def __init__(self, run_simulation: bool = False) -> None:
         """Initialize the PyBERT class.
@@ -85,8 +79,6 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
                 not want to run the full simulation. (Optional;
                 default = True)
         """
-        super().__init__()
-
         # Independent variables
 
         # - Simulation Control
@@ -251,16 +243,99 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
         self.simulation_thread: Optional[SimulationThread] = None  # Simulation Thread
         self.opt_thread: Optional[OptThread] = None  #: EQ optimization thread.
 
-        # Setup a threading Queue to share results between threads
-        self.result_queue: queue.Queue = queue.Queue()
-        self.result_timer: QTimer = QTimer()
-        self.result_timer.timeout.connect(self.poll_results)
-        self.result_timer.start(100)  # Poll every 100 ms
+        # Add callback-based result handling
+        self._simulation_callbacks: list[Callable[[dict, dict], None]] = []
+        self._optimization_callbacks: list[Callable[[dict], None]] = []
+        self._optimization_loop_callbacks: list[Callable[[dict], None]] = []
+        self._status_callbacks: list[Callable[[str], None]] = []
+
+        # Add futures for blocking operations
+        self._simulation_future: Optional[Future] = None
+        self._optimization_future: Optional[Future] = None
 
         self.last_results: Results | None = None
 
         if run_simulation:
             self.simulate()
+
+    def add_simulation_callback(self, callback: Callable[[dict, dict], None]) -> None:
+        """Add a callback to be called when simulation completes.
+
+        Args:
+            callback: Function that takes (results, performance) as arguments
+        """
+        self._simulation_callbacks.append(callback)
+
+    def add_optimization_callback(self, callback: Callable[[dict], None]) -> None:
+        """Add a callback to be called when optimization completes.
+
+        Args:
+            callback: Function that takes optimization result dict as argument
+        """
+        self._optimization_callbacks.append(callback)
+
+    def add_optimization_loop_callback(self, callback: Callable[[dict], None]) -> None:
+        """Add a callback to be called during optimization loop.
+
+        Args:
+            callback: Function that takes optimization loop result dict as argument
+        """
+        self._optimization_loop_callbacks.append(callback)
+
+    def add_status_callback(self, callback: Callable[[str], None]) -> None:
+        """Add a callback to be called for status updates.
+
+        Args:
+            callback: Function that takes status message string as argument
+        """
+        self._status_callbacks.append(callback)
+
+    def _notify_simulation_complete(self, results: dict, performance: dict) -> None:
+        """Notify all simulation callbacks with results."""
+        # Store results for non-blocking access
+        self.last_results = {"results": results, "performance": performance}
+
+        # Resolve the future if it exists (for blocking operations)
+        if self._simulation_future and not self._simulation_future.done():
+            self._simulation_future.set_result({"results": results, "performance": performance})
+            self._simulation_future = None
+
+        # Call all callbacks
+        for callback in self._simulation_callbacks:
+            try:
+                callback(results, performance)
+            except Exception as e:
+                logger.error(f"Error in simulation callback: {e}")
+
+    def _notify_optimization_complete(self, result: dict) -> None:
+        """Notify all optimization callbacks with result."""
+        # Resolve the future if it exists (for blocking operations)
+        if self._optimization_future and not self._optimization_future.done():
+            self._optimization_future.set_result(result)
+            self._optimization_future = None
+
+        # Call all callbacks
+        for callback in self._optimization_callbacks:
+            try:
+                callback(result)
+            except Exception as e:
+                logger.error(f"Error in optimization callback: {e}")
+
+    def _notify_optimization_loop_complete(self, result: dict) -> None:
+        """Notify all optimization loop callbacks with result."""
+        for callback in self._optimization_loop_callbacks:
+            try:
+                callback(result)
+            except Exception as e:
+                logger.error(f"Error in optimization loop callback: {e}")
+
+    def _notify_status_update(self, message: str) -> None:
+        """Notify all status callbacks with message."""
+        for callback in self._status_callbacks:
+            try:
+                callback(message)
+            except Exception as e:
+                logger.error(f"Error in status callback: {e}")
 
     # Dependent variable definitions
     @property
@@ -759,30 +834,6 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
         else:
             logger.error("No results to save. Please run a simulation first.")
 
-    def _wait_for_results(self, timeout: int):
-        """Wait for simulation results to be available by polling the result queue.
-
-        Args:
-            timeout: Maximum time to wait in seconds.
-
-        Returns:
-            The simulation results.
-
-        Raises:
-            TimeoutError: If results are not available within the timeout period.
-        """
-        import time
-        start_time = time.time()
-        while self.last_results is None and (time.time() - start_time) < timeout:
-            # Poll the result queue to process any pending results
-            self.poll_results()
-            time.sleep(0.1)  # Small delay to avoid busy waiting
-
-        if self.last_results is None:
-            raise TimeoutError(f"Simulation results not available after {timeout} seconds")
-
-        return self.last_results
-
     def simulate(self, block: bool = False, timeout: int = 180):
         """Start a simulation of the current configuration in a separate thread.
 
@@ -794,20 +845,24 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
             If block is True, returns the simulation results. Otherwise returns None.
         """
         if self.simulation_thread and self.simulation_thread.is_alive():
-            if block:
+            if block and self._simulation_future:
                 # Wait for the current simulation to complete
-                return self._wait_for_results(timeout)
+                return self._simulation_future.result(timeout=timeout)
             return None
         elif self.is_valid_configuration():
             logger.info("Starting simulation.")
+
+            # Create a future for blocking operations
+            if block:
+                self._simulation_future = Future()
+
             self.simulation_thread = SimulationThread()
             self.simulation_thread.pybert = self
             self.simulation_thread.start()
+
             if block:
-                # Wait for the thread to complete
-                self.simulation_thread.join()
-                # Wait for results to be processed
-                return self._wait_for_results(timeout)
+                # Wait for the future to be resolved by the callback
+                return self._simulation_future.result(timeout=timeout)
         return None
 
     def stop_simulation(self):
@@ -824,18 +879,34 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
             n_trials *= int((tuner.max_val - tuner.min_val) / tuner.step)
         return n_trials
 
-    def optimize(self):
+    def optimize(self, block: bool = False, timeout: int = 180):
         """Start the optimization process using the tuner values.
 
-        If the user accidently sets a large number of trials, prompt them to confirm before proceeding.
+        Args:
+            block: If True, wait for the optimization to complete and return results.
+            timeout: Maximum time to wait for optimization completion in seconds.
+
+        Returns:
+            If block is True, returns the optimization results. Otherwise returns None.
         """
         if self.opt_thread and self.opt_thread.is_alive():
-            pass
+            if block and self._optimization_future:
+                return self._optimization_future.result(timeout=timeout)
+            return None
         elif self.is_valid_configuration():
             logger.info("Starting optimization.")
+
+            # Create a future for blocking operations
+            if block:
+                self._optimization_future = Future()
+
             self.opt_thread = OptThread()
             self.opt_thread.pybert = self
             self.opt_thread.start()
+
+            if block:
+                return self._optimization_future.result(timeout=timeout)
+        return None
 
     def stop_optimization(self):
         """Stop the running optimization."""
@@ -884,42 +955,3 @@ class PyBERT(QObject):  # pylint: disable=too-many-instance-attributes
             logger.error("No Tx AMI loaded or configured.")
             return False
         return True
-
-    def poll_results(self):
-        """The Qt timer calls this function every 100ms to check if there are any results in the queue."""
-        try:
-            while True:
-                result = self.result_queue.get_nowait()
-                self.handle_result(result)
-        except queue.Empty:
-            pass
-
-    def handle_result(self, result):
-        """Handle the results from from the thread message queue.
-
-        The QT framework expects that all signal/slots that update the GUI are called from the main thread. This function
-        allows us to communicate between the threads without breaking this requirement.  Otherwise, the GUI would freeze
-        and error out with a QTimer timing out from trying to keep the main thread updated.
-
-        Args:
-            result: The result from the thread message queue.
-        """
-        # The optimizer will put the end results in the queue if complete and valid.
-        if result.get("type") == "optimization":
-            tx_weights = result.get("tx_weights", [])
-            rx_peaking = result.get("rx_peaking", 0)
-            fom = result.get("fom", 0)
-            for k, tx_weight in enumerate(tx_weights):
-                self.tx_tap_tuners[k].value = tx_weight
-            self.peak_mag_tune = rx_peaking
-            self.opt_complete.emit(self.peak_mag_tune)
-        # This is used to update the plots during the optimization loop.
-        elif result.get("type") == "opt_loop_complete":
-            self.opt_loop_complete.emit(result)
-        # This is used to update only the status bar this is for something that has a progress or a lot of updates
-        elif result.get("type") == "status_update":
-            self.status_update.emit(result.get("message"))
-        # This is used to update the plots and the results after a simulation is complete.
-        elif result.get("type") == "simulation_complete":
-            self.last_results = result
-            self.sim_complete.emit(result["results"], result["performance"])

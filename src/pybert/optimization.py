@@ -54,10 +54,8 @@ class OptThread(StoppableThread):
             logger.info(
                 "Optimization complete. (SNR: %5.1f dB, Time: %5.1f s)", 20 * np.log10(fom), time.time() - start_time
             )
-            # Put result in the queue for the main thread to handle
-            pybert.result_queue.put(
+            pybert._notify_optimization_complete(
                 {
-                    "type": "optimization",
                     "tx_weights": tx_weights,
                     "rx_peaking": rx_peaking,
                     "fom": fom,
@@ -212,9 +210,8 @@ def coopt(
                     clocks[ix] = 0
                 curs_time = pybert.t_ns[curs_ix]
                 t_ns_opt = pybert.t_ns[: len(p_tot)]
-                pybert.result_queue.put(
+                pybert._notify_optimization_loop_complete(
                     {
-                        "type": "opt_loop_complete",
                         "clocks_tune": clocks,
                         "ctle_out_h_tune": p_tot,
                         "t_ns_opt": t_ns_opt,
@@ -227,13 +224,7 @@ def coopt(
                 time.sleep(0.001)
             trials_run += 1
             if not trials_run % 100:
-                pybert.result_queue.put(
-                    {
-                        "type": "status_update",
-                        "level": logging.INFO,
-                        "message": f"Optimizing EQ...({100 * trials_run // n_trials}%)",
-                    }
-                )
+                pybert._notify_status_update(f"Optimizing EQ...({100 * trials_run // n_trials}%)")
                 time.sleep(0.001)
                 if pybert.opt_thread.stopped():
                     logger.warning("Optimization aborted by user.")
