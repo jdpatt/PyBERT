@@ -26,6 +26,7 @@ from pybert import __authors__, __copy__, __date__, __version__
 from pybert.configuration import CONFIG_LOAD_WILDCARD, CONFIG_SAVE_WILDCARD
 from pybert.constants import GETTING_STARTED_URL
 from pybert.gui.dialogs import warning_dialog
+from pybert.gui.results_window import ResultsWindow
 from pybert.gui.tabs import ConfigTab, OptimizerTab, ResultsTab
 from pybert.gui.widgets import DebugConsoleWidget
 from pybert.pybert import PyBERT
@@ -64,6 +65,10 @@ class PyBERTGUI(QMainWindow):
         self.pybert = pybert
         self._signals = PyBERTSignals()
 
+        # Track results window state
+        self.results_window = None
+        self.results_split = False
+
         self.setWindowTitle(f"PyBERT v{__version__} - Untitled")
         self.resize(1920, 1080)
 
@@ -93,7 +98,7 @@ class PyBERTGUI(QMainWindow):
 
         # Create the dock widget/debug console
         self.debug_console = DebugConsoleWidget(self, show_debug)
-        self.addDockWidget(Qt.BottomDockWidgetArea, self.debug_console)
+        self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.debug_console)
 
         self.create_menus(show_debug)
         self.create_status_bar()
@@ -299,6 +304,12 @@ class PyBERTGUI(QMainWindow):
         debug_console_action.triggered.connect(self.toggle_console_view)
         view_menu.addAction(debug_console_action)
 
+        # Add split results window action
+        self.split_results_action = QAction("Split Results Window", self)
+        self.split_results_action.setCheckable(True)
+        self.split_results_action.triggered.connect(self.toggle_results_window)
+        view_menu.addAction(self.split_results_action)
+
         # Add logging level submenu
         logging_menu = view_menu.addMenu("Set Logging Level")
 
@@ -381,6 +392,107 @@ class PyBERTGUI(QMainWindow):
         help_menu.addAction(getting_started_action)
         help_menu.addAction(about_action)
 
+    def toggle_results_window(self):
+        """Toggle the results window split state."""
+        if self.results_split:
+            self.merge_results_window()
+        else:
+            self.split_results_window()
+
+    def _update_results_with_current_data(self, target_widget):
+        """Update the given widget with current results data.
+
+        Args:
+            target_widget: Either self.results_tab or self.results_window
+        """
+        if not self.pybert or not hasattr(self.pybert, "last_results") or not self.pybert.last_results:
+            return
+
+        # Extract results and performance from the stored data
+        if isinstance(self.pybert.last_results, dict):
+            results = self.pybert.last_results.get("results")
+            performance = self.pybert.last_results.get("performance")
+            if results and performance:
+                target_widget.update_results(results, performance)
+        else:
+            # If last_results is a Results object, extract the data
+            try:
+                results = self.pybert.last_results.results
+                performance = self.pybert.last_results.performance
+                target_widget.update_results(results, performance)
+            except AttributeError:
+                pass  # If we can't extract the data, just continue
+
+    def split_results_window(self):
+        """Split the results tab into a separate window."""
+        if self.results_split:
+            return
+
+        # Create the results window
+        self.results_window = ResultsWindow(
+            self.pybert, self.last_config_filepath.name if self.last_config_filepath else "Untitled", self
+        )
+
+        # Connect signals to the results window
+        self._signals.results_loaded.connect(self.results_window.update_results)
+        self._signals.reference_results_loaded.connect(self.results_window.add_reference_plots)
+
+        # Connect to the results window's close signal for automatic merge
+        self.results_window.window_closed.connect(self.merge_results_window)
+
+        # Hide the results tab in the main window
+        self.tab_widget.removeTab(self.tab_widget.indexOf(self.results_tab))
+        self.tab_widget.setCurrentIndex(0)
+
+        # Show the results window
+        self.results_window.show()
+
+        # Update state
+        self.results_split = True
+        self.split_results_action.setChecked(True)
+
+        # Position the results window next to the main window
+        main_geometry = self.geometry()
+        self.results_window.move(main_geometry.x() + main_geometry.width() + 10, main_geometry.y())
+
+        # Update the results window with any existing results
+        self._update_results_with_current_data(self.results_window)
+
+    def merge_results_window(self):
+        """Merge the results window back into the main window."""
+        if not self.results_split or not self.results_window:
+            return
+
+        # Disconnect signals from the results window
+        try:
+            self._signals.results_loaded.disconnect(self.results_window.update_results)
+            self._signals.reference_results_loaded.disconnect(self.results_window.add_reference_plots)
+            self.results_window.window_closed.disconnect(self.merge_results_window)
+        except:
+            pass  # Signals might not be connected
+
+        # Close the results window
+        self.results_window.close()
+        self.results_window = None
+
+        # Add the results tab back to the main window
+        self.tab_widget.addTab(self.results_tab, "Results")
+        self.tab_widget.setCurrentIndex(0)
+
+        # Update state
+        self.results_split = False
+        self.split_results_action.setChecked(False)
+
+        # Update the results tab with any existing results
+        self._update_results_with_current_data(self.results_tab)
+
+    def closeEvent(self, event):
+        """Handle window close event."""
+        # Close the results window if it exists
+        if self.results_window:
+            self.results_window.close()
+        super().closeEvent(event)
+
     # Menu action handlers
     def load_results(self):
         """Load results from a file."""
@@ -406,7 +518,10 @@ class PyBERTGUI(QMainWindow):
 
     def clear_reference_plots(self):
         """Clear the reference plots."""
-        self.results_tab.clear_reference_plots()
+        if self.results_split and self.results_window:
+            self.results_window.clear_reference_plots()
+        else:
+            self.results_tab.clear_reference_plots()
 
     def save_results(self):
         """Save results to a file."""
@@ -455,10 +570,6 @@ class PyBERTGUI(QMainWindow):
         else:
             self.debug_console.show()
 
-    def clear_waveforms(self):
-        """Clear any loaded waveform data."""
-        self.results_tab.clear_waveforms()
-
     def run_simulation(self):
         """Start the simulation."""
         self.pybert.simulate()
@@ -499,9 +610,9 @@ class PyBERTGUI(QMainWindow):
         """Open up a dialog box with information about pybert."""
         about_box = QMessageBox()
         about_box.setWindowTitle("PyBERT")
-        about_box.setIcon(QMessageBox.Information)
-        about_box.setStandardButtons(QMessageBox.Ok)
-        about_box.setTextFormat(Qt.RichText)
+        about_box.setIcon(QMessageBox.Icon.Information)
+        about_box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        about_box.setTextFormat(Qt.TextFormat.RichText)
         about_box.setText(
             "PyBERT is a tool for analyzing and simulating communication systems.<br><br>"
             f"Version: {__version__}<br>"
@@ -542,7 +653,10 @@ class PyBERTGUI(QMainWindow):
         if not self.pybert:
             return
         self.update_status_bar(results, performance)
-        self.results_tab.update_results(results, performance)
+        if self.results_split and self.results_window:
+            self.results_window.update_results(results, performance)
+        else:
+            self.results_tab.update_results(results, performance)
 
     def _update_optimization_results(self, peak_mag: float):
         """Slot to update optimization result widgets. Runs on the main GUI thread."""
