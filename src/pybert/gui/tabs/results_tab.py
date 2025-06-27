@@ -5,17 +5,19 @@ waveforms, eye diagrams and bathtub curves.
 """
 
 from functools import lru_cache
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 import pyqtgraph as pg
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QPen
 from PySide6.QtWidgets import QTabWidget, QVBoxLayout, QWidget
 from scipy.interpolate import interp1d
 
 from pybert.bert import MIN_BATHTUB_VAL
 from pybert.gui.widgets.jitter_info import JitterInfoTable
 from pybert.pybert import PyBERT
+from pybert.results import Results
 from pybert.utility.math import make_bathtub, safe_log10
 from pybert.utility.sigproc import calc_eye
 
@@ -49,8 +51,8 @@ class PlotConfig:
 
     # Plot styles
     STYLES = {
-        "solid": Qt.SolidLine,
-        "dash": Qt.DashLine,
+        "solid": Qt.PenStyle.SolidLine,
+        "dash": Qt.PenStyle.DashLine,
     }
 
     # DFE tap colors
@@ -58,15 +60,15 @@ class PlotConfig:
 
     @classmethod
     @lru_cache(maxsize=32)
-    def get_pen(cls, color: str, style: str = "solid") -> pg.mkPen:
+    def get_pen(cls, color: str, style: str = "solid") -> QPen:
         """Get a pen with the specified color and style."""
-        return pg.mkPen(color=cls.COLORS.get(color, color), style=cls.STYLES.get(style, Qt.SolidLine))
+        return pg.mkPen(color=cls.COLORS.get(color, color), style=cls.STYLES.get(style, Qt.PenStyle.SolidLine))
 
 
 class ResultsTab(QWidget):
     """Tab for displaying simulation results."""
 
-    def __init__(self, pybert: Optional[PyBERT] = None, parent: Optional[QWidget] = None):
+    def __init__(self, pybert: PyBERT, parent: Optional[QWidget] = None):
         """Initialize the results tab.
 
         Args:
@@ -103,7 +105,7 @@ class ResultsTab(QWidget):
         layout.addWidget(self.tab_widget)
 
         # Define tab creation mapping
-        self.tab_creators: Dict[str, callable] = {
+        self.tab_creators: Dict[str, Callable[[str], QWidget]] = {
             "Impulses": self._create_response_tab,
             "Steps": self._create_response_tab,
             "Pulses": self._create_response_tab,
@@ -124,43 +126,45 @@ class ResultsTab(QWidget):
             if tab_name == "Eyes":
                 self.tab_widget.setCurrentWidget(tab)
 
-    def update_results(self, results, perf):
+    def update_results(self, results: Results):
         """Update all plots using the current PyBERT simulation results."""
         self.jitter_info_table.update_rejection()
 
+        data = results.data
+
         # --- DFE plots ---
         self.update_dfe_plots(
-            results["t_ns"],
-            results["ui_ests"],
-            results["tap_weights"],
-            results["clk_per_hist_bins"],
-            results["clk_per_hist_vals"],
-            results["clk_freqs"],
-            results["clk_spec"],
+            data["t_ns"],
+            data["ui_ests"],
+            data["tap_weights"],
+            data["clk_per_hist_bins"],
+            data["clk_per_hist_vals"],
+            data["clk_freqs"],
+            data["clk_spec"],
         )
 
         # --- Output plots ---
-        self.update_output_plots(results["t_ns"], results["output_plots"])
+        self.update_output_plots(data["t_ns"], data["output_plots"])
 
         # --- Eye plots ---
-        self.update_eye_plots(results["eye_xs"], results["eye_data"], results["y_max_values"])
+        self.update_eye_plots(data["eye_xs"], data["eye_data"], data["y_max_values"])
 
         # --- Bathtub plots ---
-        self.update_bathtub_plots(results["jitter_bins"], results["bathtub_data"])
+        self.update_bathtub_plots(data["jitter_bins"], data["bathtub_data"])
 
         # --- Impulse plots ---
-        self.update_impulse_plots(results["t_ns_chnl"], results["impulse_plots"])
+        self.update_impulse_plots(data["t_ns_chnl"], data["impulse_plots"])
 
         # --- Step plots ---
-        self.update_step_plots(results["t_ns_chnl"], results["step_plots"])
+        self.update_step_plots(data["t_ns_chnl"], data["step_plots"])
 
         # --- Pulse plots ---
-        self.update_pulse_plots(results["t_ns_chnl"], results["pulse_plots"])
+        self.update_pulse_plots(data["t_ns_chnl"], data["pulse_plots"])
 
         # --- Frequency plots ---
-        freq_responses = results["freq_responses"]
+        freq_responses = data["freq_responses"]
         self.update_freq_plots(
-            results["f_GHz"][1:],
+            data["f_GHz"][1:],
             freq_responses["chnl_H"],
             freq_responses["chnl_H_raw"],
             freq_responses["chnl_trimmed_H"],
@@ -173,14 +177,14 @@ class ResultsTab(QWidget):
         )
 
         # --- Jitter distribution plots ---
-        self.update_jitter_dist_plots(results["jitter_bins"], results["jitter_data"], results["jitter_ext_data"])
+        self.update_jitter_dist_plots(data["jitter_bins"], data["jitter_data"], data["jitter_ext_data"])
 
         # --- Jitter spectrum plots ---
         self.update_jitter_spec_plots(
-            results["f_MHz"],
-            results["jitter_spectrum"],
-            results["jitter_ind_spectrum"],
-            results["jitter_thresh"],
+            data["f_MHz"],
+            data["jitter_spectrum"],
+            data["jitter_ind_spectrum"],
+            data["jitter_thresh"],
         )
 
     # -- Plot Creation Methods ------------------------------------------------------------------------------------
@@ -194,7 +198,7 @@ class ResultsTab(QWidget):
         Returns:
             QWidget: Widget containing the jitter info table
         """
-        self.jitter_info_table = JitterInfoTable(self.pybert, parent=self)
+        self.jitter_info_table = JitterInfoTable(pybert=self.pybert, parent=self)
         return self.jitter_info_table
 
     def _create_dfe_tab(self, _: str):
@@ -232,7 +236,7 @@ class ResultsTab(QWidget):
 
         # Create curves for DFE taps
         colors = ["m", "r", "orange", "y", "g", "c", "b", "purple", "brown", "k"]
-        styles = [Qt.SolidLine, Qt.DashLine]
+        styles = [Qt.PenStyle.SolidLine, Qt.PenStyle.DashLine]
         self.dfe_curves = []
 
         try:

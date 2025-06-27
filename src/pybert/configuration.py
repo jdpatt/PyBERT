@@ -12,6 +12,7 @@ configuration could be saved and later restored.
 Copyright (c) 2017 by David Banas; All rights reserved World wide.
 """
 
+import logging
 import pickle
 import time
 import warnings
@@ -21,6 +22,7 @@ from typing import TYPE_CHECKING, Union
 
 from pybert import __version__
 from pybert.constants import gPeakFreq, gPeakMag
+from pybert.models.buffer import Receiver, Transmitter
 from pybert.models.stimulus import BitPattern, ModulationType
 
 if TYPE_CHECKING:
@@ -31,6 +33,8 @@ import yaml
 from pybert.constants import gPeakFreq, gPeakMag
 
 # TODO: Add a v7 to v8 migration method.
+
+logger = logging.getLogger(__name__)
 
 
 class InvalidConfigFileType(Exception):
@@ -88,6 +92,7 @@ class Configuration:  # pylint: disable=too-many-instance-attributes
 
         # Channel Control
         self.use_ch_file = the_PyBERT.use_ch_file
+        self.channel_elements = the_PyBERT.channel_elements
         self.ch_file = the_PyBERT.ch_file
         self.impulse_length = the_PyBERT.impulse_length
         self.Rdc = the_PyBERT.Rdc
@@ -102,8 +107,6 @@ class Configuration:  # pylint: disable=too-many-instance-attributes
 
         # Tx
         self.vod = the_PyBERT.vod
-        self.rs = the_PyBERT.rs
-        self.cout = the_PyBERT.cout
         self.pn_mag = the_PyBERT.pn_mag
         self.pn_freq = the_PyBERT.pn_freq
         self.rn = the_PyBERT.rn
@@ -114,31 +117,18 @@ class Configuration:  # pylint: disable=too-many-instance-attributes
         self.tx_tap_tuners = []
         for tap in the_PyBERT.tx_tap_tuners:
             self.tx_tap_tuners.append((tap.enabled, tap.pos, tap.min_val, tap.max_val, tap.step))
-        self.tx_use_ami = the_PyBERT.tx_use_ami
-        self.tx_use_ts4 = the_PyBERT.tx_use_ts4
-        self.tx_use_getwave = the_PyBERT.tx_use_getwave
-        self.tx_ami_file = the_PyBERT.tx_ami_file
-        self.tx_dll_file = the_PyBERT.tx_dll_file
-        self.tx_ibis_file = the_PyBERT.tx_ibis_file
-        self.tx_use_ibis = the_PyBERT.tx_use_ibis
 
         # Rx
-        self.rin = the_PyBERT.rin
-        self.cin = the_PyBERT.cin
-        self.cac = the_PyBERT.cac
         self.use_ctle_file = the_PyBERT.use_ctle_file
         self.ctle_file = the_PyBERT.ctle_file
         self.rx_bw = the_PyBERT.rx_bw
         self.peak_freq = the_PyBERT.peak_freq
         self.peak_mag = the_PyBERT.peak_mag
         self.ctle_enable = the_PyBERT.ctle_enable
-        self.rx_use_ami = the_PyBERT.rx_use_ami
-        self.rx_use_ts4 = the_PyBERT.rx_use_ts4
-        self.rx_use_getwave = the_PyBERT.rx_use_getwave
-        self.rx_ami_file = the_PyBERT.rx_ami_file
-        self.rx_dll_file = the_PyBERT.rx_dll_file
-        self.rx_ibis_file = the_PyBERT.rx_ibis_file
-        self.rx_use_ibis = the_PyBERT.rx_use_ibis
+
+        # Serialize transmitter and receiver buffers
+        self.transmitter = the_PyBERT.tx.to_dict()
+        self.receiver = the_PyBERT.rx.to_dict()
 
         # DFE
         self.sum_ideal = the_PyBERT.sum_ideal
@@ -190,6 +180,7 @@ class Configuration:  # pylint: disable=too-many-instance-attributes
         config.thresh = 3.0
         # Channel Control
         config.use_ch_file = False
+        config.channel_elements = []
         config.ch_file = ""
         config.impulse_length = 0.0
         config.Rdc = 0.1876  # Ohms/m
@@ -203,8 +194,6 @@ class Configuration:  # pylint: disable=too-many-instance-attributes
         config.use_window = False
         # Tx
         config.vod = 1.0  # V
-        config.rs = 100  # Ohms
-        config.cout = 0.5  # pF
         config.pn_mag = 0.1  # V
         config.pn_freq = 11.0  # MHz
         config.rn = 0.1  # V
@@ -224,30 +213,41 @@ class Configuration:  # pylint: disable=too-many-instance-attributes
             (True, 2, -0.1, 0.1, 0.05),
             (True, 3, -0.05, 0.05, 0.025),
         ]
-        config.tx_use_ami = False
-        config.tx_use_ts4 = False
-        config.tx_use_getwave = False
-        config.tx_ami_file = ""
-        config.tx_dll_file = ""
-        config.tx_ibis_file = ""
-        config.tx_use_ibis = False
+        # Default transmitter configuration
+        config.transmitter = {
+            "impedance": 100,
+            "capacitance": 0.5,
+            "inductance": 0,
+            "ibis_file": None,
+            "use_ami": False,
+            "use_ts4": False,
+            "use_getwave": False,
+            "use_ibis": False,
+            "ami_file": None,
+            "dll_file": None,
+        }
         # Rx
-        config.rin = 100  # Ohms
-        config.cin = 0.5  # pF
-        config.cac = 1.0  # uF
         config.use_ctle_file = False
         config.ctle_file = ""
         config.rx_bw = 12.0  # GHz
         config.peak_freq = gPeakFreq  # GHz
         config.peak_mag = gPeakMag  # dB
         config.ctle_enable = True
-        config.rx_use_ami = False
-        config.rx_use_ts4 = False
-        config.rx_use_getwave = False
-        config.rx_ami_file = ""
-        config.rx_dll_file = ""
-        config.rx_ibis_file = ""
-        config.rx_use_ibis = False
+        # Default receiver configuration
+        config.receiver = {
+            "impedance": 100,
+            "capacitance": 0.5,
+            "inductance": 0,
+            "ac_coupling": 1.0,
+            "use_clocks": False,
+            "ibis_file": None,
+            "use_ami": False,
+            "use_ts4": False,
+            "use_getwave": False,
+            "use_ibis": False,
+            "ami_file": None,
+            "dll_file": None,
+        }
         # DFE
         config.sum_ideal = True
         config.decision_scaler = 0.5  # V
@@ -301,6 +301,7 @@ class Configuration:  # pylint: disable=too-many-instance-attributes
         """
         default_config = Configuration.create_default_config()
         Configuration.load_from_config(default_config, pybert)
+        logger.info("Default configuration applied.")
 
     @staticmethod
     def load_from_config(config: "Configuration", pybert: "PyBERT") -> None:
@@ -313,72 +314,44 @@ class Configuration:  # pylint: disable=too-many-instance-attributes
             config: The configuration object to apply
             pybert: The PyBERT instance to configure
         """
-        # Reset equalization mode flags first
-        pybert.tx_use_ibis = False
-        pybert.rx_use_ibis = False
-        pybert.tx_use_ami = False
-        pybert.rx_use_ami = False
-        pybert.tx_ibis_valid = False
-        pybert.rx_ibis_valid = False
-        pybert.tx_ami_valid = False
-        pybert.rx_ami_valid = False
-        pybert.tx_dll_valid = False
-        pybert.rx_dll_valid = False
-
         # Apply values back into pybert using `setattr`.
         for prop, value in vars(config).items():
+            # TODO: We need to ensure the tap numbers are set first then iterate this way.
             if prop == "tx_taps":
                 for count, (enabled, val, min_val, max_val) in enumerate(value):
-                    setattr(pybert.tx_taps[count], "enabled", enabled)
-                    setattr(pybert.tx_taps[count], "value", val)
-                    setattr(pybert.tx_taps[count], "min_val", min_val)
-                    setattr(pybert.tx_taps[count], "max_val", max_val)
+                    if count < len(pybert.tx_taps):
+                        setattr(pybert.tx_taps[count], "enabled", enabled)
+                        setattr(pybert.tx_taps[count], "value", val)
+                        setattr(pybert.tx_taps[count], "min_val", min_val)
+                        setattr(pybert.tx_taps[count], "max_val", max_val)
             elif prop == "tx_tap_tuners":
                 for count, (enabled, pos, min_val, max_val, step) in enumerate(value):
-                    setattr(pybert.tx_tap_tuners[count], "enabled", enabled)
-                    setattr(pybert.tx_tap_tuners[count], "pos", pos)
-                    setattr(pybert.tx_tap_tuners[count], "min_val", min_val)
-                    setattr(pybert.tx_tap_tuners[count], "max_val", max_val)
-                    setattr(pybert.tx_tap_tuners[count], "step", step)
+                    if count < len(pybert.tx_tap_tuners):
+                        setattr(pybert.tx_tap_tuners[count], "enabled", enabled)
+                        setattr(pybert.tx_tap_tuners[count], "pos", pos)
+                        setattr(pybert.tx_tap_tuners[count], "min_val", min_val)
+                        setattr(pybert.tx_tap_tuners[count], "max_val", max_val)
+                        setattr(pybert.tx_tap_tuners[count], "step", step)
             elif prop == "dfe_tap_tuners":
                 for count, (enabled, min_val, max_val) in enumerate(value):
-                    setattr(pybert.dfe_tap_tuners[count], "enabled", enabled)
-                    setattr(pybert.dfe_tap_tuners[count], "min_val", min_val)
-                    setattr(pybert.dfe_tap_tuners[count], "max_val", max_val)
+                    if count < len(pybert.dfe_tap_tuners):
+                        setattr(pybert.dfe_tap_tuners[count], "enabled", enabled)
+                        setattr(pybert.dfe_tap_tuners[count], "min_val", min_val)
+                        setattr(pybert.dfe_tap_tuners[count], "max_val", max_val)
             elif prop in ("version", "date_created"):
                 pass  # Just including it for some good housekeeping.  Not currently used.
             elif prop == "mod_type":
                 setattr(pybert, prop, ModulationType(value))
             elif prop == "pattern":
                 setattr(pybert, prop, BitPattern[value])
-            elif prop == "tx_ibis_file":
-                setattr(pybert, prop, value)
-                if value:
-                    # Load IBIS file
-                    ibis = pybert.load_new_tx_ibis_file(value)
-                    if ibis:
-                        # If we have component/pin/model in the config, set them
-                        if hasattr(config, "tx_component") and config.tx_component:
-                            ibis.current_component = config.tx_component
-                        if hasattr(config, "tx_pin") and config.tx_pin:
-                            ibis.current_pin = config.tx_pin
-                        if hasattr(config, "tx_model") and config.tx_model:
-                            ibis.current_model = config.tx_model
-                        setattr(pybert, "tx_ibis", ibis)
-            elif prop == "rx_ibis_file":
-                setattr(pybert, prop, value)
-                if value:
-                    # Load IBIS file
-                    ibis = pybert.load_new_rx_ibis_file(value)
-                    if ibis:
-                        # If we have component/pin/model in the config, set them
-                        if hasattr(config, "rx_component") and config.rx_component:
-                            ibis.current_component = config.rx_component
-                        if hasattr(config, "rx_pin") and config.rx_pin:
-                            ibis.current_pin = config.rx_pin
-                        if hasattr(config, "rx_model") and config.rx_model:
-                            ibis.current_model = config.rx_model
-                        setattr(pybert, "rx_ibis", ibis)
+            elif prop == "transmitter":
+                # Load transmitter configuration using buffer deserialization
+                logger.debug(f"Loading transmitter configuration: {value}")
+                pybert.tx = Transmitter.from_dict(value)
+            elif prop == "receiver":
+                # Load receiver configuration using buffer deserialization
+                logger.debug(f"Loading receiver configuration: {value}")
+                pybert.rx = Receiver.from_dict(value)
             else:
                 setattr(pybert, prop, value)
 
@@ -395,29 +368,36 @@ class Configuration:  # pylint: disable=too-many-instance-attributes
         """
         filepath = Path(filepath)  # incase a string was passed convert to a path.
 
-        if not filepath.exists():
-            raise FileNotFoundError(f"{filepath} does not exist.")
+        try:
+            if not filepath.exists():
+                raise FileNotFoundError(f"{filepath} does not exist.")
 
-        # If its a valid extension load it.
-        if filepath.suffix in [".yaml", ".yml"]:
-            with open(filepath, "r", encoding="UTF-8") as yaml_file:
-                user_config = yaml.load(yaml_file, Loader=yaml.Loader)
-        elif filepath.suffix == ".pybert_cfg":
-            warnings.warn(
-                "Using pickle for configuration is not suggested and will be removed in a later release.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            with open(filepath, "rb") as pickle_file:
-                user_config = pickle.load(pickle_file)
-        else:
-            raise InvalidConfigFileType("Pybert does not support this file type.")
+            # If its a valid extension load it.
+            if filepath.suffix in [".yaml", ".yml"]:
+                with open(filepath, "r", encoding="UTF-8") as yaml_file:
+                    user_config = yaml.load(yaml_file, Loader=yaml.Loader)
+            elif filepath.suffix == ".pybert_cfg":
+                warnings.warn(
+                    "Using pickle for configuration is not suggested and will be removed in a later release.",
+                    DeprecationWarning,
+                    stacklevel=2,
+                )
+                with open(filepath, "rb") as pickle_file:
+                    user_config = pickle.load(pickle_file)
+            else:
+                raise InvalidConfigFileType("Pybert does not support this file type.")
 
-        # Right now the loads deserialize back into a `PyBertCfg` class.
-        if not isinstance(user_config, Configuration):
-            raise ValueError("The data structure read in is NOT of type: PyBertCfg!")
+            # Right now the loads deserialize back into a `PyBertCfg` class.
+            if not isinstance(user_config, Configuration):
+                raise ValueError("The data structure read in is NOT of type: PyBertCfg!")
 
-        Configuration.load_from_config(user_config, pybert)
+            Configuration.load_from_config(user_config, pybert)
+            logger.info("Loaded configuration.")
+        except InvalidConfigFileType:
+            logger.error("This filetype is not currently supported.")
+        except (FileNotFoundError, ValueError) as err:
+            logger.error("Failed to load configuration. See the console for more detail.")
+            logger.exception(str(err))
 
     def save(self, filepath: str | Path):
         """Save out pybert's current configuration to a file.
@@ -431,8 +411,14 @@ class Configuration:  # pylint: disable=too-many-instance-attributes
         """
         filepath = Path(filepath)  # incase a string was passed convert to a path.
 
-        if filepath.suffix in [".yaml", ".yml"]:
-            with open(filepath, "w", encoding="UTF-8") as yaml_file:
-                yaml.dump(self, yaml_file, indent=4, sort_keys=False)
-        else:
-            raise InvalidConfigFileType("Pybert does not support this file type.")
+        try:
+            if filepath.suffix in [".yaml", ".yml"]:
+                with open(filepath, "w", encoding="UTF-8") as yaml_file:
+                    yaml.dump(self, yaml_file, indent=4, sort_keys=False)
+                logger.info("Configuration saved.")
+            else:
+                raise InvalidConfigFileType("Pybert does not support this file type.")
+        except InvalidConfigFileType as err:
+            logger.error(f"Failed to save configuration:\n\t{err}")
+        except (yaml.YAMLError, OSError, IOError) as err:
+            logger.error(f"Failed to save configuration:\n\t{err}")

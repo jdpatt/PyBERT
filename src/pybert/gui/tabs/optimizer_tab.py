@@ -19,7 +19,7 @@ from pybert.pybert import PyBERT
 class OptimizerTab(QWidget):
     """Tab for configuring and tuning equalization."""
 
-    def __init__(self, pybert: PyBERT | None = None, parent=None):
+    def __init__(self, pybert: PyBERT, parent=None):
         """Initialize the equalization tab.
 
         Args:
@@ -33,7 +33,7 @@ class OptimizerTab(QWidget):
         self.setLayout(layout)
 
         # Create horizontal splitter for controls and plot
-        splitter = QSplitter(Qt.Vertical)
+        splitter = QSplitter(Qt.Orientation.Vertical)
         layout.addWidget(splitter)
 
         # Left side - Controls
@@ -68,17 +68,18 @@ class OptimizerTab(QWidget):
         self.clocks_curve = plot_widget.plot(name="Clocks", pen=pg.mkPen("b", width=2))
         self.eq_curve = plot_widget.plot(name="Equalized Pulse Response", pen=pg.mkPen("r", width=2))
         self.pulse_curve = plot_widget.plot(name="Channel Pulse Response", pen=pg.mkPen("b", width=2))
-        self.cursor_curve = plot_widget.plot(name="Main Cursor", pen=pg.mkPen("g", width=2, style=Qt.DashLine))
+        self.cursor_curve = plot_widget.plot(
+            name="Main Cursor", pen=pg.mkPen("g", width=2, style=Qt.PenStyle.DashLine)
+        )
 
         splitter.addWidget(plot_widget)
 
         # Set initial splitter sizes (40% controls, 60% plot)
         splitter.setSizes([400, 600])
 
-        if pybert:
-            self.connect_signals(pybert)
+        self.connect_signals()
 
-    def update_plot(self, result):
+    def update_plot(self, result: dict):
         """Update the plot with new data.
 
         Args:
@@ -89,12 +90,12 @@ class OptimizerTab(QWidget):
         self.cursor_curve.setData(result.get("curs_ix"), result.get("curs_amp"))
         self.pulse_curve.setData(result.get("t_ns_opt"), result.get("p_chnl"))
 
-    def update_channel_response(self, result):
+    def update_channel_response(self, result: dict):
         """Update the channel response plot."""
         self.pulse_curve.setData(result.get("t_ns_opt"), result.get("p_chnl"))
 
-    def connect_signals(self, pybert):
+    def connect_signals(self):
         """Connect signals to PyBERT instance."""
-        self.tx_optimization.connect_signals(pybert)
-        self.rx_ctle.connect_signals(pybert)
-        self.rx_dfe.connect_signals(pybert)
+        self.tx_optimization.connect_signals(self.pybert)
+        self.rx_ctle.connect_signals(self.pybert)
+        self.rx_dfe.connect_signals(self.pybert)

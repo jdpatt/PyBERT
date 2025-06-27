@@ -4,7 +4,9 @@ This widget contains controls for channel parameters including file-
 based and native (Howard Johnson) channel models.
 """
 
-from PySide6.QtCore import Signal
+from typing import TYPE_CHECKING, cast
+
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
@@ -26,14 +28,18 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from pybert.gui.widgets.file_picker import FilePickerWidget
+from pybert.gui.widgets.utils import block_signals
+
+if TYPE_CHECKING:
+    from pybert.pybert import PyBERT
+
+SPARAMETER_FILE_FILTER = "S-Parameter Files (*.s4p *.s2p);;Touchstone Files (*.s4p *.s2p);;All Files (*.*)"
 MAX_CHANNEL_FILES = 5
-SPARAMETER_FILE_FILTER = "S-parameters (*.s*p);;CSV files (*.csv);;Text files (*.txt);;All files (*.*)"
-from pybert.gui.widgets.utils import FilePickerWidget, block_signals
-from pybert.pybert import PyBERT
 
 
-class FileGroupWidget(QWidget):
-    """A widget representing a single file group (file selection, port options, remove button, and order number)."""
+class ChannelItemWidget(QWidget):
+    """A widget representing a single file group in the File based channel model."""
 
     text_changed = Signal()
 
@@ -100,10 +106,147 @@ class FileGroupWidget(QWidget):
         return not bool(self.channel_file.text().strip())
 
 
+class ChannelFileListWidget(QListWidget):
+    """A specialized list widget for managing channel file groups."""
+
+    def __init__(self, parent=None, items_changed_callback=None):
+        super().__init__(parent)
+        self.items_changed_callback = items_changed_callback
+        self._loading = False  # Flag to prevent callbacks during loading
+        self.setDragDropMode(QListWidget.DragDropMode.InternalMove)
+        self.setAlternatingRowColors(True)
+        self.model().rowsMoved.connect(self._update_file_groups_state)
+        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
+
+    def items_from_list(self, file_elements):
+        """Load items from a list of file element dictionaries."""
+        # Prevent callbacks during loading
+        self._loading = True
+
+        # Properly clean up existing widgets before clearing
+        for i in range(self.count()):
+            item = self.item(i)
+            widget = self.itemWidget(item)
+            if widget:
+                widget.deleteLater()
+
+        self.clear()
+
+        for file_info in file_elements:
+            group = ChannelItemWidget(
+                order=self.count() + 1,
+                remove_callback=lambda: self._update_file_groups_state(),
+                parent=self,
+                file_changed_callback=lambda: self._update_file_groups_state(),
+            )
+            group.channel_file.set_filepath(file_info["file"])
+            group.port_combo.setCurrentText(file_info["port"])
+            item = QListWidgetItem()
+            self.addItem(item)
+            self.setItemWidget(item, group)
+
+        # Always ensure there's at least one group for user convenience
+        if self.count() == 0:
+            self._add_file_group()
+
+        self._update_file_groups_state()
+
+        # Re-enable callbacks and trigger one final update
+        self._loading = False
+        if self.items_changed_callback:
+            self.items_changed_callback()
+
+    def get_items_as_list(self):
+        """Get the list of files and their parameters from the file groups.
+
+        Returns:
+            list: List of dictionaries containing {"file": filename, "port": port_order} for each file group
+        """
+        files = []
+        for i in range(self.count()):
+            item = self.item(i)
+            widget = cast(ChannelItemWidget, self.itemWidget(item))
+            if widget and widget.get_filename():
+                files.append({"file": widget.get_filename(), "port": widget.get_port_order()})
+        return files
+
+    def _update_file_groups_state(self):
+        """Update all file group related state in one place."""
+        count = self.count()
+        has_empty = False
+
+        # Update orders and check for empty groups
+        for i in range(count):
+            item = self.item(i)
+            widget = cast(ChannelItemWidget, self.itemWidget(item))
+            if widget:
+                widget.set_order(i + 1)
+                widget.set_remove_enabled(count > 1)
+                if widget.is_empty():
+                    has_empty = True
+
+        # Update add button state if we have a reference to it
+        if hasattr(self, "add_btn"):
+            can_add = (count < MAX_CHANNEL_FILES) and not has_empty
+            self.add_btn.setEnabled(can_add)
+
+        # Notify parent of changes only when not loading
+        if self.items_changed_callback and not self._loading:
+            self.items_changed_callback()
+
+    def _add_file_group(self):
+        """Add a new file group if validation passes and no empty group exists."""
+        # Prevent adding if an empty group already exists
+        for i in range(self.count()):
+            item = self.item(i)
+            widget = cast(ChannelItemWidget, self.itemWidget(item))
+            if widget and widget.is_empty():
+                return
+
+        if self.count() >= MAX_CHANNEL_FILES:
+            return
+
+        # Check if any existing groups are empty
+        if not self._validate_existing_groups():
+            return
+
+        item = QListWidgetItem()
+
+        def remove():
+            if self.count() > 1:
+                row = self.row(item)
+                self.takeItem(row)
+                self._update_file_groups_state()
+
+        widget = ChannelItemWidget(
+            parent=self,
+            order=self.count() + 1,
+            remove_callback=remove,
+            file_changed_callback=self._update_file_groups_state,
+        )
+        item.setSizeHint(widget.sizeHint())
+        self.addItem(item)
+        self.setItemWidget(item, widget)
+        self._update_file_groups_state()
+
+    def _validate_existing_groups(self):
+        """Check if any existing file groups are empty."""
+        for i in range(self.count()):
+            item = self.item(i)
+            widget = cast(ChannelItemWidget, self.itemWidget(item))
+            if widget and widget.is_empty():
+                return False
+        return True
+
+    def set_add_button(self, add_btn):
+        """Set a reference to the add button for state management."""
+        self.add_btn = add_btn
+
+
 class ChannelConfigWidget(QGroupBox):
     """Widget for configuring channel parameters."""
 
-    def __init__(self, pybert: PyBERT | None = None, parent=None):
+    def __init__(self, pybert: "PyBERT", parent=None):
         """Initialize the channel configuration widget.
 
         Args:
@@ -123,8 +266,8 @@ class ChannelConfigWidget(QGroupBox):
         self.file_radio = QRadioButton("From File(s)")
         self.native_radio.setChecked(True)
         self.mode_group = QButtonGroup(self)
-        self.mode_group.addButton(self.native_radio)
-        self.mode_group.addButton(self.file_radio)
+        self.mode_group.addButton(self.native_radio, 0)
+        self.mode_group.addButton(self.file_radio, 1)
         mode_layout.addWidget(self.native_radio)
         mode_layout.addWidget(self.file_radio)
         mode_layout.addStretch()
@@ -136,20 +279,19 @@ class ChannelConfigWidget(QGroupBox):
         # From File group (now supports multiple file groups)
         self.file_group = QWidget(self)
         file_layout = QVBoxLayout(self.file_group)
-        self.file_group.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+        self.file_group.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
         # Add button at the top, right-aligned
         add_btn_layout = QHBoxLayout()
         add_btn_layout.addStretch()
         add_btn = QPushButton("Add Channel File")
-        add_btn.clicked.connect(self._add_file_group)
         self.add_btn = add_btn  # Store reference for enabling/disabling
         add_btn_layout.addWidget(add_btn)
         file_layout.addLayout(add_btn_layout)
-        self.file_list = QListWidget(self)
-        self.file_list.setDragDropMode(QListWidget.InternalMove)
-        self.file_list.setAlternatingRowColors(True)
-        self.file_list.model().rowsMoved.connect(self._update_file_groups_state)
-        self.file_list.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+
+        # Use the new ChannelFileListWidget
+        self.file_list = ChannelFileListWidget(self, items_changed_callback=self._on_file_list_changed)
+        add_btn.clicked.connect(self.file_list._add_file_group)
+        self.file_list.set_add_button(self.add_btn)
         file_layout.addWidget(self.file_list, stretch=1)
         file_layout.addStretch()
 
@@ -217,23 +359,15 @@ class ChannelConfigWidget(QGroupBox):
         # Add stretch to push everything to the top
         layout.addStretch()
 
-        if pybert is not None:
-            self.update_widget_from_model()
-            self.connect_signals(pybert)
+        self.update_widget_from_model()
+        self.connect_signals()
 
     def update_widget_from_model(self) -> None:
-        """Update all widget values from the PyBERT model.
-
-        Args:
-            pybert: PyBERT model instance to update from
-        """
-        if self.pybert is None:
-            return
-
+        """Update all widget values from the PyBERT model."""
         with block_signals(self):
             # Update mode
-            self.native_radio.setChecked(self.pybert.use_ch_file == False)
-            self.file_radio.setChecked(self.pybert.use_ch_file == True)
+            self.native_radio.setChecked(not self.pybert.use_ch_file)
+            self.file_radio.setChecked(self.pybert.use_ch_file)
 
             # Update native parameters
             self.length.setValue(self.pybert.l_ch)
@@ -243,127 +377,48 @@ class ChannelConfigWidget(QGroupBox):
             self.rdc.setValue(self.pybert.Rdc)
             self.w0.setValue(self.pybert.w0)
             self.r0.setValue(self.pybert.R0)
+            self.use_window.setChecked(self.pybert.use_window)
 
             # Update file groups
-            self.file_list.clear()
-            for file_info in self.pybert.channel_elements:
-                group = FileGroupWidget(
-                    order=len(self.file_list) + 1,
-                    remove_callback=lambda: self._update_file_groups_state(),
-                    parent=self,
-                    file_changed_callback=lambda: self._update_file_groups_state(),
-                )
-                group.channel_file.setText(file_info["file"])
-                group.port_combo.setCurrentText(file_info["port"])
-                item = QListWidgetItem()
-                self.file_list.addItem(item)
-                self.file_list.setItemWidget(item, group)
+            self.file_list.items_from_list(self.pybert.channel_elements)
 
-            self._update_file_groups_state()
-            if self.file_list.count() == 0:
-                self._add_file_group()
-        self._update_mode()
+        # Update stacked layout after signals are unblocked
+        self.stacked_layout.setCurrentIndex(1 if self.pybert.use_ch_file else 0)
 
-    def connect_signals(self, pybert: "PyBERT") -> None:
+    def connect_signals(self) -> None:
         """Connect widget signals to PyBERT instance."""
-        self.native_radio.toggled.connect(self._update_mode)
-        self.file_radio.toggled.connect(self._update_mode)
-
-        # Connect mode selection
-        self.mode_group.buttonReleased.connect(
-            lambda val: setattr(pybert, "use_ch_file", self.native_radio.isChecked() == False)
-        )
+        self.mode_group.buttonReleased.connect(self._handle_channel_mode_change)
 
         # Connect native parameters
-        self.length.valueChanged.connect(lambda val: setattr(pybert, "channel_length", val))
-        self.loss_tan.valueChanged.connect(lambda val: setattr(pybert, "channel_loss_tan", val))
-        self.z0.valueChanged.connect(lambda val: setattr(pybert, "channel_z0", val))
-        self.v0.valueChanged.connect(lambda val: setattr(pybert, "channel_v0", val))
-        self.rdc.valueChanged.connect(lambda val: setattr(pybert, "channel_rdc", val))
-        self.w0.valueChanged.connect(lambda val: setattr(pybert, "channel_w0", val))
-        self.r0.valueChanged.connect(lambda val: setattr(pybert, "channel_r0", val))
+        self.length.valueChanged.connect(lambda val: setattr(self.pybert, "l_ch", val))
+        self.loss_tan.valueChanged.connect(lambda val: setattr(self.pybert, "Theta0", val))
+        self.z0.valueChanged.connect(lambda val: setattr(self.pybert, "Z0", val))
+        self.v0.valueChanged.connect(lambda val: setattr(self.pybert, "v0", val))
+        self.rdc.valueChanged.connect(lambda val: setattr(self.pybert, "Rdc", val))
+        self.w0.valueChanged.connect(lambda val: setattr(self.pybert, "w0", val))
+        self.r0.valueChanged.connect(lambda val: setattr(self.pybert, "R0", val))
 
         # Connect use_window
-        self.use_window.toggled.connect(lambda val: setattr(pybert, "use_window", val))
+        self.use_window.toggled.connect(lambda val: setattr(self.pybert, "use_window", val))
+
+    def _handle_channel_mode_change(self) -> None:
+        """Handle mode change from radio buttons."""
+        # Update stacked layout
+        self.stacked_layout.setCurrentIndex(1 if self.file_radio.isChecked() else 0)
+        # Update PyBERT model
+        setattr(self.pybert, "use_ch_file", self.file_radio.isChecked())
+
+    def _on_file_list_changed(self) -> None:
+        """Callback when file list items change."""
+        new_elements = self.get_channel_elements()
+        # Only update if the value has actually changed
+        if new_elements != self.pybert.channel_elements:
+            setattr(self.pybert, "channel_elements", new_elements)
 
     def get_channel_elements(self):
         """Get the list of files and their parameters from the file groups.
 
         Returns:
-            list: List of tuples containing (filename, port_order) for each file group
+            list: List of dictionaries containing {"file": filename, "port": port_order} for each file group
         """
-        files = []
-        for i in range(self.file_list.count()):
-            item = self.file_list.item(i)
-            widget: FileGroupWidget = self.file_list.itemWidget(item)
-            if widget and widget.get_filename():
-                files.append((widget.get_filename(), widget.get_port_order()))
-        return files
-
-    def _update_mode(self):
-        """Show only the selected group (Native or From File) using stacked layout."""
-        if self.native_radio.isChecked():
-            self.stacked_layout.setCurrentWidget(self.native_group)
-        else:
-            self.stacked_layout.setCurrentWidget(self.file_group)
-
-    def _update_file_groups_state(self):
-        """Update all file group related state in one place."""
-        count = self.file_list.count()
-        has_empty = False
-
-        # Update orders and check for empty groups
-        for i in range(count):
-            item = self.file_list.item(i)
-            widget = self.file_list.itemWidget(item)
-            if widget:
-                widget.set_order(i + 1)
-                widget.set_remove_enabled(count > 1)
-                if widget.is_empty():
-                    has_empty = True
-
-        # Update add button state
-        can_add = (count < MAX_CHANNEL_FILES) and not has_empty
-        self.add_btn.setEnabled(can_add)
-
-        # Update PyBERT if available
-        if self.pybert:
-            setattr(self.pybert, "channel_elements", self.get_channel_elements())
-
-    def _add_file_group(self):
-        """Add a new file group if validation passes."""
-        if self.file_list.count() >= MAX_CHANNEL_FILES:
-            return
-
-        # Check if any existing groups are empty
-        if not self._validate_existing_groups():
-            return
-
-        item = QListWidgetItem()
-
-        def remove():
-            if self.file_list.count() > 1:
-                row = self.file_list.row(item)
-                self.file_list.takeItem(row)
-                self._update_file_groups_state()
-
-        widget = FileGroupWidget(
-            parent=self,
-            order=self.file_list.count() + 1,
-            remove_callback=remove,
-            file_changed_callback=self._update_file_groups_state,
-        )
-        widget.text_changed.connect(lambda: setattr(self.pybert, "elements", self.get_channel_elements()))
-        item.setSizeHint(widget.sizeHint())
-        self.file_list.addItem(item)
-        self.file_list.setItemWidget(item, widget)
-        self._update_file_groups_state()
-
-    def _validate_existing_groups(self):
-        """Check if any existing file groups are empty."""
-        for i in range(self.file_list.count()):
-            item = self.file_list.item(i)
-            widget = self.file_list.itemWidget(item)
-            if widget and widget.is_empty():
-                return False
-        return True
+        return self.file_list.get_items_as_list()

@@ -23,7 +23,7 @@ from pybert.pybert import PyBERT
 class RxOptimizationCTLEWidget(QGroupBox):
     """Widget for configuring receiver equalization."""
 
-    def __init__(self, pybert: PyBERT | None = None, parent: Optional[QWidget] = None) -> None:
+    def __init__(self, pybert: PyBERT, parent: Optional[QWidget] = None) -> None:
         """Initialize the receiver equalization widget.
 
         Args:

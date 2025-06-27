@@ -36,7 +36,7 @@ def test_config_save_as_invalid(dut: PyBERT, tmp_path: Path, caplog):
     dut.save_configuration(save_file)
 
     assert not save_file.exists()  # File should not have been created.
-    assert "This filetype is not currently supported." in caplog.text
+    assert "Failed to save configuration" in caplog.text
 
 
 @pytest.mark.parametrize("filepath_converter", [str, Path])
@@ -71,6 +71,10 @@ def test_config_load_from_yaml(dut: PyBERT, filepath_converter, tmp_path: Path):
             assert ModulationType(getattr(user_config, name)) == getattr(dut, name)
         elif name == "pattern":
             assert BitPattern[getattr(user_config, name)] == getattr(dut, name)
+        elif name == "receiver":
+            assert user_config.receiver == dut.rx.to_dict()
+        elif name == "transmitter":
+            assert user_config.transmitter == dut.tx.to_dict()
         else:
             # These are handled differently so skip them.
             if name not in ["tx_taps", "tx_tap_tuners", "dfe_tap_tuners", "version", "date_created"]:
@@ -95,26 +99,3 @@ def test_config_reset_to_default(dut: PyBERT, caplog):
     assert dut.bit_rate == 100.0
     dut.reset_configuration()
     assert dut.bit_rate == 10.0
-
-
-@pytest.mark.usefixtures("dut")
-def test_results_load_from_pickle(dut: PyBERT, tmp_path: Path):
-    """Make sure that pybert can correctly load a pickle file."""
-    save_file = tmp_path.joinpath("config.pybert_data")
-    dut.save_results(save_file)
-
-    results = dut.load_results(save_file)
-    np.testing.assert_allclose(dut.t_ns, results.results["t_ns"])
-
-
-@pytest.mark.usefixtures("dut")
-def test_results_save_as_pickle(dut: PyBERT, tmp_path: Path):
-    """Make sure that pybert can correctly generate a waveform pickle file that can get reloaded."""
-    save_file = tmp_path.joinpath("results.pybert_data")
-    dut.save_results(save_file)
-
-    assert save_file.exists()  # File was created.
-
-    with open(save_file, "rb") as saved_results_file:
-        results: Results = pickle.load(saved_results_file)
-        assert results.version == __version__

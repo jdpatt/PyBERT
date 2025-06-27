@@ -5,7 +5,8 @@ transmitter and receiver equalization widgets.
 """
 
 import logging
-from typing import Callable, Optional
+from pathlib import Path
+from typing import Callable, Literal, Optional
 
 from pyibisami import IBISModel
 from PySide6.QtCore import Signal
@@ -19,9 +20,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from pybert.gui import dialogs
-from pybert.gui.widgets.utils import FilePickerWidget, StatusIndicator, block_signals
-from pybert.pybert import PyBERT
+from pybert.gui.widgets.file_picker import FilePickerWidget
+from pybert.gui.widgets.status_indicator import StatusIndicator
+from pybert.gui.widgets.utils import block_signals
+from pybert.models.buffer import Receiver, Transmitter
 
 logger = logging.getLogger("pybert.ibis")
 
@@ -31,27 +33,17 @@ class IbisConfigWidget(QWidget):
 
     def __init__(
         self,
-        pybert: PyBERT,
-        is_tx: bool = True,
+        obj_accessor: Callable[[], Transmitter | Receiver],
         parent: Optional[QWidget] = None,
     ) -> None:
         """Initialize the IBIS-AMI configuration widget.
 
         Args:
-            pybert: PyBERT instance
-            is_tx: True if the IBIS model is for a transmitter, False if for a receiver
+            obj_accessor: Function that returns the current Transmitter or Receiver instance
             parent: Parent widget
         """
         super().__init__(parent)
-        self.pybert = pybert
-
-        # TODO: This is temporary until we can reference a Transmitter or Receiver object.
-        self.ibis_direction = "tx" if is_tx else "rx"
-        self.use_ts4_attr = f"{self.ibis_direction}_use_ts4"
-        self.ibis_file_attr = f"{self.ibis_direction}_ibis_file"
-        self.ibis_valid_attr = f"{self.ibis_direction}_ibis_valid"
-        self.use_ibis_attr = f"{self.ibis_direction}_use_ibis"
-        self.has_ts4_attr = f"{self.ibis_direction}_has_ts4"
+        self._obj_accessor = obj_accessor
 
         layout = QVBoxLayout()
         self.setLayout(layout)
@@ -76,9 +68,9 @@ class IbisConfigWidget(QWidget):
         bottom_layout.addStretch()  # Push configure button to the right
 
         # Configure button
-        self.view_btn = QPushButton("Configure")
-        self.view_btn.setEnabled(False)
-        bottom_layout.addWidget(self.view_btn)
+        self.configure_btn = QPushButton("Configure")
+        self.configure_btn.setEnabled(False)
+        bottom_layout.addWidget(self.configure_btn)
 
         layout.addLayout(bottom_layout)
         layout.addStretch()
@@ -86,13 +78,15 @@ class IbisConfigWidget(QWidget):
         self.connect_signals()
         self.update_widget_from_model()
 
+    @property
+    def obj(self) -> Transmitter | Receiver:
+        """Get the current object instance."""
+        return self._obj_accessor()
+
     def connect_signals(self) -> None:
         """Connect signals to PyBERT instance."""
-        self.use_ts4.toggled.connect(lambda val: setattr(self.pybert, self.use_ts4_attr, val))
-
-    def set_status(self, status: str) -> None:
-        """Set the status of the IBIS file."""
-        self.ibis_valid.set_status(status)
+        # Use lambda to capture the current object at signal time
+        self.use_ts4.toggled.connect(lambda val: setattr(self.obj, "use_ts4", val))
 
     def update_widget_from_model(self) -> None:
         """Update the widget from the PyBERT model.
@@ -100,29 +94,40 @@ class IbisConfigWidget(QWidget):
         This method ensures the widget is fully synchronized with the PyBERT model,
         including resetting its state when no model is loaded.
         """
-        with block_signals(self):
-            # Get current state from PyBERT
-            ibis_file = getattr(self.pybert, self.ibis_file_attr, "")
-            ibis_valid = getattr(self.pybert, self.ibis_valid_attr, False)
-            use_ts4 = getattr(self.pybert, self.use_ts4_attr, False)
-            has_ts4 = getattr(self.pybert, self.has_ts4_attr, False)
+        try:
+            with block_signals(self):
+                current_obj = self.obj  # Get current object
+                # Get current state from PyBERT using model methods
+                ibis_file = current_obj.get_ibis_file_path()
+                ibis_valid = current_obj.is_ibis_loaded()
 
-            # Update file path
-            self.file_picker.set_filepath(ibis_file)
+                # Update file path
+                self.file_picker.set_filepath(str(ibis_file) if ibis_file else "")
 
-            # Update status and button states
-            self.set_status("valid" if ibis_valid else "not_loaded")
-            self.view_btn.setEnabled(ibis_valid)
+                # Update status
+                self.set_status("valid" if ibis_valid else "not_loaded")
 
-            # Update TS4 checkbox
-            self.use_ts4.setEnabled(has_ts4)
-            self.use_ts4.setChecked(use_ts4)
+                # Update TS4 checkbox
+                self.use_ts4.setEnabled(current_obj.has_ts4)
+                self.use_ts4.setChecked(current_obj.use_ts4)
+        except Exception as e:
+            logger.error(f"Failed to update IBIS config widget from model: {e}")
+            self.set_status("invalid")
 
-    def reset(self) -> None:
-        """Reset the widget to its initial state."""
-        with block_signals(self):
-            self.file_picker.set_filepath("")
-            self.set_status("not_loaded")
-            self.view_btn.setEnabled(False)
+    def set_status(self, status: Literal["valid", "invalid", "warning", "not_loaded"]) -> None:
+        """Set the status of the AMI model."""
+        self.ibis_valid.set_status(status)
+
+        if status == "valid":
+            self.configure_btn.setEnabled(True)
+        elif status == "not_loaded":
+            self.configure_btn.setEnabled(False)
+            self.set_filepath(None)
+        else:
+            self.configure_btn.setEnabled(False)
+            self.set_filepath(None)
             self.use_ts4.setEnabled(False)
-            self.use_ts4.setChecked(False)
+
+    def set_filepath(self, filepath: str | Path | None) -> None:
+        """Set the filepaths of the AMI and DLL files."""
+        self.file_picker.set_filepath(str(filepath) if filepath else "")

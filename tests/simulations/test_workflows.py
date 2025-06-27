@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from pybert.bert import SimulationPerf
+from pybert.bert import SimulationPerfResults
 from pybert.pybert import PyBERT
 
 
@@ -36,48 +36,39 @@ class TestAcrossAllSimulationWorkflows:
     def _setup(self, request, dut_fixture):
         """Setup fixture to get the correct DUT based on the parametrized fixture name."""
         self.dut = request.getfixturevalue(dut_fixture)
-
-    def test_initialization(self):
-        """Test that the DUT is initialized correctly."""
-        assert self.dut is not None
-        assert self.dut.last_results is not None  # Simulation data is available
+        self.dut.bit_errs = (
+            1234  # Set detected errors to a number so `test_ber` won't pass unless none are actually detected.
+        )
+        self.dut.simulate(block=True)
+        assert self.dut.last_results is not None
 
     def test_performance_calculations(self):
         """Test simulation performance."""
-        perf: SimulationPerf = self.dut.last_results["performance"]
+        perf: SimulationPerfResults = self.dut.last_results.performance
         assert perf.total > (1e6 / 60), "Performance dropped below 1 Msmpls/min.!"
 
     def test_ber(self):
-        """Test simulation bit errors."""
+        """Test simulation bit errors are not detected."""
         assert not self.dut.bit_errs, "Bit errors detected!"
 
-    def test_dly(self):
-        """Test channel delay."""
+    def test_channel_delay(self):
+        """Test channel delay is calculated correctly and within expected range."""
         assert self.dut.chnl_dly > 1e-9 and self.dut.chnl_dly < 10e-9, "Channel delay is out of range!"
 
-    def test_isi(self):
-        """Test ISI portion of jitter."""
+    def test_jitter_metrics(self):
+        """Test jitter metrics at the end of the interconnect."""
         assert self.dut.dfe_jitter.isi < 50e-12, "ISI is too high!"
-
-    def test_dcd(self):
-        """Test DCD portion of jitter."""
         assert self.dut.dfe_jitter.dcd < 20e-12, "DCD is too high!"
-
-    def test_pj(self):
-        """Test periodic portion of jitter."""
         assert self.dut.dfe_jitter.pj < 20e-12, "Periodic jitter is too high!"
-
-    def test_rj(self):
-        """Test random portion of jitter."""
         assert self.dut.dfe_jitter.rj < 20e-12, "Random jitter is too high!"
 
-    def test_lock(self):
+    def test_cdr_lock(self):
         """Test CDR lock, by ensuring that last 20% of locked indication vector
         is all True."""
         _lockeds = self.dut.lockeds
         assert all(_lockeds[4 * len(_lockeds) // 5 :]), "CDR lock is unstable!"
 
-    def test_adapt(self):
+    def test_dfe_adapt(self):
         """Test DFE lock, by ensuring that last 20% of all coefficient vectors
         are stable to within +/-20% of their mean."""
         _weights = self.dut.adaptation  # rows = step; cols = tap

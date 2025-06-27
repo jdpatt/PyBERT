@@ -20,9 +20,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from pybert.gui.dialogs import select_file_dialog
 from pybert.gui.widgets.ibis_ami_config import IbisAmiConfigWidget
-from pybert.gui.widgets.ibis_manager import IbisAmiManager
 from pybert.gui.widgets.utils import block_signals
 from pybert.models.tx_tap import TxTapTuner
 from pybert.pybert import PyBERT
@@ -33,9 +31,8 @@ class TxEqualizationWidget(QGroupBox):
 
     def __init__(
         self,
-        pybert: PyBERT | None = None,
+        pybert: PyBERT,
         parent: Optional[QWidget] = None,
-        ami_manager: Optional[IbisAmiManager] = None,
     ) -> None:
         """Initialize the transmitter configuration widget.
 
@@ -44,7 +41,6 @@ class TxEqualizationWidget(QGroupBox):
         """
         super().__init__("Equalization", parent)
         self.pybert = pybert
-        self.ami_manager = ami_manager
 
         # Create main layout
         layout = QVBoxLayout()
@@ -56,8 +52,8 @@ class TxEqualizationWidget(QGroupBox):
         self.native_radio.setChecked(True)
         self.ibis_radio = QRadioButton("IBIS-AMI")
         self.mode_group = QButtonGroup(self)
-        self.mode_group.addButton(self.native_radio)
-        self.mode_group.addButton(self.ibis_radio)
+        self.mode_group.addButton(self.native_radio, 0)
+        self.mode_group.addButton(self.ibis_radio, 1)
         mode_layout.addWidget(self.native_radio)
         mode_layout.addWidget(self.ibis_radio)
         mode_layout.addStretch()
@@ -81,46 +77,50 @@ class TxEqualizationWidget(QGroupBox):
 
         # Configure table appearance
         header = self.ffe_table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.Stretch)  # Name
-        header.setSectionResizeMode(1, QHeaderView.Stretch)  # Enabled
-        header.setSectionResizeMode(2, QHeaderView.Stretch)  # Value
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)  # Name
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)  # Enabled
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)  # Value
 
-        self.ffe_table.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.ffe_table.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.ffe_table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.ffe_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
         native_layout.addWidget(self.ffe_table)
 
         self.stacked_widget.addWidget(self.native_group)
-        self.stacked_widget.addWidget(self.ami_manager.get_ami_widget())
+        self.ami_widget = IbisAmiConfigWidget(obj_accessor=lambda: self.pybert.tx, parent=self)
+        self.stacked_widget.addWidget(self.ami_widget)
+
         layout.addWidget(self.stacked_widget)
         layout.addStretch()
 
-        if pybert:
-            self.update_widget_from_model()
-            self.connect_signals(pybert)
+        self.update_widget_from_model()
+        self.connect_signals()
 
-    def connect_signals(self, pybert) -> None:
+    def connect_signals(self) -> None:
         """Connect signals to PyBERT instance."""
-        self.mode_group.buttonReleased.connect(self._toggle_ami_native_or_ibis)
-        self.ami_manager.ami_changed.connect(self.update_widget_from_model)
-        self.ffe_table.itemChanged.connect(lambda item: setattr(pybert, "tx_taps", self.get_tap_values()))
+        self.ffe_table.itemChanged.connect(lambda item: setattr(self.pybert, "tx_taps", self.get_tap_values()))
+        self.mode_group.buttonReleased.connect(self._handle_ibis_radio_toggled)
 
     def update_widget_from_model(self) -> None:
         """Update all widget values from the PyBERT model."""
         with block_signals(self):
-            self.ibis_radio.setChecked(self.pybert.tx_use_ami)
-            self.native_radio.setChecked(not self.pybert.tx_use_ami)
+            # Update mode
+            self.native_radio.setChecked(not self.pybert.tx.use_ami)
+            self.ibis_radio.setChecked(self.pybert.tx.use_ami)
 
             # Update native parameters
-            if hasattr(self.pybert, "tx_taps"):
-                self.set_taps(self.pybert.tx_taps)
+            self.set_taps(self.pybert.tx_taps)
+        # Update stacked widget
+        self.stacked_widget.setCurrentIndex(1 if self.pybert.tx.use_ami else 0)
 
-        self.stacked_widget.setCurrentIndex(1 if self.ibis_radio.isChecked() else 0)
+    def get_ami_widget(self) -> IbisAmiConfigWidget:
+        """Get the AMI configuration widget."""
+        return self.ami_widget
 
-    def _toggle_ami_native_or_ibis(self) -> None:
-        """Show only the selected group (IBIS or Native) using stacked layout."""
+    def _handle_ibis_radio_toggled(self) -> None:
+        """Handle the toggled event of the IBIS radio button."""
         self.stacked_widget.setCurrentIndex(1 if self.ibis_radio.isChecked() else 0)
-        setattr(self.pybert, "tx_use_ami", self.ibis_radio.isChecked())
+        setattr(self.pybert.tx, "use_ami", self.ibis_radio.isChecked())
 
     def set_taps(self, tuners: list[TxTapTuner]) -> None:
         """Set the number of FFE taps.
@@ -131,11 +131,11 @@ class TxEqualizationWidget(QGroupBox):
         self.ffe_table.setRowCount(len(tuners))
         for i, tuner in enumerate(tuners):
             name_item = QTableWidgetItem(tuner.name)
-            name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable)
+            name_item.setFlags(name_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             self.ffe_table.setItem(i, 0, name_item)
             enabled_item = QTableWidgetItem()
-            enabled_item.setFlags(enabled_item.flags() | Qt.ItemIsUserCheckable)
-            enabled_item.setCheckState(Qt.Checked if tuner.enabled else Qt.Unchecked)
+            enabled_item.setFlags(enabled_item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            enabled_item.setCheckState(Qt.CheckState.Checked if tuner.enabled else Qt.CheckState.Unchecked)
             self.ffe_table.setItem(i, 1, enabled_item)
             value_item = QTableWidgetItem(f"{tuner.value:+.3f}")
             self.ffe_table.setItem(i, 2, value_item)
@@ -149,10 +149,18 @@ class TxEqualizationWidget(QGroupBox):
         """
         values = []
         for i in range(self.ffe_table.rowCount()):
-            name = self.ffe_table.item(i, 0).text()
-            enabled = self.ffe_table.item(i, 1).checkState() == Qt.Checked
+            name_item = self.ffe_table.item(i, 0)
+            enabled_item = self.ffe_table.item(i, 1)
+            value_item = self.ffe_table.item(i, 2)
+
+            # Skip if any item is None
+            if name_item is None or enabled_item is None or value_item is None:
+                continue
+
+            name = name_item.text()
+            enabled = enabled_item.checkState() == Qt.CheckState.Checked
             try:
-                value = float(self.ffe_table.item(i, 2).text())
+                value = float(value_item.text())
             except (ValueError, TypeError):
                 value = 0.0
             values.append(TxTapTuner(name=name, enabled=enabled, value=value))
@@ -166,4 +174,6 @@ class TxEqualizationWidget(QGroupBox):
             value: New value for the tap
         """
         if 0 <= tap_index < self.ffe_table.rowCount():
-            self.ffe_table.item(tap_index, 2).setText(f"{value:+.3f}")
+            value_item = self.ffe_table.item(tap_index, 2)
+            if value_item is not None:
+                value_item.setText(f"{value:+.3f}")

@@ -23,7 +23,7 @@ from pybert.pybert import PyBERT
 class TxOptimizationWidget(QGroupBox):
     """Widget for configuring transmitter equalization."""
 
-    def __init__(self, pybert: PyBERT | None = None, parent: Optional[QWidget] = None) -> None:
+    def __init__(self, pybert: PyBERT, parent: Optional[QWidget] = None) -> None:
         """Initialize the transmitter equalization widget.
 
         Args:
@@ -47,15 +47,15 @@ class TxOptimizationWidget(QGroupBox):
 
         # Configure table appearance
         header = self.ffe_table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.Stretch)  # Name
-        header.setSectionResizeMode(1, QHeaderView.Stretch)  # Enabled
-        header.setSectionResizeMode(2, QHeaderView.Stretch)  # Min
-        header.setSectionResizeMode(3, QHeaderView.Stretch)  # Max
-        header.setSectionResizeMode(4, QHeaderView.Stretch)  # Step
-        header.setSectionResizeMode(5, QHeaderView.Stretch)  # Value
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)  # Name
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)  # Enabled
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)  # Min
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)  # Max
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)  # Step
+        header.setSectionResizeMode(5, QHeaderView.ResizeMode.Stretch)  # Value
 
-        self.ffe_table.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.ffe_table.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.ffe_table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.ffe_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
         layout.addWidget(self.ffe_table)
 
@@ -74,16 +74,16 @@ class TxOptimizationWidget(QGroupBox):
         for i, tuner in enumerate(tuners):
             # Name
             name_item = QTableWidgetItem(tuner.name)
-            name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable)
+            name_item.setFlags(name_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             self.ffe_table.setItem(i, 0, name_item)
 
             # Enabled
             enabled_item = QTableWidgetItem()
-            flags = enabled_item.flags() | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled
-            flags &= ~Qt.ItemIsEditable
+            flags = enabled_item.flags() | Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsEnabled
+            flags &= ~Qt.ItemFlag.ItemIsEditable
             enabled_item.setFlags(flags)
-            enabled_item.setCheckState(Qt.Checked if tuner.enabled else Qt.Unchecked)
-            enabled_item.setTextAlignment(Qt.AlignCenter)
+            enabled_item.setCheckState(Qt.CheckState.Checked if tuner.enabled else Qt.CheckState.Unchecked)
+            enabled_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self.ffe_table.setItem(i, 1, enabled_item)
 
             # Min value
@@ -100,7 +100,7 @@ class TxOptimizationWidget(QGroupBox):
 
             # Current value
             value_item = QTableWidgetItem(f"{tuner.value:+.3f}")
-            value_item.setFlags(value_item.flags() & ~Qt.ItemIsEditable)
+            value_item.setFlags(value_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             self.ffe_table.setItem(i, 5, value_item)
 
         self.ffe_table.resizeRowsToContents()
@@ -114,7 +114,7 @@ class TxOptimizationWidget(QGroupBox):
         values = []
         for i in range(self.ffe_table.rowCount()):
             name = self.ffe_table.item(i, 0).text()
-            enabled = self.ffe_table.item(i, 1).checkState() == Qt.Checked
+            enabled = self.ffe_table.item(i, 1).checkState() == Qt.CheckState.Checked
             min_val = float(self.ffe_table.item(i, 2).text())
             max_val = float(self.ffe_table.item(i, 3).text())
             step = float(self.ffe_table.item(i, 4).text())

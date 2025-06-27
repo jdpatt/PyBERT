@@ -29,36 +29,49 @@ from pybert.gui.dialogs import warning_dialog
 from pybert.gui.results_window import ResultsWindow
 from pybert.gui.tabs import ConfigTab, OptimizerTab, ResultsTab
 from pybert.gui.widgets import DebugConsoleWidget
+from pybert.gui.widgets.status_bar import StatusBar
 from pybert.pybert import PyBERT
+from pybert.results import Results
 from pybert.utility.logger import QStatusBarHandler
 
 logger = logging.getLogger("pybert")
 
 
 class PyBERTSignals(QObject):
-    """Signals for PyBERT model changes."""
+    """Signals for PyBERT model changes.
 
-    model_changed = Signal()  # Emitted when model parameters change
+    To keep the GUI responsive and thread safe, we emit signals instead of calling methods directly.
+    This allows the GUI to update in the main thread without blocking the worker thread. Basically, the callback
+    will call a method to emit the signal which will get scheduled to run in the main thread.
+    """
+
     configuration_loaded = Signal()  # Emitted when new configuration is loaded
-    results_loaded = Signal(object, object)  # Emitted when new results are loaded
+    results_loaded = Signal(object)  # Emitted when new results are loaded
     reference_results_loaded = Signal(object)  # Emitted when new reference results are loaded
+    sim_complete = Signal(object)  # Emitted when simulation is complete and new results are available
+    opt_complete = Signal(object)  # Emitted when optimization is complete and new results are available
+    opt_loop_complete = Signal(
+        object
+    )  # Emitted when an optimization loop is complete and we need to plot intermediate results
+    status_update = Signal(str)  # Emitted when status updates are available. These are in the bottom status bar.
 
 
 class PyBERTGUI(QMainWindow):
-    """Main window for the PyBERT application."""
+    """Main window for the PyBERT application.
 
-    # Qt Signals for GUI updates from worker threads
-    sim_complete = Signal(object, object)
-    opt_complete = Signal(object)
-    opt_loop_complete = Signal(object)
-    status_update = Signal(str)
+    This class is responsible for creating the main window and managing the tabs. It also manages the status bar and
+    the debug console.
+
+    The main window is a QMainWindow that contains a QTabWidget, a QStatusBar, and a QDockWidget for the debug console.
+    This requires that a QApplication is created before this class is instantiated.
+    """
 
     def __init__(self, pybert: PyBERT, show_debug: bool = False, parent: Optional[QWidget] = None):
         """Initialize the main window.
 
         Args:
             pybert: PyBERT model instance
-            show_debug: Whether to show additional debug information
+            show_debug: Whether to show additional debug information and to show the debug console by default
             parent: Optional parent widget
         """
         super().__init__(parent)
@@ -101,74 +114,31 @@ class PyBERTGUI(QMainWindow):
         self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.debug_console)
 
         self.create_menus(show_debug)
-        self.create_status_bar()
+        self.status_bar = StatusBar(self.pybert, self)
+        self.setStatusBar(self.status_bar)
 
         self.last_config_filepath = None
         self.last_results_filepath = None
 
-        self.connect_ui_signals()
         if self.pybert:
             self.connect_callbacks()
-            self.connect_configuration_signals()
+            self.connect_signals()
 
     def connect_callbacks(self):
-        """Connect PyBERT callbacks to GUI update methods."""
-        if not self.pybert:
-            return
+        """Connect PyBERT callbacks to GUI update methods.
 
-        self.pybert.add_simulation_callback(self.handle_simulation_complete)
-        self.pybert.add_optimization_callback(self.handle_optimization_complete)
-        self.pybert.add_optimization_loop_callback(self.handle_optimization_loop)
-        self.pybert.add_status_callback(self.handle_status_update)
-
-    def handle_simulation_complete(self, results: dict, performance: dict):
-        """Handle simulation completion from the worker thread.
-
-        This must just emit a signal so that the GUI thread can schedule the GUI update without
-        blocking the worker thread.
+        These callbacks are called by the PyBERT model to maintain thread safety.
         """
-        if not self.pybert:
-            return
-        self.sim_complete.emit(results, performance)
+        self.pybert.add_simulation_callback(self._handle_simulation_complete)
+        self.pybert.add_optimization_callback(self._handle_optimization_complete)
+        self.pybert.add_optimization_loop_callback(self._handle_optimization_loop)
+        self.pybert.add_status_callback(self._handle_status_update)
 
-    def handle_optimization_complete(self, result: dict):
-        """Handle optimization completion from the worker thread.
+    def connect_signals(self) -> None:
+        """Connect signals to all configuration widgets."""
 
-        This must just emit a signal so that the GUI thread can schedule the GUI update without
-        blocking the worker thread.
-        """
-        if not self.pybert:
-            return
-        tx_weights = result.get("tx_weights", [])
-        rx_peaking = result.get("rx_peaking", 0)
-        for k, tx_weight in enumerate(tx_weights):
-            self.pybert.tx_tap_tuners[k].value = tx_weight
-        self.pybert.peak_mag_tune = rx_peaking
-        self.opt_complete.emit(self.pybert.peak_mag_tune)
-
-    def handle_optimization_loop(self, result: dict):
-        """Handle optimization loop update from the worker thread.
-
-        This must just emit a signal so that the GUI thread can schedule the GUI update without
-        blocking the worker thread.
-        """
-        self.opt_loop_complete.emit(result)
-
-    def handle_status_update(self, message: str):
-        """Handle status update from the worker thread.
-
-        This must just emit a signal so that the GUI thread can schedule the GUI update without
-        blocking the worker thread.
-        """
-        self.status_update.emit(message)
-
-    def connect_configuration_signals(self) -> None:
-        """Connect configuration_loaded signal to all configuration widgets."""
-        if not self.pybert:
-            return
-
-        # Connect to all configuration widgets
-        self._signals.configuration_loaded.connect(self.config_tab.sim_control.update_widget_from_model)
+        # Connect to all configuration widgets -  So they can sync with the model when the configuration is loaded.
+        self._signals.configuration_loaded.connect(self.config_tab.sim_config.update_widget_from_model)
         self._signals.configuration_loaded.connect(self.config_tab.channel_config.update_widget_from_model)
         self._signals.configuration_loaded.connect(self.config_tab.tx_config.update_widget_from_model)
         self._signals.configuration_loaded.connect(self.config_tab.rx_config.update_widget_from_model)
@@ -177,78 +147,20 @@ class PyBERTGUI(QMainWindow):
         self._signals.results_loaded.connect(self.results_tab.update_results)
         self._signals.reference_results_loaded.connect(self.results_tab.add_reference_plots)
 
-    def create_status_bar(self):
-        """Create and setup the status bar with permanent widgets."""
-        self.status_bar = QStatusBar()
-        self.setStatusBar(self.status_bar)
+        # Connect all simulation and optimization signals
+        self._signals.sim_complete.connect(self._handle_simulation_results)
+        self._signals.opt_complete.connect(self._handle_optimization_results)
+        self._signals.opt_loop_complete.connect(self.optimizer_tab.update_plot)
+        self._signals.status_update.connect(self.status_bar.showMessage)
 
-        # Create permanent status widgets with styling
-        style = "padding: 0px 10px; margin: 2px; border-left: 1px solid #cccccc;"
+    # QT Overrides ------------------------------------------------------------
+    def closeEvent(self, event):
+        """Handle window close event, if the results window is open, close it as well."""
+        if self.results_window:
+            self.results_window.close()
+        super().closeEvent(event)
 
-        self.perf_label = QLabel("Perf: 0.0 Msmpls/min")
-        self.perf_label.setStyleSheet(style)
-
-        self.delay_label = QLabel("Channel Delay: 0.0 ns")
-        self.delay_label.setStyleSheet(style)
-
-        self.errors_label = QLabel("Bit Errors: 0")
-        self.errors_label.setStyleSheet(style)
-
-        self.power_label = QLabel("Tx Power: 0.0 mW")
-        self.power_label.setStyleSheet(style)
-
-        # Jitter metrics
-        self.isi_label = QLabel("ISI: 0.0 ps")
-        self.isi_label.setStyleSheet(style)
-
-        self.dcd_label = QLabel("DCD: 0.0 ps")
-        self.dcd_label.setStyleSheet(style)
-
-        self.pj_label = QLabel("Pj: 0.0 ps")
-        self.pj_label.setStyleSheet(style)
-
-        self.rj_label = QLabel("Rj: 0.0 ps")
-        self.rj_label.setStyleSheet(style)
-
-        # Add permanent widgets to status bar (right-aligned)
-        self.status_bar.addPermanentWidget(self.perf_label)
-        self.status_bar.addPermanentWidget(self.delay_label)
-        self.status_bar.addPermanentWidget(self.errors_label)
-        self.status_bar.addPermanentWidget(self.power_label)
-        self.status_bar.addPermanentWidget(self.isi_label)
-        self.status_bar.addPermanentWidget(self.dcd_label)
-        self.status_bar.addPermanentWidget(self.pj_label)
-        self.status_bar.addPermanentWidget(self.rj_label)
-
-        # Add the status bar handler for logging
-        status_bar_handler = QStatusBarHandler()
-        logger.addHandler(status_bar_handler)
-        status_bar_handler.new_record.connect(self.status_bar.showMessage)
-
-    def update_status_bar(self, results=None, perf=None):
-        """Update the status bar with performance metrics and jitter values.
-
-        Args:
-            results: Optional simulation results
-            perf: Optional performance metrics
-        """
-        if not self.pybert:
-            return
-
-        # Update performance metrics if available
-        if perf:
-            self.perf_label.setText(f"Perf: {perf.total * 6e-05:6.3f} Msmpls/min")
-            self.delay_label.setText(f"Channel Delay: {self.pybert.chnl_dly * 1e9:5.3f} ns")
-            self.errors_label.setText(f"Bit Errors: {int(self.pybert.bit_errs)}")
-            self.power_label.setText(f"Tx Power: {self.pybert.rel_power * 1e3:3.0f} mW")
-
-        jitter = self.pybert.dfe_jitter
-        if jitter:
-            self.isi_label.setText(f"ISI: {jitter.isi * 1.0e12:6.1f} ps")
-            self.dcd_label.setText(f"DCD: {jitter.dcd * 1.0e12:6.1f} ps")
-            self.pj_label.setText(f"Pj: {jitter.pj * 1.0e12:6.1f} ({jitter.pjDD * 1.0e12:6.1f}) ps")
-            self.rj_label.setText(f"Rj: {jitter.rj * 1.0e12:6.1f} ({jitter.rjDD * 1.0e12:6.1f}) ps")
-
+    # Menu creation ------------------------------------------------------------
     def create_file_menu(self):
         """Create the file menu for the application with the basic resetting, loading, saving, and quitting."""
         file_menu = self.menuBar().addMenu("&File")
@@ -316,12 +228,12 @@ class PyBERTGUI(QMainWindow):
         # Create logging level actions
         normal_action = QAction("Normal", self)
         normal_action.setCheckable(True)
-        normal_action.triggered.connect(lambda: self.set_logging_level(logging.INFO))
+        normal_action.triggered.connect(lambda: self._handle_logging_level_change(logging.INFO))
 
         debug_action = QAction("Debug", self)
         debug_action.setCheckable(True)
         debug_action.setChecked(True) if show_debug else normal_action.setChecked(True)
-        debug_action.triggered.connect(lambda: self.set_logging_level(logging.DEBUG))
+        debug_action.triggered.connect(lambda: self._handle_logging_level_change(logging.DEBUG))
 
         # Add actions to logging menu
         logging_menu.addAction(normal_action)
@@ -392,36 +304,13 @@ class PyBERTGUI(QMainWindow):
         help_menu.addAction(getting_started_action)
         help_menu.addAction(about_action)
 
+    # Results window management ------------------------------------------------------------
     def toggle_results_window(self):
-        """Toggle the results window split state."""
+        """Toggle the results window split state to either split or just a tab in the main window."""
         if self.results_split:
             self.merge_results_window()
         else:
             self.split_results_window()
-
-    def _update_results_with_current_data(self, target_widget):
-        """Update the given widget with current results data.
-
-        Args:
-            target_widget: Either self.results_tab or self.results_window
-        """
-        if not self.pybert or not hasattr(self.pybert, "last_results") or not self.pybert.last_results:
-            return
-
-        # Extract results and performance from the stored data
-        if isinstance(self.pybert.last_results, dict):
-            results = self.pybert.last_results.get("results")
-            performance = self.pybert.last_results.get("performance")
-            if results and performance:
-                target_widget.update_results(results, performance)
-        else:
-            # If last_results is a Results object, extract the data
-            try:
-                results = self.pybert.last_results.results
-                performance = self.pybert.last_results.performance
-                target_widget.update_results(results, performance)
-            except AttributeError:
-                pass  # If we can't extract the data, just continue
 
     def split_results_window(self):
         """Split the results tab into a separate window."""
@@ -486,23 +375,17 @@ class PyBERTGUI(QMainWindow):
         # Update the results tab with any existing results
         self._update_results_with_current_data(self.results_tab)
 
-    def closeEvent(self, event):
-        """Handle window close event."""
-        # Close the results window if it exists
-        if self.results_window:
-            self.results_window.close()
-        super().closeEvent(event)
-
-    # Menu action handlers
+    # Menu action handlers ------------------------------------------------------------
     def load_results(self):
         """Load results from a file."""
         file_path, _ = QFileDialog.getOpenFileName(
             self, "Load Results", "", "PyBERT Results (*.pybert_data);;All Files (*.*)"
         )
-        if file_path and self.pybert:
-            results = self.pybert.load_results(Path(file_path))
-            self.last_results_filepath = Path(file_path)
-            self._signals.results_loaded.emit(results.results, results.performance)
+        if file_path:
+            path = Path(file_path)
+            results = self.pybert.load_results(path)
+            self.last_results_filepath = path
+            self._signals.results_loaded.emit(results)
 
     def load_results_as_reference(self):
         """Load results from a file as reference.
@@ -512,9 +395,9 @@ class PyBERTGUI(QMainWindow):
         file_path, _ = QFileDialog.getOpenFileName(
             self, "Load Results as Reference", "", "PyBERT Results (*.pybert_data);;All Files (*.*)"
         )
-        if file_path and self.pybert:
+        if file_path:
             results = self.pybert.load_results(Path(file_path))
-            self._signals.reference_results_loaded.emit(results.results)
+            self._signals.reference_results_loaded.emit(results)
 
     def clear_reference_plots(self):
         """Clear the reference plots."""
@@ -528,18 +411,19 @@ class PyBERTGUI(QMainWindow):
         file_path, _ = QFileDialog.getSaveFileName(
             self, "Save Results", "", "PyBERT Results (*.pybert_data);;All Files (*.*)"
         )
-        if file_path and self.pybert:
-            self.pybert.save_results(Path(file_path))
-            self.last_results_filepath = Path(file_path)
+        if file_path:
+            path = Path(file_path)
+            self.pybert.save_results(path)
+            self.last_results_filepath = path
 
     def load_config(self):
         """Load configuration from a file."""
         file_path, _ = QFileDialog.getOpenFileName(self, "Load Configuration", "", CONFIG_LOAD_WILDCARD)
-        if file_path and self.pybert:
+        if file_path:
             self.last_config_filepath = Path(file_path)
             self.pybert.load_configuration(self.last_config_filepath)
             self._signals.configuration_loaded.emit()
-            self.setWindowTitle(f"PyBERT v{__version__} - {self.last_config_filepath.name}")
+            self._update_window_title(self.last_config_filepath.name)
 
     def save_config(self):
         """Save configuration to the current file."""
@@ -554,11 +438,13 @@ class PyBERTGUI(QMainWindow):
         if file_path and self.pybert:
             self.last_config_filepath = Path(file_path)
             self.pybert.save_configuration(self.last_config_filepath)
-            self.setWindowTitle(f"PyBERT v{__version__} - {self.last_config_filepath.name}")
+            self._update_window_title(self.last_config_filepath.name)
+            if self.results_split and self.results_window:
+                self.results_window.update_title(self.last_config_filepath.name)
 
     def new_config(self):
         """Create a new configuration."""
-        self.setWindowTitle(f"PyBERT v{__version__} - Untitled")
+        self._update_window_title("Untitled")
         self.last_config_filepath = None
         self.pybert.reset_configuration()
         self._signals.configuration_loaded.emit()
@@ -583,6 +469,7 @@ class PyBERTGUI(QMainWindow):
         trials = self.pybert.calculate_optimization_trials()
         if trials > 1_000_000:
             usr_resp = warning_dialog(
+                self,
                 "Large number of trials",
                 f"You've opted to run over {trials // 1_000_000} million trials!\nAre you sure?",
             )
@@ -624,7 +511,7 @@ class PyBERTGUI(QMainWindow):
         )
         about_box.exec()
 
-    def set_logging_level(self, level: int):
+    def _handle_logging_level_change(self, level: int):
         """Set the logging level for both the debug console and status bar.
 
         Args:
@@ -641,23 +528,91 @@ class PyBERTGUI(QMainWindow):
         if hasattr(self, "debug_console"):
             self.debug_console.set_logging_level(level)
 
-    def connect_ui_signals(self):
-        """Connect signals to their corresponding UI update slots."""
-        self.sim_complete.connect(self._update_simulation_results)
-        self.opt_complete.connect(self._update_optimization_results)
-        self.opt_loop_complete.connect(self.optimizer_tab.update_plot)
-        self.status_update.connect(self.status_bar.showMessage)
+    def _handle_simulation_results(self, results: Results):
+        """Slot to update all simulation results widgets. Runs on the main GUI thread.
 
-    def _update_simulation_results(self, results: dict, performance: dict):
-        """Slot to update all simulation results widgets. Runs on the main GUI thread."""
-        if not self.pybert:
-            return
-        self.update_status_bar(results, performance)
+        Args:
+            results: The results object containing the simulation results
+        """
+        self.status_bar.update(results)
         if self.results_split and self.results_window:
-            self.results_window.update_results(results, performance)
+            self.results_window.update_results(results)
         else:
-            self.results_tab.update_results(results, performance)
+            self.results_tab.update_results(results)
 
-    def _update_optimization_results(self, peak_mag: float):
-        """Slot to update optimization result widgets. Runs on the main GUI thread."""
+    def _handle_optimization_results(self, peak_mag: float):
+        """Slot to update optimization result widgets. Runs on the main GUI thread.
+
+        When optimization is complete, we need to update the RX CTLE boost to the final peak magnitude.
+
+        Args:
+            peak_mag: The peak magnitude of the optimization result
+        """
         self.optimizer_tab.rx_ctle.set_ctle_boost(peak_mag)
+
+    def _update_window_title(self, title: str):
+        """Update the window title with the given title.
+
+        Args:
+            title: The title to update the window title with
+        """
+        self.setWindowTitle(f"PyBERT v{__version__} - {title}")
+
+    def _handle_simulation_complete(self, results: Results):
+        """Handle simulation completion from the worker thread.
+
+        This must just emit a signal so that the GUI thread can schedule the GUI update without
+        blocking the worker thread.
+
+        Args:
+            results: The results object containing the simulation results
+        """
+        self._signals.sim_complete.emit(results)
+
+    def _handle_optimization_complete(self, opt_result: dict):
+        """Handle optimization completion from the worker thread.
+
+        This must just emit a signal so that the GUI thread can schedule the GUI update without
+        blocking the worker thread.
+
+        Args:
+            opt_result: The optimization result
+        """
+        tx_weights = opt_result.get("tx_weights", [])
+        rx_peaking = opt_result.get("rx_peaking", 0)
+        for k, tx_weight in enumerate(tx_weights):
+            self.pybert.tx_tap_tuners[k].value = tx_weight
+        self.pybert.peak_mag_tune = rx_peaking
+        self._signals.opt_complete.emit(self.pybert.peak_mag_tune)
+
+    def _handle_optimization_loop(self, opt_loop_result: dict):
+        """Handle optimization loop update from the worker thread.
+
+        This must just emit a signal so that the GUI thread can schedule the GUI update without
+        blocking the worker thread.
+
+        Args:
+            opt_loop_result: The optimization loop result
+        """
+        self._signals.opt_loop_complete.emit(opt_loop_result)
+
+    def _handle_status_update(self, message: str):
+        """Handle status update from the worker thread.
+
+        This must just emit a signal so that the GUI thread can schedule the GUI update without
+        blocking the worker thread.
+
+        Args:
+            message: The status update message
+        """
+        self._signals.status_update.emit(message)
+
+    def _update_results_with_current_data(self, results_widget):
+        """Update the given widget with current results data.
+
+        Args:
+            results_widget: Either self.results_tab or self.results_window
+        """
+        if not self.pybert.last_results:
+            return
+        results_widget.update_results(self.pybert.last_results)

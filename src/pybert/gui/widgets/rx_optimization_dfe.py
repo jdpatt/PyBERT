@@ -20,12 +20,13 @@ from PySide6.QtWidgets import (
 
 from pybert.gui.widgets.utils import block_signals
 from pybert.models.tx_tap import TxTapTuner
+from pybert.pybert import PyBERT
 
 
 class RxOptimizationDFEWidget(QGroupBox):
     """Widget for configuring receiver equalization."""
 
-    def __init__(self, pybert=None, parent: Optional[QWidget] = None) -> None:
+    def __init__(self, pybert: PyBERT, parent: Optional[QWidget] = None) -> None:
         """Initialize the receiver equalization widget.
 
         Args:
@@ -55,13 +56,13 @@ class RxOptimizationDFEWidget(QGroupBox):
 
         # Configure table appearance
         header = self.dfe_table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.Stretch)  # Name
-        header.setSectionResizeMode(1, QHeaderView.Stretch)  # Enabled
-        header.setSectionResizeMode(2, QHeaderView.Stretch)  # Min
-        header.setSectionResizeMode(3, QHeaderView.Stretch)  # Max
-        header.setSectionResizeMode(4, QHeaderView.Stretch)  # Value
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)  # Name
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)  # Enabled
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)  # Min
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)  # Max
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)  # Value
 
-        self.dfe_table.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.dfe_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
         dfe_layout.addWidget(self.dfe_table)
 
@@ -83,13 +84,13 @@ class RxOptimizationDFEWidget(QGroupBox):
         for i, tuner in enumerate(tuners):
             # Name
             name_item = QTableWidgetItem(tuner.name)
-            name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable)
+            name_item.setFlags(name_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             self.dfe_table.setItem(i, 0, name_item)
 
             # Enabled
             enabled_item = QTableWidgetItem()
-            enabled_item.setFlags(enabled_item.flags() | Qt.ItemIsUserCheckable)
-            enabled_item.setCheckState(Qt.Checked if tuner.enabled else Qt.Unchecked)
+            enabled_item.setFlags(enabled_item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            enabled_item.setCheckState(Qt.CheckState.Checked if tuner.enabled else Qt.CheckState.Unchecked)
             self.dfe_table.setItem(i, 1, enabled_item)
 
             # Min value
@@ -102,7 +103,7 @@ class RxOptimizationDFEWidget(QGroupBox):
 
             # Current value
             value_item = QTableWidgetItem(f"{tuner.value:+.3f}")
-            value_item.setFlags(value_item.flags() & ~Qt.ItemIsEditable)
+            value_item.setFlags(value_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             self.dfe_table.setItem(i, 4, value_item)
 
         self.dfe_table.resizeRowsToContents()
@@ -111,7 +112,7 @@ class RxOptimizationDFEWidget(QGroupBox):
         """Disable all DFE taps."""
         with block_signals(self.dfe_table):
             for i in range(self.dfe_table.rowCount()):
-                self.dfe_table.item(i, 1).setCheckState(Qt.Unchecked)
+                self.dfe_table.item(i, 1).setCheckState(Qt.CheckState.Unchecked)
         # Manually trigger the update once
         setattr(self.pybert, "dfe_tap_tuners", self.get_dfe_tap_values())
 
@@ -119,7 +120,7 @@ class RxOptimizationDFEWidget(QGroupBox):
         """Enable all DFE taps."""
         with block_signals(self.dfe_table):
             for i in range(self.dfe_table.rowCount()):
-                self.dfe_table.item(i, 1).setCheckState(Qt.Checked)
+                self.dfe_table.item(i, 1).setCheckState(Qt.CheckState.Checked)
         # Manually trigger the update once
         setattr(self.pybert, "dfe_tap_tuners", self.get_dfe_tap_values())
 
@@ -133,7 +134,7 @@ class RxOptimizationDFEWidget(QGroupBox):
         limits = []
         for i in range(self.dfe_table.rowCount()):
             name = self.dfe_table.item(i, 0).text()
-            enabled = self.dfe_table.item(i, 1).checkState() == Qt.Checked
+            enabled = self.dfe_table.item(i, 1).checkState() == Qt.CheckState.Checked
             min_val = float(self.dfe_table.item(i, 2).text())
             max_val = float(self.dfe_table.item(i, 3).text())
             value = float(self.dfe_table.item(i, 4).text())

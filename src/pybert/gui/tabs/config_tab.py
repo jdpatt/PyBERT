@@ -23,7 +23,7 @@ from pybert.pybert import PyBERT
 class ConfigTab(QWidget):
     """Configuration tab containing simulation settings and channel configuration."""
 
-    def __init__(self, pybert: PyBERT | None = None, parent=None):
+    def __init__(self, pybert: PyBERT, parent=None):
         """Initialize the configuration tab.
 
         Args:
@@ -38,9 +38,9 @@ class ConfigTab(QWidget):
 
         # Create horizontal layout for top section
         top_layout = QHBoxLayout()
-        self.sim_control = SimulationConfiglWidget(pybert=self.pybert, parent=self)
-        self.sim_control.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
-        top_layout.addWidget(self.sim_control, stretch=2)
+        self.sim_config = SimulationConfiglWidget(pybert=self.pybert, parent=self)
+        self.sim_config.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
+        top_layout.addWidget(self.sim_config, stretch=2)
         layout.addLayout(top_layout)
 
         self.tx_config = TxConfigWidget(pybert=self.pybert, parent=self)

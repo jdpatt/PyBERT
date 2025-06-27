@@ -75,7 +75,7 @@ class JitterStage:
 class JitterInfoTable(QTableWidget):
     """Table widget displaying jitter analysis information."""
 
-    def __init__(self, pybert: PyBERT | None = None, parent=None):
+    def __init__(self, pybert: PyBERT, parent=None):
         super().__init__(parent)
         self.pybert = pybert
         self.setup_ui()

@@ -13,6 +13,7 @@ from PySide6.QtWidgets import QMainWindow, QVBoxLayout, QWidget
 from pybert import __version__
 from pybert.gui.tabs import ResultsTab
 from pybert.pybert import PyBERT
+from pybert.results import Results
 
 
 class ResultsWindow(QMainWindow):
@@ -32,7 +33,7 @@ class ResultsWindow(QMainWindow):
         super().__init__(parent)
         self.pybert = pybert
 
-        self.setWindowTitle(f"PyBERT v{__version__} - {name} Results")
+        self.update_title(name)
         self.resize(1200, 800)
 
         # Set window icon
@@ -72,9 +73,13 @@ class ResultsWindow(QMainWindow):
         # These signals will be connected from the main window
         pass
 
-    def update_results(self, results, perf):
+    def update_results(self, results: Results):
         """Update results in the window."""
-        self.results_tab.update_results(results, perf)
+        self.results_tab.update_results(results)
+
+    def update_title(self, name: str):
+        """Update the window title."""
+        self.setWindowTitle(f"PyBERT v{__version__} - {name} Results")
 
     def add_reference_plots(self, results):
         """Add reference plots to the window."""

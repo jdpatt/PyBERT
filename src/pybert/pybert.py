@@ -44,6 +44,7 @@ from pybert import __version__ as VERSION
 from pybert.bert import SimulationThread
 from pybert.configuration import Configuration, InvalidConfigFileType
 from pybert.constants import gPeakFreq, gPeakMag
+from pybert.models.buffer import Receiver, Transmitter
 from pybert.models.stimulus import BitPattern, ModulationType
 from pybert.models.tx_tap import TxTapTuner
 from pybert.optimization import OptThread
@@ -68,7 +69,9 @@ class PyBERT:  # pylint: disable=too-many-instance-attributes
     Useful for exploring the concepts of serial communication link design.
     """
 
-    def __init__(self, run_simulation: bool = False) -> None:
+    def __init__(
+        self, run_simulation: bool = False, tx: Transmitter = Transmitter(), rx: Receiver = Receiver()
+    ) -> None:
         """Initialize the PyBERT class.
 
         Args:
@@ -80,6 +83,8 @@ class PyBERT:  # pylint: disable=too-many-instance-attributes
                 default = True)
         """
         # Independent variables
+        self.tx = tx
+        self.rx = rx
 
         # - Simulation Control
         self.bit_rate: float = 10.0  #: (Gbps)
@@ -150,8 +155,6 @@ class PyBERT:  # pylint: disable=too-many-instance-attributes
 
         # - Tx
         self.vod: float = 1.0  #: Tx differential output voltage (V)
-        self.rs: int = 100  #: Tx source impedance (Ohms)
-        self.cout: float = 0.5  #: Tx parasitic output capacitance (pF)
         self.pn_mag: float = 0.1  #: Periodic noise magnitude (V).
         self.pn_freq: float = 11  #: Periodic noise frequency (MHz).
         self.rn: float = 0.1  #: Standard deviation of Gaussian random noise (V).
@@ -164,42 +167,14 @@ class PyBERT:  # pylint: disable=too-many-instance-attributes
             TxTapTuner(name="Post-tap3", pos=3, enabled=True, min_val=-0.05, max_val=0.05),
         ]  #: List of TxTapTuner objects.
         self.rel_power: float = 1.0  #: Tx power dissipation (W).
-        self.tx_use_ami: bool = False  #: (Bool)
-        self.tx_has_ts4: bool = False  #: (Bool)
-        self.tx_use_ts4: bool = False  #: (Bool)
-        self.tx_use_getwave: bool = False  #: (Bool)
-        self.tx_has_getwave: bool = False  #: (Bool)
-        self.tx_ami_file: str = ""  #: (File)
-        self.tx_ami_valid: bool = False  #: (Bool)
-        self.tx_dll_file: str = ""  #: (File)
-        self.tx_dll_valid: bool = False  #: (Bool)
-        self.tx_ibis_file: str = ""  #: (File)
-        self.tx_ibis_valid: bool = False  #: (Bool)
-        self.tx_use_ibis: bool = False  #: (Bool)
 
         # - Rx
-        self.rin: int = 100  #: Rx input impedance (Ohm)
-        self.cin: float = 0.5  #: Rx parasitic input capacitance (pF)
-        self.cac: float = 1.0  #: Rx a.c. coupling capacitance (uF)
         self.use_ctle_file: bool = False  #: For importing CTLE impulse/step response directly.
         self.ctle_file: str = ""  #: CTLE response file (when use_ctle_file = True).
         self.rx_bw: float = 12.0  #: CTLE bandwidth (GHz).
         self.peak_freq: float = gPeakFreq  #: CTLE peaking frequency (GHz)
         self.peak_mag: float = gPeakMag  #: CTLE peaking magnitude (dB)
         self.ctle_enable: bool = True  #: CTLE enable.
-        self.rx_use_ami: bool = False  #: (Bool)
-        self.rx_has_ts4: bool = False  #: (Bool)
-        self.rx_use_ts4: bool = False  #: (Bool)
-        self.rx_use_getwave: bool = False  #: (Bool)
-        self.rx_has_getwave: bool = False  #: (Bool)
-        self.rx_use_clocks: bool = False  #: (Bool)
-        self.rx_ami_file: str = ""  #: (File)
-        self.rx_ami_valid: bool = False  #: (Bool)
-        self.rx_dll_file: str = ""  #: (File)
-        self.rx_dll_valid: bool = False  #: (Bool)
-        self.rx_ibis_file: str = ""  #: (File)
-        self.rx_ibis_valid: bool = False  #: (Bool)
-        self.rx_use_ibis: bool = False  #: (Bool)
 
         # - DFE
         self.sum_ideal: bool = True  #: True = use an ideal (i.e. - infinite bandwidth) summing node (Bool).
@@ -224,15 +199,6 @@ class PyBERT:  # pylint: disable=too-many-instance-attributes
         self.run_count: int = 0  # Used as a mechanism to force bit stream regeneration.
         self.dfe_out_p: list = []
 
-        self.tx_ibis = None
-        self.tx_ibis_dir = ""
-        self.tx_cfg = None
-        self.tx_model = None
-        self.rx_ibis = None
-        self.rx_ibis_dir = ""
-        self.rx_cfg = None
-        self.rx_model = None
-
         # Initialize jitter analysis objects
         self.chnl_jitter: JitterAnalysis | None = None
         self.tx_jitter: JitterAnalysis | None = None
@@ -244,7 +210,7 @@ class PyBERT:  # pylint: disable=too-many-instance-attributes
         self.opt_thread: Optional[OptThread] = None  #: EQ optimization thread.
 
         # Add callback-based result handling
-        self._simulation_callbacks: list[Callable[[dict, dict], None]] = []
+        self._simulation_callbacks: list[Callable[[Results], None]] = []
         self._optimization_callbacks: list[Callable[[dict], None]] = []
         self._optimization_loop_callbacks: list[Callable[[dict], None]] = []
         self._status_callbacks: list[Callable[[str], None]] = []
@@ -258,11 +224,11 @@ class PyBERT:  # pylint: disable=too-many-instance-attributes
         if run_simulation:
             self.simulate()
 
-    def add_simulation_callback(self, callback: Callable[[dict, dict], None]) -> None:
+    def add_simulation_callback(self, callback: Callable[[Results], None]) -> None:
         """Add a callback to be called when simulation completes.
 
         Args:
-            callback: Function that takes (results, performance) as arguments
+            callback: Function that takes Results as arguments
         """
         self._simulation_callbacks.append(callback)
 
@@ -290,20 +256,20 @@ class PyBERT:  # pylint: disable=too-many-instance-attributes
         """
         self._status_callbacks.append(callback)
 
-    def _notify_simulation_complete(self, results: dict, performance: dict) -> None:
+    def _notify_simulation_complete(self, results: Results) -> None:
         """Notify all simulation callbacks with results."""
         # Store results for non-blocking access
-        self.last_results = {"results": results, "performance": performance}
+        self.last_results = results
 
         # Resolve the future if it exists (for blocking operations)
         if self._simulation_future and not self._simulation_future.done():
-            self._simulation_future.set_result({"results": results, "performance": performance})
+            self._simulation_future.set_result(results)
             self._simulation_future = None
 
         # Call all callbacks
         for callback in self._simulation_callbacks:
             try:
-                callback(results, performance)
+                callback(results)
             except Exception as e:
                 logger.error(f"Error in simulation callback: {e}")
 
@@ -522,77 +488,6 @@ class PyBERT:  # pylint: disable=too-many-instance-attributes
 
         return taps
 
-    def load_ibis_file(
-        self,
-        filepath: Path | str,
-        is_tx: bool = True,
-        current_component: str = None,
-        current_pin: str = None,
-        current_model: str = None,
-    ) -> IBISModel:
-        """Load a new IBIS file and return the IBISModel object."""
-        try:
-            logger.info("Parsing IBIS file: %s", str(filepath))
-            # TODO: Some models are very large, we should lazy load them.
-            ibis = IBISModel.from_file(filepath, is_tx=is_tx)
-            if current_component and current_pin and current_model:
-                ibis.current_component = current_component  # This updates the pin dictionary
-                ibis.current_pin = current_pin  # This updates the model dictionary
-                ibis.current_model = current_model  # Finally set the model.
-
-            ibis_type = "tx" if is_tx else "rx"
-            setattr(self, f"{ibis_type}_ibis", ibis)
-            setattr(self, f"{ibis_type}_use_ibis", True)
-            logger.info("Loaded new IBIS file. Switching to IBIS mode.")
-            return ibis
-        except Exception as err:  # pylint: disable=broad-exception-caught
-            error_message = f"Failed to open and/or parse IBIS file!\n{err}"
-            logger.exception(error_message)
-
-    def load_ami_configurator(self, ami_file: Path | str, is_tx: bool = True) -> AMIParamConfigurator:
-        """Load the AMI file and return the AMIParamConfigurator object."""
-        try:
-            logger.info("Parsing AMI file, '%s'...", str(ami_file))
-            pcfg = AMIParamConfigurator.from_file(ami_file)
-            ibis_type = "tx" if is_tx else "rx"
-            # TODO: Move all of this into the AMIParamConfigurator class, pybert.py should just call the methods.
-            if pcfg is not None:
-                setattr(self, f"{ibis_type}_cfg", pcfg)
-                setattr(self, f"{ibis_type}_has_ts4", pcfg.ts4file is not None)
-                setattr(self, f"{ibis_type}_use_ami", True)
-                logger.info("Loaded new Tx AMI file. Tx switching to AMI equalization mode.")
-            else:
-                logger.warning("Failed to load AMI file for Tx IBIS file. Tx will use native equalization.")
-                setattr(self, f"{ibis_type}_use_ami", False)
-            if pcfg.ami_parsing_errors:
-                logger.warning(f"Non-fatal parsing errors:\n{pcfg.ami_parsing_errors}")
-            else:
-                logger.info("Success.")
-            has_getwave = pcfg.getwave_exists()
-            init_returns_impulse = pcfg.returns_impulse()
-            if not init_returns_impulse:
-                setattr(self, f"{ibis_type}_use_getwave", True)
-            if pcfg.ts4file():
-                has_ts4 = True
-            else:
-                has_ts4 = False
-            setattr(self, f"{ibis_type}_has_ts4", has_ts4)
-            setattr(self, f"{ibis_type}_use_ami", True)
-            return pcfg
-        except Exception as err:  # pylint: disable=broad-exception-caught
-            error_message = f"Failed to open and/or parse AMI file!\n{err}"
-            logger.exception(error_message)
-
-    def load_dll_model(self, dll_file: Path | str, is_tx: bool = True):
-        """Load the DLL/SO file and return the AMIModel object."""
-        try:
-            model = AMIModel(dll_file)
-            ibis_type = "tx" if is_tx else "rx"
-            setattr(self, f"{ibis_type}_model", model)
-            return model
-        except Exception as err:  # pylint: disable=broad-exception-caught
-            logger.exception("Failed to open DLL/SO file! %s", err)
-
     # This function has been pulled outside of the standard Traits/UI "depends_on / @property" mechanism,
     # in order to more tightly control when it executes. I wasn't able to get truly lazy evaluation, and
     # this was causing noticeable GUI slowdown.
@@ -621,10 +516,10 @@ class PyBERT:  # pylint: disable=too-many-instance-attributes
         w = self.w
         nspui = self.nspui
         impulse_length = self.impulse_length * 1.0e-9
-        Rs = self.rs
-        Cs = self.cout * 1.0e-12
-        RL = self.rin
-        Cp = self.cin * 1.0e-12
+        Rs = self.tx.impedance
+        Cs = self.tx.capacitance * 1.0e-12
+        RL = self.rx.impedance
+        Cp = self.rx.capacitance * 1.0e-12
         # CL = self.cac * 1.0e-6  # pylint: disable=unused-variable
 
         ts = t[1]
@@ -633,7 +528,7 @@ class PyBERT:  # pylint: disable=too-many-instance-attributes
         # Form the pre-on-die S-parameter 2-port network for the channel.
         if self.use_ch_file:
             # TODO: This is temporary until we support multiple channel files.
-            self.ch_file = self.channel_elements[0][0]
+            self.ch_file = self.channel_elements[0]["file"]
             ch_s2p_pre = import_channel(self.ch_file, ts, f, renumber=self.renumber)
             logger.info(str(ch_s2p_pre))
             H = ch_s2p_pre.s21.s.flatten()
@@ -693,26 +588,26 @@ class PyBERT:  # pylint: disable=too-many-instance-attributes
                 res = ntwk2**s2p
             return (res, ts4N, ntwk2)
 
-        if self.tx_use_ibis:
-            model = self.tx_ibis.current_model
+        if self.tx.use_ibis:
+            model = self.tx.ibis.current_model
             Rs = model.impedance * 2
             Cs = model.ccomp[0] / 2  # They're in series.
             self.Rs = Rs  # Primarily for debugging.
             self.Cs = Cs
-            if self.tx_use_ts4:
-                fname = join(self.tx_ibis_dir, self._tx_cfg.fetch_param_val(["Reserved_Parameters", "Ts4file"]))
+            if self.tx.use_ts4:
+                fname = join(self.tx.ibis_dir, self._tx_cfg.fetch_param_val(["Reserved_Parameters", "Ts4file"]))
                 ch_s2p, ts4N, ntwk = add_ondie_s(ch_s2p, fname)
                 self.ts4N = ts4N
                 self.ntwk = ntwk
-        if self.rx_use_ibis:
-            model = self.rx_ibis.current_model
+        if self.rx.use_ibis:
+            model = self.rx.ibis.current_model
             RL = model.impedance * 2
             Cp = model.ccomp[0] / 2
             self.RL = RL  # Primarily for debugging.
             self.Cp = Cp
             logger.debug(f"RL: {round(RL, 2)}, Cp: {round(Cp, 2)}")
-            if self.rx_use_ts4:
-                fname = join(self.rx_ibis_dir, self._rx_cfg.fetch_param_val(["Reserved_Parameters", "Ts4file"]))
+            if self.rx.use_ts4:
+                fname = join(self.rx.ibis_dir, self._rx_cfg.fetch_param_val(["Reserved_Parameters", "Ts4file"]))
                 ch_s2p, ts4N, ntwk = add_ondie_s(ch_s2p, fname, isRx=True)
                 self.ts4N = ts4N
                 self.ntwk = ntwk
@@ -774,14 +669,7 @@ class PyBERT:  # pylint: disable=too-many-instance-attributes
         Args:
             filepath: A full filepath include the suffix.
         """
-        try:
-            Configuration.load_from_file(filepath, self)
-            logger.info("Loaded configuration.")
-        except InvalidConfigFileType:
-            logger.error("This filetype is not currently supported.")
-        except Exception as err:  # pylint: disable=broad-exception-caught
-            logger.error("Failed to load configuration. See the console for more detail.")
-            logger.exception(str(err))
+        Configuration.load_from_file(filepath, self)
 
     def save_configuration(self, filepath: Path | str):
         """Save out a configuration from pybert.
@@ -789,32 +677,20 @@ class PyBERT:  # pylint: disable=too-many-instance-attributes
         Args:
             filepath: A full filepath include the suffix.
         """
-        try:
-            Configuration(self).save(filepath)
-            logger.info("Configuration saved.")
-        except InvalidConfigFileType:
-            logger.error("This filetype is not currently supported. Please try again as a yaml file.")
-        except Exception as err:  # pylint: disable=broad-exception-caught
-            logger.error(f"Failed to save configuration:\n\t{err}")
+        Configuration(self).save(filepath)
 
     def reset_configuration(self) -> None:
         """Reset the PyBERT instance to default configuration values."""
         Configuration.apply_default_config(self)
-        logger.info("Default configuration applied.")
 
-    def load_results(self, filepath: Path) -> Results:
+    def load_results(self, filepath: Path) -> Results | None:
         """Load results from a file into pybert.
 
         Args:
             filepath: A full filepath include the suffix.
         """
-        try:
-            self.last_results = Results.load_from_file(filepath)
-            logger.info("Loaded results.")
-            return self.last_results
-        except Exception as err:  # pylint: disable=broad-exception-caught
-            logger.error("Failed to load results from file. See the console for more detail.")
-            logger.exception(str(err))
+        self.last_results = Results.load_from_file(filepath)
+        return self.last_results
 
     def save_results(self, filepath: Path):
         """Save the existing results to a pickle file.
@@ -823,18 +699,9 @@ class PyBERT:  # pylint: disable=too-many-instance-attributes
             filepath: A full filepath include the suffix.
         """
         if self.last_results:
-            try:
-                Results(results=self.last_results["results"], performance=self.last_results["performance"]).save(
-                    filepath
-                )
-                logger.info("Saved results.")
-            except Exception as err:  # pylint: disable=broad-exception-caught
-                logger.error("Failed to save results to file. See the console for more detail.")
-                logger.exception(str(err))
-        else:
-            logger.error("No results to save. Please run a simulation first.")
+            self.last_results.save(filepath)
 
-    def simulate(self, block: bool = False, timeout: int = 180):
+    def simulate(self, block: bool = False, timeout: int = 180) -> Results | None:
         """Start a simulation of the current configuration in a separate thread.
 
         Args:
@@ -942,16 +809,16 @@ class PyBERT:  # pylint: disable=too-many-instance-attributes
         if not self.channel_elements and self.use_ch_file:
             logger.error("No channel file selected. Please select a channel file.")
             return False
-        if not self.tx_ibis and self.tx_use_ibis:
+        if not self.tx.ibis and self.tx.use_ibis:
             logger.error("No Tx IBIS file selected. Please select a Tx IBIS file.")
             return False
-        if not self.rx_ibis and self.rx_use_ibis:
+        if not self.rx.ibis and self.rx.use_ibis:
             logger.error("No Rx IBIS file selected. Please select a Rx IBIS file.")
             return False
-        if not self.tx_cfg and self.tx_model and self.tx_use_ami:
+        if not self.tx.ami and self.tx.model and self.tx.use_ami:
             logger.error("No Tx AMI loaded or configured.")
             return False
-        if not self.rx_cfg and self.rx_model and self.rx_use_ami:
+        if not self.rx.ami and self.rx.model and self.rx.use_ami:
             logger.error("No Tx AMI loaded or configured.")
             return False
         return True

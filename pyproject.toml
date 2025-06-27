@@ -88,7 +88,15 @@ wrap-summaries = 0
 
 [tool.pytest.ini_options]
 minversion = "7.0"
-addopts = "-vv --durations=3"
+addopts = [
+    "-vv",
+    "-n=auto",
+    "--tb=short",
+    "--strict-markers",
+    "--basetemp=./.pytest_cache",
+    "--maxfail=10",
+    "--durations=3"
+]
 xfail_strict = true
 
 [tool.pylint.master]

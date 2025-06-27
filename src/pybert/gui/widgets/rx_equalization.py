@@ -23,19 +23,17 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from pybert.gui.dialogs import select_file_dialog
+from pybert.gui.widgets.file_picker import FilePickerWidget
 from pybert.gui.widgets.ibis_ami_config import IbisAmiConfigWidget
-from pybert.gui.widgets.ibis_manager import IbisAmiManager
-from pybert.gui.widgets.utils import FilePickerWidget, StatusIndicator, block_signals
+from pybert.gui.widgets.status_indicator import StatusIndicator
+from pybert.gui.widgets.utils import block_signals
 from pybert.pybert import PyBERT
 
 
 class RxEqualizationWidget(QGroupBox):
     """Widget for configuring receiver equalization parameters."""
 
-    def __init__(
-        self, pybert: PyBERT, parent: Optional[QWidget] = None, ami_manager: Optional[IbisAmiManager] = None
-    ) -> None:
+    def __init__(self, pybert: PyBERT, parent: Optional[QWidget] = None) -> None:
         """Initialize the receiver equalization widget.
 
         Args:
@@ -43,7 +41,6 @@ class RxEqualizationWidget(QGroupBox):
         """
         super().__init__("Equalization", parent)
         self.pybert = pybert
-        self.ami_manager = ami_manager
 
         # Create main layout
         layout = QVBoxLayout()
@@ -56,8 +53,8 @@ class RxEqualizationWidget(QGroupBox):
         self.native_radio.setChecked(True)  # Default to Native
         self.ibis_radio.setChecked(False)
         self.mode_group = QButtonGroup(self)
-        self.mode_group.addButton(self.native_radio)
-        self.mode_group.addButton(self.ibis_radio)
+        self.mode_group.addButton(self.native_radio, 0)
+        self.mode_group.addButton(self.ibis_radio, 1)
         mode_layout.addWidget(self.native_radio)
         mode_layout.addWidget(self.ibis_radio)
         mode_layout.addStretch()
@@ -88,8 +85,8 @@ class RxEqualizationWidget(QGroupBox):
         self.ctle_model_radio.setChecked(True)
 
         self.ctle_mode_group = QButtonGroup(self)
-        self.ctle_mode_group.addButton(self.ctle_file_radio)
-        self.ctle_mode_group.addButton(self.ctle_model_radio)
+        self.ctle_mode_group.addButton(self.ctle_file_radio, 0)
+        self.ctle_mode_group.addButton(self.ctle_model_radio, 1)
         ctle_mode_layout.addWidget(self.ctle_file_radio)
         ctle_mode_layout.addWidget(self.ctle_model_radio)
         ctle_mode_layout.addStretch()
@@ -238,47 +235,46 @@ class RxEqualizationWidget(QGroupBox):
 
         # Add native group to stacked widget
         self.stacked_widget.addWidget(self.native_group)
-        self.stacked_widget.addWidget(self.ami_manager.get_ami_widget())
+        self.ami_widget = IbisAmiConfigWidget(obj_accessor=lambda: self.pybert.rx, parent=self)
+        self.stacked_widget.addWidget(self.ami_widget)
 
         layout.addWidget(self.stacked_widget)
         layout.addStretch()
 
-        if pybert:
-            self.update_widget_from_model()
-            self.connect_signals(pybert)
+        self.update_widget_from_model()
+        self.connect_signals()
 
-    def connect_signals(self, pybert) -> None:
+    def connect_signals(self) -> None:
         """Connect signals to PyBERT instance."""
-        self.mode_group.buttonReleased.connect(self._toggle_ami_native_or_ibis)
-        self.ctle_mode_group.buttonReleased.connect(self._toggle_ctle_file_or_model)
-        self.sum_ideal.toggled.connect(self._toggle_bandwidth_sum_spinbox)
-        self.ami_manager.ami_changed.connect(self.update_widget_from_model)
+        self.mode_group.buttonReleased.connect(self._handle_ibis_radio_toggled)
+        self.ctle_mode_group.buttonReleased.connect(self._handle_ctle_radio_toggled)
+        self.sum_ideal.toggled.connect(self.sum_bw.setEnabled)
 
         # CTLE
-        self.ctle_enable.toggled.connect(lambda val: setattr(pybert, "ctle_enable", val))
-        self.ctle_file.file_selected.connect(lambda filename: setattr(self.pybert, "rx_ctle_file", filename))
-        self.rx_bw.valueChanged.connect(lambda val: setattr(pybert, "rx_bw", val))
-        self.peak_freq.valueChanged.connect(lambda val: setattr(pybert, "peak_freq", val))
-        self.peak_mag.valueChanged.connect(lambda val: setattr(pybert, "peak_mag", val))
+        self.ctle_enable.toggled.connect(lambda val: setattr(self.pybert, "ctle_enable", val))
+        self.ctle_file.file_selected.connect(lambda filename: setattr(self.pybert, "ctle_file", filename))
+        self.rx_bw.valueChanged.connect(lambda val: setattr(self.pybert, "rx_bw", val))
+        self.peak_freq.valueChanged.connect(lambda val: setattr(self.pybert, "peak_freq", val))
+        self.peak_mag.valueChanged.connect(lambda val: setattr(self.pybert, "peak_mag", val))
         # CDR
-        self.delta_t.valueChanged.connect(lambda val: setattr(pybert, "delta_t", val))
-        self.alpha.valueChanged.connect(lambda val: setattr(pybert, "alpha", val))
-        self.n_lock_ave.valueChanged.connect(lambda val: setattr(pybert, "n_lock_ave", val))
-        self.rel_lock_tol.valueChanged.connect(lambda val: setattr(pybert, "rel_lock_tol", val))
-        self.lock_sustain.valueChanged.connect(lambda val: setattr(pybert, "lock_sustain", val))
+        self.delta_t.valueChanged.connect(lambda val: setattr(self.pybert, "delta_t", val))
+        self.alpha.valueChanged.connect(lambda val: setattr(self.pybert, "alpha", val))
+        self.n_lock_ave.valueChanged.connect(lambda val: setattr(self.pybert, "n_lock_ave", val))
+        self.rel_lock_tol.valueChanged.connect(lambda val: setattr(self.pybert, "rel_lock_tol", val))
+        self.lock_sustain.valueChanged.connect(lambda val: setattr(self.pybert, "lock_sustain", val))
         # DFE
-        self.gain.valueChanged.connect(lambda val: setattr(pybert, "gain", val))
-        self.n_ave.valueChanged.connect(lambda val: setattr(pybert, "n_ave", val))
-        self.decision_scaler.valueChanged.connect(lambda val: setattr(pybert, "decision_scaler", val))
-        self.sum_bw.valueChanged.connect(lambda val: setattr(pybert, "sum_bw", val))
-        self.sum_ideal.toggled.connect(lambda val: setattr(pybert, "sum_ideal", val))
+        self.gain.valueChanged.connect(lambda val: setattr(self.pybert, "gain", val))
+        self.n_ave.valueChanged.connect(lambda val: setattr(self.pybert, "n_ave", val))
+        self.decision_scaler.valueChanged.connect(lambda val: setattr(self.pybert, "decision_scaler", val))
+        self.sum_bw.valueChanged.connect(lambda val: setattr(self.pybert, "sum_bw", val))
+        self.sum_ideal.toggled.connect(lambda val: setattr(self.pybert, "sum_ideal", val))
 
     def update_widget_from_model(self) -> None:
         """Update all widget values from the PyBERT model."""
         with block_signals(self):
-            # Update ibis parameters
-            self.ibis_radio.setChecked(self.pybert.rx_use_ami)
-            self.native_radio.setChecked(not self.pybert.tx_use_ami)
+            # Update mode
+            self.native_radio.setChecked(not self.pybert.rx.use_ami)
+            self.ibis_radio.setChecked(self.pybert.rx.use_ami)
 
             # Update CTLE parameters
             self.ctle_enable.setChecked(self.pybert.ctle_enable)
@@ -287,8 +283,8 @@ class RxEqualizationWidget(QGroupBox):
             self.peak_freq.setValue(self.pybert.peak_freq)
             self.rx_bw.setValue(self.pybert.rx_bw)
             self.peak_mag.setValue(self.pybert.peak_mag)
-            if hasattr(self.pybert, "rx_ctle_file"):
-                self.ctle_file.set_filepath(self.pybert.rx_ctle_file)
+            if hasattr(self.pybert, "ctle_file"):
+                self.ctle_file.set_filepath(self.pybert.ctle_file)
 
             # Update CDR parameters
             self.delta_t.setValue(self.pybert.delta_t)
@@ -303,20 +299,22 @@ class RxEqualizationWidget(QGroupBox):
             self.decision_scaler.setValue(self.pybert.decision_scaler)
             self.sum_bw.setValue(self.pybert.sum_bw)
             self.sum_ideal.setChecked(self.pybert.sum_ideal)
-        self.stacked_widget.setCurrentIndex(1 if self.ibis_radio.isChecked() else 0)
-        self.ctle_stacked_widget.setCurrentIndex(0 if self.ctle_file_radio.isChecked() else 1)
-        self.sum_bw.setEnabled(not self.sum_ideal.isChecked())
+            self.sum_bw.setEnabled(not self.sum_ideal.isChecked())
 
-    def _toggle_ami_native_or_ibis(self) -> None:
-        """Show only the selected group (IBIS or Native) using stacked layout."""
-        self.stacked_widget.setCurrentIndex(1 if self.ibis_radio.isChecked() else 0)
-        setattr(self.pybert, "rx_use_ami", self.ibis_radio.isChecked())
+        # Update stacked widget
+        self.ctle_stacked_widget.setCurrentIndex(1 if self.pybert.use_ctle_file else 0)
+        self.stacked_widget.setCurrentIndex(1 if self.pybert.rx.use_ami else 0)
 
-    def _toggle_ctle_file_or_model(self) -> None:
-        """Show only the selected CTLE mode (File or Model) using stacked widget."""
-        self.ctle_stacked_widget.setCurrentIndex(0 if self.ctle_file_radio.isChecked() else 1)
+    def get_ami_widget(self) -> IbisAmiConfigWidget:
+        """Get the AMI configuration widget."""
+        return self.ami_widget
+
+    def _handle_ctle_radio_toggled(self) -> None:
+        """Handle the toggled event of the CTLE radio button."""
         setattr(self.pybert, "use_ctle_file", self.ctle_file_radio.isChecked())
+        self.ctle_stacked_widget.setCurrentIndex(1 if self.ctle_model_radio.isChecked() else 0)
 
-    def _toggle_bandwidth_sum_spinbox(self) -> None:
-        """Enable/disable sum bandwidth control based on ideal checkbox."""
-        self.sum_bw.setEnabled(not self.sum_ideal.isChecked())
+    def _handle_ibis_radio_toggled(self) -> None:
+        """Handle the toggled event of the IBIS radio button."""
+        self.stacked_widget.setCurrentIndex(1 if self.ibis_radio.isChecked() else 0)
+        setattr(self.pybert.rx, "use_ami", self.ibis_radio.isChecked())

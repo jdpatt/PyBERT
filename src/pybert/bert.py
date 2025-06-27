@@ -43,6 +43,7 @@ from scipy.signal import iirfilter, lfilter
 
 from pybert.models.dfe import DFE
 from pybert.models.stimulus import ModulationType
+from pybert.results import Results, SimulationPerfResults
 from pybert.stoppable_thread import StoppableThread
 from pybert.utility import (
     calc_eye,
@@ -80,41 +81,14 @@ class SimulationThread(StoppableThread):
     def run(self):
         """Run the simulation(s)."""
         try:
-            results, perf = run_simulation(self.pybert, aborted_sim=self.stopped)
-            self.pybert._notify_simulation_complete(results, perf)
+            results = run_simulation(self.pybert, aborted_sim=self.stopped)
+            self.pybert._notify_simulation_complete(results)
         except RuntimeError as err:
             logger.critical(f"Error in `pybert.threads.sim.SimulationThread`: {err}")
             raise
 
 
-@dataclass
-class SimulationPerf:
-    """Performance metrics for the simulation."""
-
-    start_time: float = 0.0
-    end_time: float = 0.0
-    channel: float = 0.0
-    tx: float = 0.0
-    ctle: float = 0.0
-    dfe: float = 0.0
-    jitter: float = 0.0
-    plotting: float = 0.0
-    total: float = 0.0
-
-    def __str__(self):
-        return (
-            f"Performance Metrics: (Msmpls./min) "
-            f"Channel: {self.channel * 6e-05:6.3f}  "
-            f"Tx Preemphasis: {self.tx * 6e-05:6.3f}  "
-            f"CTLE: {self.ctle * 6e-05:6.3f}  "
-            f"DFE: {self.dfe * 6e-05:6.3f}  "
-            f"Jitter: {self.jitter * 6e-05:6.3f}  "
-            f"Plotting: {self.plotting * 6e-05:6.3f}  "
-            f"Total: {self.total * 6e-05:6.3f}"
-        )
-
-
-def calculate_plotting_data(self):
+def calculate_plotting_data(self) -> dict:
     """Calculate all the data needed for plotting results.
 
     This method calculates all the derived data needed for plotting, including:
@@ -332,7 +306,7 @@ def calculate_plotting_data(self):
     }
 
 
-def run_simulation(self, aborted_sim: Optional[Callable[[], bool]] = None):
+def run_simulation(self, aborted_sim: Optional[Callable[[], bool]] = None) -> Results:
     """Runs the simulation.
 
     Args:
@@ -359,7 +333,7 @@ def run_simulation(self, aborted_sim: Optional[Callable[[], bool]] = None):
 
     results = None
 
-    perf = SimulationPerf()
+    perf = SimulationPerfResults()
     perf.start_time = clock()
     logger.info("Running channel...")
 
@@ -507,9 +481,9 @@ def run_simulation(self, aborted_sim: Optional[Callable[[], bool]] = None):
     clock_times = None
     try:
         params: list[str] = []
-        if self.tx_use_ami and self.tx_use_getwave:
+        if self.tx.use_ami and self.tx.use_getwave:
             tx_out, _, tx_h, tx_out_h, msg, _params = run_ami_model(
-                self._tx_model, self._tx_cfg, True, ui, ts, chnl_h, x
+                self.tx.model, self.tx.ami, True, ui, ts, chnl_h, x
             )
             params = _params
             logger.info(f"Tx IBIS-AMI model initialization results:\n{msg}")
@@ -522,18 +496,18 @@ def run_simulation(self, aborted_sim: Optional[Callable[[], bool]] = None):
             perf.tx = nbits * nspb / (clock() - split_time)
             split_time = clock()
             logger.info("Running CTLE...")
-            if self.rx_use_ami and self.rx_use_getwave:
+            if self.rx.use_ami and self.rx.use_getwave:
                 ctle_out, _, ctle_h, ctle_out_h, msg, _params = run_ami_model(
-                    self.rx_model, self.rx_cfg, True, ui, ts, tx_out_h, convolve(tx_out, chnl_h)
+                    self.rx.model, self.rx.ami, True, ui, ts, tx_out_h, convolve(tx_out, chnl_h)
                 )
                 params = _params
                 logger.info(f"Rx IBIS-AMI model initialization results:\n{msg}")
                 _rx_getwave_params = list(map(ami_parse, params))
                 logger.info(f"Rx IBIS-AMI model GetWave() output parameters:\n{_rx_getwave_params}")
             else:  # Rx is either AMI_Init() or PyBERT native.
-                if self.rx_use_ami:  # Rx Init()
+                if self.rx.use_ami:  # Rx Init()
                     _, _, ctle_h, ctle_out_h, msg, _ = run_ami_model(
-                        self.rx_model, self.rx_cfg, False, ui, ts, chnl_h, tx_out
+                        self.rx.model, self.rx.ami, False, ui, ts, chnl_h, tx_out
                     )
                     logger.info(f"Rx IBIS-AMI model initialization results:\n{msg}")
                     ctle_out = convolve(tx_out, ctle_out_h)[: len(tx_out)]
@@ -542,8 +516,8 @@ def run_simulation(self, aborted_sim: Optional[Callable[[], bool]] = None):
                     ctle_out_h = convolve(ctle_h, tx_out_h)[: len(ctle_h)]
                     ctle_out = convolve(tx_out, convolve(ctle_h, chnl_h))[: len(tx_out)]
         else:  # Tx is either AMI_Init() or PyBERT native.
-            if self.tx_use_ami:  # Tx is AMI_Init().
-                rx_in, _, tx_h, tx_out_h, msg, _ = run_ami_model(self.tx_model, self.tx_cfg, False, ui, ts, chnl_h, x)
+            if self.tx.use_ami:  # Tx is AMI_Init().
+                rx_in, _, tx_h, tx_out_h, msg, _ = run_ami_model(self.tx.model, self.tx.ami, False, ui, ts, chnl_h, x)
                 logger.info(f"Tx IBIS-AMI model initialization results:\n{msg}")
                 rx_in += noise
             else:  # Tx is PyBERT native.
@@ -558,9 +532,9 @@ def run_simulation(self, aborted_sim: Optional[Callable[[], bool]] = None):
             perf.tx = nbits * nspb / (clock() - split_time)
             split_time = clock()
             logger.info("Running CTLE...")
-            if self.rx_use_ami and self.rx_use_getwave:
+            if self.rx.use_ami and self.rx.use_getwave:
                 ctle_out, clock_times, ctle_h, ctle_out_h, msg, _params = run_ami_model(
-                    self.rx_model, self.rx_cfg, True, ui, ts, tx_out_h, rx_in
+                    self.rx.model, self.rx.ami, True, ui, ts, tx_out_h, rx_in
                 )
                 params = _params
                 logger.info(f"Rx IBIS-AMI model initialization results:\n{msg}")
@@ -619,9 +593,9 @@ def run_simulation(self, aborted_sim: Optional[Callable[[], bool]] = None):
                 else:
                     ui_ests = zeros(len(t))
             else:  # Rx is either AMI_Init() or PyBERT native.
-                if self.rx_use_ami:  # Rx Init()
+                if self.rx.use_ami:  # Rx Init()
                     ctle_out, _, ctle_h, ctle_out_h, msg, _ = run_ami_model(
-                        self.rx_model, self.rx_cfg, False, ui, ts, tx_out_h, x
+                        self.rx.model, self.rx.ami, False, ui, ts, tx_out_h, x
                     )
                     logger.info(f"Rx IBIS-AMI model initialization results:\n{msg}")
                     ctle_out += noise
@@ -715,7 +689,7 @@ def run_simulation(self, aborted_sim: Optional[Callable[[], bool]] = None):
         ideal=_ideal,
         limits=limits,
     )
-    if not (self.rx_use_ami and self.rx_use_getwave):  # Use PyBERT native DFE/CDR.
+    if not (self.rx.use_ami and self.rx.use_getwave):  # Use PyBERT native DFE/CDR.
         (dfe_out, tap_weights, ui_ests, clocks, lockeds, sample_times, bits_out) = dfe.run(t, ctle_out)
     else:  # Process Rx IBIS-AMI GetWave() output.
         # Process any valid clock times returned by Rx IBIS-AMI model's GetWave() function if apropos.
@@ -725,7 +699,7 @@ def run_simulation(self, aborted_sim: Optional[Callable[[], bool]] = None):
         bits_out = []
         clocks = zeros(len(t))
         sample_times = []
-        if self.rx_use_clocks and clock_times is not None:
+        if self.rx.use_clocks and clock_times is not None:
             for clock_time in clock_times:
                 if clock_time == -1:  # "-1" is used to flag "no more valid clock times".
                     break
@@ -893,4 +867,4 @@ def run_simulation(self, aborted_sim: Optional[Callable[[], bool]] = None):
     logger.info(f"Simulation complete. Duration: {round(perf.end_time - perf.start_time, 3)} s")
     logger.info(str(perf))
 
-    return plotting_data, perf
+    return Results(data=plotting_data, performance=perf)

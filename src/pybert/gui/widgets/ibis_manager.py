@@ -6,61 +6,67 @@ transmitter and receiver widgets to manage their IBIS and AMI configurations.
 """
 
 import logging
-from typing import Optional, Tuple
+from enum import IntEnum
+from typing import Callable, Optional, Tuple
 
 from PySide6.QtCore import QObject, Signal
-from PySide6.QtWidgets import QWidget
+from PySide6.QtWidgets import QStackedWidget, QWidget
 
 from pybert.gui.widgets.ibis_ami_config import IbisAmiConfigWidget
 from pybert.gui.widgets.ibis_config import IbisConfigWidget
+from pybert.models.buffer import Receiver, Transmitter
 from pybert.pybert import PyBERT
 
 logger = logging.getLogger("pybert.ibis_ami_manager")
 
 
-class IbisAmiManager(QObject):
-    """Manager class for IBIS and AMI configuration widgets."""
+class StackedWidgetView(IntEnum):
+    """Enum for the views of the stacked widgets."""
 
-    ibis_changed = Signal()
-    ami_changed = Signal()
+    NATIVE = 0
+    IBIS = 1
+
+
+class IbisAmiWidgetsManager(QObject):
+    """Manager class for IBIS and AMI configuration widgets."""
 
     def __init__(
         self,
-        pybert: PyBERT,
-        is_tx: bool = True,
+        obj_accessor: Callable[[], Transmitter | Receiver],
+        ibis_widget: IbisConfigWidget,
+        ami_widget: IbisAmiConfigWidget,
+        ibis_stacked_widget: QStackedWidget,
+        ami_stacked_widget: QStackedWidget,
         parent: Optional[QWidget] = None,
     ) -> None:
         """Initialize the IBIS-AMI manager.
 
         Args:
-            pybert: PyBERT instance
-            is_tx: True if this is for transmitter, False if for receiver
+            obj_accessor: Function that returns the current Transmitter or Receiver instance
+            ibis_widget: IBIS configuration widget
+            ami_widget: AMI configuration widget
+            ibis_stacked_widget: Stacked widget for IBIS configuration
+            ami_stacked_widget: Stacked widget for AMI configuration
             parent: Parent widget
         """
-        super().__init__(parent)  # Initialize QObject
-        self.pybert = pybert
-        self.is_tx = is_tx
-        self.direction = "tx" if is_tx else "rx"
-        self.parent = parent
+        super().__init__(parent)
+        self._obj_accessor = obj_accessor
+        self.ibis_widget = ibis_widget
+        self.ami_widget = ami_widget
+        self.ibis_stacked_widget = ibis_stacked_widget
+        self.ami_stacked_widget = ami_stacked_widget
+        self.connect_signals()
 
-        self.ibis_model = None
-        self.ami_config = None
-        self.dll_model = None
+    @property
+    def obj(self) -> Transmitter | Receiver:
+        """Get the current object instance."""
+        return self._obj_accessor()
 
-        # Create the widgets with their respective parents
-        self.ibis_widget = IbisConfigWidget(pybert=pybert, is_tx=is_tx, parent=parent)
-        self.ami_widget = IbisAmiConfigWidget(pybert=pybert, is_tx=is_tx, parent=parent)
-
-        # Connect signals
+    def connect_signals(self) -> None:
+        """Connect signals to the widgets."""
         self.ibis_widget.file_picker.file_selected.connect(self._handle_ibis_file_selected)
-        self.ibis_widget.view_btn.clicked.connect(self._handle_ibis_view_btn_clicked)
+        self.ibis_widget.configure_btn.clicked.connect(self._handle_ibis_view_btn_clicked)
         self.ami_widget.configure_btn.clicked.connect(self._handle_ami_configure_btn_clicked)
-
-    def update_widget_from_model(self) -> None:
-        """Update the widgets from the model."""
-        # TODO: This currently doesn't handle parsing the IBIS and AMI files if loaded from a configuration file.
-        self.ibis_widget.update_widget_from_model()
-        self.ami_widget.update_widget_from_model()
 
     def get_ibis_widget(self) -> IbisConfigWidget:
         """Get the IBIS and AMI configuration widgets.
@@ -82,64 +88,100 @@ class IbisAmiManager(QObject):
         """The user has selected a new IBIS file, load it and update the view."""
         if file_path is None:
             self.ibis_widget.set_status("not_loaded")
-        self.ibis_model = self.pybert.load_ibis_file(file_path, is_tx=self.is_tx)
-        if self.ibis_model is not None:
+            self.ami_widget.set_status("not_loaded")
+            return
+
+        current_obj = self.obj  # Get current object
+        # Load IBIS file, but don't auto-load AMI so we can handle it ourselves.
+        success = current_obj.load_ibis_file(file_path)
+        if success:
             self.ibis_widget.set_status("valid")
-            setattr(self.pybert, f"{self.direction}_ibis_valid", True)
-            setattr(self.pybert, f"{self.direction}_ibis", self.ibis_model)
-            setattr(self.pybert, f"{self.direction}_use_ibis", True)
-            setattr(self.pybert, f"{self.direction}_ibis_file", file_path)
-            self.ibis_widget.view_btn.setEnabled(True)
-            self._handle_new_ami_model_selected()
-            self.ibis_changed.emit()
+            self.ibis_stacked_widget.setCurrentIndex(StackedWidgetView.IBIS)  # Switch to the IBIS mode
+            self._handle_new_model_selected()
         else:
             self.ibis_widget.set_status("invalid")
-            setattr(self.pybert, f"{self.direction}_ibis_valid", False)
-            setattr(self.pybert, f"{self.direction}_ibis", None)
-            setattr(self.pybert, f"{self.direction}_use_ibis", False)
-            setattr(self.pybert, f"{self.direction}_ibis_file", "")
-            self.ibis_widget.view_btn.setEnabled(False)
-            self.ami_widget.reset()
-            self.ibis_changed.emit()
+            self.ami_widget.set_status("not_loaded")
 
     def _handle_ibis_view_btn_clicked(self) -> None:
-        """The user has clicked the view button, show the IBIS model."""
-        if self.ibis_model is not None:
-            current_model = self.ibis_model.current_model
-            self.ibis_model.gui()
-            if self.ibis_model.current_model != current_model:
-                self._handle_new_ami_model_selected()
+        """The user has clicked the view button, show the IBIS model.
+
+        Grab the current model so we can track if it changes. The IBIS gui will make direct
+        changes to the IbisModel class.
+        """
+        current_obj = self.obj  # Get current object
+        if not current_obj.is_ibis_loaded() or current_obj.ibis is None:
+            logger.warning("Cannot view IBIS model: no IBIS model loaded")
+            self.reset()  # The view button shouldn't be enabled if no model is loaded
+            return
+
+        try:
+            current_model = current_obj.ibis.current_model
+            current_obj.ibis.gui()
+            if (
+                current_obj.ibis.current_model != current_model
+            ):  # TODO: We should track the path as well, multiple models can use the same ami files.
+                self._handle_new_model_selected()
+        except Exception as e:
+            logger.error(f"Failed to show IBIS GUI: {e}")
 
     def _handle_ami_configure_btn_clicked(self) -> None:
-        """The user has clicked the configure button, show the AMI configurator."""
-        if self.ami_config is not None:
-            self.ami_config.gui()
+        """The user has clicked the configure button, show the AMI configurator.
 
-    def _handle_new_ami_model_selected(self) -> None:
-        """The user has selected a new AMI model, load it and update the view."""
-        self.ami_config = self.pybert.load_ami_configurator(self.ibis_model.ami_file, is_tx=self.is_tx)
-        self.dll_model = self.pybert.load_dll_model(self.ibis_model.dll_file, is_tx=self.is_tx)
-        if self.ami_config is not None and self.dll_model is not None:
+        The AMI gui will make direct changes to the AmiConfigurator class.
+        """
+        current_obj = self.obj  # Get current object
+        if not current_obj.is_ami_loaded() or current_obj.ami is None:
+            logger.warning("Cannot configure AMI: no AMI model loaded")
+            self.ami_widget.set_status("not_loaded")  # The configure button shouldn't be enabled if no model is loaded
+            return
+
+        try:
+            current_obj.ami.gui()
+        except Exception as e:
+            logger.error(f"Failed to show AMI GUI: {e}")
+
+    def _handle_new_model_selected(self) -> None:
+        """Using the IBIS gui, the user has selected a new pin model which means we need to update the AMI model."""
+        current_obj = self.obj  # Get current object
+        if not current_obj.is_ibis_loaded():
+            logger.warning("Cannot load AMI model: no IBIS model loaded")
+            self.reset()
+            return
+
+        # Get file paths from IBIS model
+        ami_file = current_obj.get_ami_file_path()
+        dll_file = current_obj.get_dll_file_path()
+
+        # Load AMI and DLL models using model methods
+        if ami_file and dll_file:
+            ami_success = current_obj.load_ami_configurator(ami_file)  # type: ignore
+            dll_success = current_obj.load_dll_model(dll_file)  # type: ignore
+        else:
+            ami_success = False
+            dll_success = False
+
+        if ami_success and dll_success:
             self.ami_widget.set_status("valid")
-            setattr(self.pybert, f"{self.direction}_ami", self.ami_config)
-            setattr(self.pybert, f"{self.direction}_ami_valid", True)
-            setattr(self.pybert, f"{self.direction}_use_ami", True)
-            setattr(self.pybert, f"{self.direction}_ami_file", self.ibis_model.ami_file)
-            setattr(self.pybert, f"{self.direction}_dll_file", self.ibis_model.dll_file)
-            setattr(self.pybert, f"{self.direction}_has_getwave", self.ami_config.getwave_exists())
-            setattr(self.pybert, f"{self.direction}_has_ts4", self.ami_config.ts4file() is not None)
-            setattr(self.pybert, f"{self.direction}_model", self.dll_model)
-            self.ami_widget.configure_btn.setEnabled(True)
-            self.ami_widget.set_filepaths(self.ibis_model.ami_file, self.ibis_model.dll_file)
-            self.ami_changed.emit()
+            self.ami_stacked_widget.setCurrentIndex(StackedWidgetView.IBIS)
         else:
             self.ami_widget.set_status("invalid")
-            setattr(self.pybert, f"{self.direction}_ami", None)
-            setattr(self.pybert, f"{self.direction}_model", None)
-            setattr(self.pybert, f"{self.direction}_ami_valid", False)
-            setattr(self.pybert, f"{self.direction}_use_ami", False)
-            setattr(self.pybert, f"{self.direction}_has_getwave", False)
-            setattr(self.pybert, f"{self.direction}_has_ts4", False)
-            self.ami_widget.configure_btn.setEnabled(False)
-            self.ami_widget.set_filepaths(None, None)
-            self.ami_changed.emit()
+
+    def _handle_ami_changed(self) -> None:
+        """The AMI model has changed, update the widgets."""
+        self.ami_widget.update_widget_from_model()
+
+    def reset(self) -> None:
+        """Reset the widgets."""
+        self.ibis_widget.set_status("not_loaded")
+        self.ami_widget.set_status("not_loaded")
+        self.ibis_stacked_widget.setCurrentIndex(StackedWidgetView.NATIVE)
+        self.ami_stacked_widget.setCurrentIndex(StackedWidgetView.NATIVE)
+
+    def update_widget_from_model(self) -> None:
+        """Update the widgets from the model.
+
+        We assume all of the loading and parsing was already done in the configuration loading, so we need to just
+        update the view.
+        """
+        self.ibis_widget.update_widget_from_model()
+        self.ami_widget.update_widget_from_model()
