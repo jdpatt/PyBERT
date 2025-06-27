@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING, Union
 from pybert import __version__
 from pybert.constants import gPeakFreq, gPeakMag
 from pybert.models.buffer import Receiver, Transmitter
+from pybert.models.channel import Channel
 from pybert.models.stimulus import BitPattern, ModulationType
 
 if TYPE_CHECKING:
@@ -87,23 +88,6 @@ class Configuration:  # pylint: disable=too-many-instance-attributes
         self.nspui = the_PyBERT.nspui
         self.eye_bits = the_PyBERT.eye_bits
         self.mod_type = the_PyBERT.mod_type.value
-        self.f_max = the_PyBERT.f_max
-        self.f_step = the_PyBERT.f_step
-
-        # Channel Control
-        self.use_ch_file = the_PyBERT.use_ch_file
-        self.channel_elements = the_PyBERT.channel_elements
-        self.ch_file = the_PyBERT.ch_file
-        self.impulse_length = the_PyBERT.impulse_length
-        self.Rdc = the_PyBERT.Rdc
-        self.w0 = the_PyBERT.w0
-        self.R0 = the_PyBERT.R0
-        self.Theta0 = the_PyBERT.Theta0
-        self.Z0 = the_PyBERT.Z0
-        self.v0 = the_PyBERT.v0
-        self.l_ch = the_PyBERT.l_ch
-        self.renumber = the_PyBERT.renumber
-        self.use_window = the_PyBERT.use_window
 
         # Tx
         self.vod = the_PyBERT.vod
@@ -128,6 +112,7 @@ class Configuration:  # pylint: disable=too-many-instance-attributes
 
         # Serialize transmitter and receiver buffers
         self.transmitter = the_PyBERT.tx.to_dict()
+        self.channel = the_PyBERT.channel.to_dict()
         self.receiver = the_PyBERT.rx.to_dict()
 
         # DFE
@@ -175,23 +160,8 @@ class Configuration:  # pylint: disable=too-many-instance-attributes
         config.seed = 1
         config.nspui = 32
         config.mod_type = ModulationType.NRZ.value
-        config.f_max = 40.0  # GHz
-        config.f_step = 10.0  # MHz
         config.thresh = 3.0
-        # Channel Control
-        config.use_ch_file = False
-        config.channel_elements = []
-        config.ch_file = ""
-        config.impulse_length = 0.0
-        config.Rdc = 0.1876  # Ohms/m
-        config.w0 = 10e6  # rads/s
-        config.R0 = 1.452  # Ohms/m
-        config.Theta0 = 0.02
-        config.Z0 = 100.0  # Ohms
-        config.v0 = 0.67  # c
-        config.l_ch = 0.5  # m
-        config.renumber = False
-        config.use_window = False
+
         # Tx
         config.vod = 1.0  # V
         config.pn_mag = 0.1  # V
@@ -225,6 +195,23 @@ class Configuration:  # pylint: disable=too-many-instance-attributes
             "use_ibis": False,
             "ami_file": None,
             "dll_file": None,
+        }
+        # Default channel configuration
+        config.channel = {
+            "f_max": 40.0,  # GHz
+            "f_step": 10.0,  # MHz
+            "use_ch_file": False,
+            "elements": [],
+            "impulse_length": 0.0,
+            "Rdc": 0.1876,  # Ohms/m
+            "w0": 10e6,  # rads/s
+            "R0": 1.452,  # Ohms/m
+            "Theta0": 0.02,
+            "Z0": 100.0,  # Ohms
+            "v0": 0.67,  # c
+            "l_ch": 0.5,  # m
+            "renumber": False,
+            "use_window": False,
         }
         # Rx
         config.use_ctle_file = False
@@ -348,6 +335,9 @@ class Configuration:  # pylint: disable=too-many-instance-attributes
                 # Load transmitter configuration using buffer deserialization
                 logger.debug(f"Loading transmitter configuration: {value}")
                 pybert.tx = Transmitter.from_dict(value)
+            elif prop == "channel":
+                logger.debug(f"Loading channel configuration: {value}")
+                pybert.channel = Channel.from_dict(value)
             elif prop == "receiver":
                 # Load receiver configuration using buffer deserialization
                 logger.debug(f"Loading receiver configuration: {value}")

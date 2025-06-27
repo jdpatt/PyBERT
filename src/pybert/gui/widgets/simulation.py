@@ -193,10 +193,10 @@ class SimulationConfiglWidget(QGroupBox):
             self.pn_freq.setValue(self.pybert.pn_freq)
 
             # Update analysis parameters
-            self.impulse_length.setValue(self.pybert.impulse_length)
+            self.impulse_length.setValue(self.pybert.channel.impulse_length)
             self.thresh.setValue(self.pybert.thresh)
-            self.f_max.setValue(self.pybert.f_max)
-            self.f_step.setValue(self.pybert.f_step)
+            self.f_max.setValue(self.pybert.channel.f_max)
+            self.f_step.setValue(self.pybert.channel.f_step)
 
     def connect_signals(self, pybert: "PyBERT") -> None:
         """Connect widget signals to PyBERT stimulus model."""
@@ -211,10 +211,10 @@ class SimulationConfiglWidget(QGroupBox):
         self.rn.valueChanged.connect(lambda val: setattr(pybert, "rn", val))
         self.pn_mag.valueChanged.connect(lambda val: setattr(pybert, "pn_mag", val))
         self.pn_freq.valueChanged.connect(lambda val: setattr(pybert, "pn_freq", val))
-        self.impulse_length.valueChanged.connect(lambda val: setattr(pybert, "impulse_length", val))
+        self.impulse_length.valueChanged.connect(lambda val: setattr(pybert.channel, "impulse_length", val))
         self.thresh.valueChanged.connect(lambda val: setattr(pybert, "thresh", val))
         self.f_max.valueChanged.connect(self.update_f_max)
-        self.f_step.valueChanged.connect(lambda val: setattr(pybert, "f_step", val))
+        self.f_step.valueChanged.connect(lambda val: setattr(pybert.channel, "f_step", val))
 
     def update_modulation(self, pybert: "PyBERT", val: str) -> None:
         """Update the modulation type."""
@@ -249,7 +249,7 @@ class SimulationConfiglWidget(QGroupBox):
             self.f_max.setValue(fmax)
             logger.warning("`fMax` has been held at the Nyquist frequency.")
         else:
-            setattr(self.pybert, "f_max", new_value)
+            setattr(self.pybert.channel, "f_max", new_value)
 
     def validate_eye_bits(self, eye_bits: int, nbits: int) -> None:
         """Validate user selected number of eye bits."""

@@ -54,8 +54,6 @@ def test_config_load_from_yaml(dut: PyBERT, filepath_converter, tmp_path: Path):
         user_config.bit_rate = 20  # Normally 10
         user_config.mod_type = "PAM4"  # Normally [0]
         user_config.pattern = "PRBS23"  # Normally PRBS-7
-        user_config.Rdc = 2  # Normally 0.1876
-        user_config.rin = 85  # Normally 100
         user_config.n_taps = 2  # Normally 5
         user_config.delta_t = 0.01  # Normally 0.1
         user_config.thresh = 5  # Normally 6
@@ -75,6 +73,8 @@ def test_config_load_from_yaml(dut: PyBERT, filepath_converter, tmp_path: Path):
             assert user_config.receiver == dut.rx.to_dict()
         elif name == "transmitter":
             assert user_config.transmitter == dut.tx.to_dict()
+        elif name == "channel":
+            assert user_config.channel == dut.channel.to_dict()
         else:
             # These are handled differently so skip them.
             if name not in ["tx_taps", "tx_tap_tuners", "dfe_tap_tuners", "version", "date_created"]:

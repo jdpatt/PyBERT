@@ -366,40 +366,40 @@ class ChannelConfigWidget(QGroupBox):
         """Update all widget values from the PyBERT model."""
         with block_signals(self):
             # Update mode
-            self.native_radio.setChecked(not self.pybert.use_ch_file)
-            self.file_radio.setChecked(self.pybert.use_ch_file)
+            self.native_radio.setChecked(not self.pybert.channel.use_ch_file)
+            self.file_radio.setChecked(self.pybert.channel.use_ch_file)
 
             # Update native parameters
-            self.length.setValue(self.pybert.l_ch)
-            self.loss_tan.setValue(self.pybert.Theta0)
-            self.z0.setValue(self.pybert.Z0)
-            self.v0.setValue(self.pybert.v0)
-            self.rdc.setValue(self.pybert.Rdc)
-            self.w0.setValue(self.pybert.w0)
-            self.r0.setValue(self.pybert.R0)
-            self.use_window.setChecked(self.pybert.use_window)
+            self.length.setValue(self.pybert.channel.l_ch)
+            self.loss_tan.setValue(self.pybert.channel.Theta0)
+            self.z0.setValue(self.pybert.channel.Z0)
+            self.v0.setValue(self.pybert.channel.v0)
+            self.rdc.setValue(self.pybert.channel.Rdc)
+            self.w0.setValue(self.pybert.channel.w0)
+            self.r0.setValue(self.pybert.channel.R0)
+            self.use_window.setChecked(self.pybert.channel.use_window)
 
             # Update file groups
-            self.file_list.items_from_list(self.pybert.channel_elements)
+            self.file_list.items_from_list(self.pybert.channel.elements)
 
         # Update stacked layout after signals are unblocked
-        self.stacked_layout.setCurrentIndex(1 if self.pybert.use_ch_file else 0)
+        self.stacked_layout.setCurrentIndex(1 if self.pybert.channel.use_ch_file else 0)
 
     def connect_signals(self) -> None:
         """Connect widget signals to PyBERT instance."""
         self.mode_group.buttonReleased.connect(self._handle_channel_mode_change)
 
         # Connect native parameters
-        self.length.valueChanged.connect(lambda val: setattr(self.pybert, "l_ch", val))
-        self.loss_tan.valueChanged.connect(lambda val: setattr(self.pybert, "Theta0", val))
-        self.z0.valueChanged.connect(lambda val: setattr(self.pybert, "Z0", val))
-        self.v0.valueChanged.connect(lambda val: setattr(self.pybert, "v0", val))
-        self.rdc.valueChanged.connect(lambda val: setattr(self.pybert, "Rdc", val))
-        self.w0.valueChanged.connect(lambda val: setattr(self.pybert, "w0", val))
-        self.r0.valueChanged.connect(lambda val: setattr(self.pybert, "R0", val))
+        self.length.valueChanged.connect(lambda val: setattr(self.pybert.channel, "l_ch", val))
+        self.loss_tan.valueChanged.connect(lambda val: setattr(self.pybert.channel, "Theta0", val))
+        self.z0.valueChanged.connect(lambda val: setattr(self.pybert.channel, "Z0", val))
+        self.v0.valueChanged.connect(lambda val: setattr(self.pybert.channel, "v0", val))
+        self.rdc.valueChanged.connect(lambda val: setattr(self.pybert.channel, "Rdc", val))
+        self.w0.valueChanged.connect(lambda val: setattr(self.pybert.channel, "w0", val))
+        self.r0.valueChanged.connect(lambda val: setattr(self.pybert.channel, "R0", val))
 
         # Connect use_window
-        self.use_window.toggled.connect(lambda val: setattr(self.pybert, "use_window", val))
+        self.use_window.toggled.connect(lambda val: setattr(self.pybert.channel, "use_window", val))
 
     def _handle_channel_mode_change(self) -> None:
         """Handle mode change from radio buttons."""
@@ -412,8 +412,8 @@ class ChannelConfigWidget(QGroupBox):
         """Callback when file list items change."""
         new_elements = self.get_channel_elements()
         # Only update if the value has actually changed
-        if new_elements != self.pybert.channel_elements:
-            setattr(self.pybert, "channel_elements", new_elements)
+        if new_elements != self.pybert.channel.elements:
+            setattr(self.pybert.channel, "elements", new_elements)
 
     def get_channel_elements(self):
         """Get the list of files and their parameters from the file groups.

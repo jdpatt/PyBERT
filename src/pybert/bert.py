@@ -375,7 +375,7 @@ def run_simulation(self, aborted_sim: Optional[Callable[[], bool]] = None) -> Re
     bandwidth = self.sum_bw * 1.0e9
     rel_thresh = self.thresh
     mod_type = self.mod_type
-    impulse_length = self.impulse_length
+    impulse_length = self.channel.impulse_length
 
     # Calculate misc. values.
     Ts = t[1]
@@ -426,10 +426,10 @@ def run_simulation(self, aborted_sim: Optional[Callable[[], bool]] = None) -> Re
 
     # Calculate Tx output power dissipation.
     ffe_out = convolve(symbols, ffe)[: len(symbols)]
-    if self.use_ch_file:
-        self.rel_power = mean(ffe_out**2) / self.rs
+    if self.channel.use_ch_file:
+        self.rel_power = mean(ffe_out**2) / self.tx.impedance
     else:
-        self.rel_power = mean(ffe_out**2) / self.Z0
+        self.rel_power = mean(ffe_out**2) / self.channel.Z0
 
     # Generate the uncorrelated periodic noise. (Assume capacitive coupling.)
     # Generate the ideal rectangular aggressor waveform.

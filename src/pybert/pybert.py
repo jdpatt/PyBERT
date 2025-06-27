@@ -45,6 +45,7 @@ from pybert.bert import SimulationThread
 from pybert.configuration import Configuration, InvalidConfigFileType
 from pybert.constants import gPeakFreq, gPeakMag
 from pybert.models.buffer import Receiver, Transmitter
+from pybert.models.channel import Channel
 from pybert.models.stimulus import BitPattern, ModulationType
 from pybert.models.tx_tap import TxTapTuner
 from pybert.optimization import OptThread
@@ -70,7 +71,11 @@ class PyBERT:  # pylint: disable=too-many-instance-attributes
     """
 
     def __init__(
-        self, run_simulation: bool = False, tx: Transmitter = Transmitter(), rx: Receiver = Receiver()
+        self,
+        run_simulation: bool = False,
+        tx: Transmitter = Transmitter(),
+        channel: Channel = Channel(),
+        rx: Receiver = Receiver(),
     ) -> None:
         """Initialize the PyBERT class.
 
@@ -84,6 +89,7 @@ class PyBERT:  # pylint: disable=too-many-instance-attributes
         """
         # Independent variables
         self.tx = tx
+        self.channel = channel
         self.rx = rx
 
         # - Simulation Control
@@ -96,23 +102,6 @@ class PyBERT:  # pylint: disable=too-many-instance-attributes
         self.mod_type: ModulationType = ModulationType.NRZ  #: 0 = NRZ; 1 = Duo-binary; 2 = PAM-4
         self.do_sweep: bool = False  #: Run sweeps? (Default = False)
         self.thresh: float = 3.0  #: Spectral threshold for identifying periodic components (sigma). (Default = 3.0)
-
-        # - Channel Control
-        self.channel_elements: list[dict[str, str]] = []  #: Channel elements.
-        self.ch_file: str = ""  #: Channel file name.
-        self.use_ch_file: bool = False  #: Import channel description from file? (Default = False)
-        self.renumber: bool = False  #: Automatically fix "1=>3/2=>4" port numbering? (Default = False)
-        self.f_step: float = 10  #: Frequency step to use when constructing H(f) (MHz). (Default = 10 MHz)
-        self.f_max: float = 40  #: Frequency maximum to use when constructing H(f) (GHz). (Default = 40 GHz)
-        self.impulse_length: float = 0.0  #: Impulse response length. (Determined automatically, when 0.)
-        self.Rdc: float = 0.1876  #: Channel d.c. resistance (Ohms/m).
-        self.w0: float = 10e6  #: Channel transition frequency (rads./s).
-        self.R0: float = 1.452  #: Channel skin effect resistance (Ohms/m).
-        self.Theta0: float = 0.02  #: Channel loss tangent (unitless).
-        self.Z0: float = 100  #: Channel characteristic impedance, in LC region (Ohms).
-        self.v0: float = 0.67  #: Channel relative propagation velocity (c).
-        self.l_ch: float = 0.5  #: Channel length (m).
-        self.use_window: bool = False  #: Apply raised cosine to frequency response before FFT()-ing? (Default = False)
 
         # - EQ Tune
         self.tx_tap_tuners: list[TxTapTuner] = [
@@ -328,8 +317,8 @@ class PyBERT:  # pylint: disable=too-many-instance-attributes
         """
         Calculate the frequency vector for channel model construction.
         """
-        fstep = self.f_step * 1e6
-        fmax = self.f_max * 1e9
+        fstep = self.channel.f_step * 1e6
+        fmax = self.channel.f_max * 1e9
         return arange(0, fmax + fstep, fstep)  # "+fstep", so fmax gets included
 
     @property
@@ -515,7 +504,7 @@ class PyBERT:  # pylint: disable=too-many-instance-attributes
         f = self.f
         w = self.w
         nspui = self.nspui
-        impulse_length = self.impulse_length * 1.0e-9
+        impulse_length = self.channel.impulse_length * 1.0e-9
         Rs = self.tx.impedance
         Cs = self.tx.capacitance * 1.0e-12
         RL = self.rx.impedance
@@ -526,37 +515,8 @@ class PyBERT:  # pylint: disable=too-many-instance-attributes
         len_f = len(f)
 
         # Form the pre-on-die S-parameter 2-port network for the channel.
-        if self.use_ch_file:
-            # TODO: This is temporary until we support multiple channel files.
-            self.ch_file = self.channel_elements[0]["file"]
-            ch_s2p_pre = import_channel(self.ch_file, ts, f, renumber=self.renumber)
-            logger.info(str(ch_s2p_pre))
-            H = ch_s2p_pre.s21.s.flatten()
-        else:
-            # Construct PyBERT default channel model (i.e. - Howard Johnson's UTP model).
-            # - Grab model parameters from PyBERT instance.
-            l_ch = self.l_ch
-            v0 = self.v0 * 3.0e8
-            R0 = self.R0
-            w0 = self.w0
-            Rdc = self.Rdc
-            Z0 = self.Z0
-            Theta0 = self.Theta0
-            # - Calculate propagation constant, characteristic impedance, and transfer function.
-            gamma, Zc = calc_gamma(R0, w0, Rdc, Z0, v0, Theta0, w)
-            self.Zc = Zc
-            H = exp(-l_ch * gamma)  # pylint: disable=invalid-unary-operand-type
-            self.H = H
-            # - Use the transfer function and characteristic impedance to form "perfectly matched" network.
-            tmp = np.array(list(zip(zip(zeros(len_f), H), zip(H, zeros(len_f)))))
-            ch_s2p_pre = rf.Network(s=tmp, f=f / 1e9, z0=Zc)
-            # - And, finally, renormalize to driver impedance.
-            ch_s2p_pre.renormalize(Rs)
-        try:
-            ch_s2p_pre.name = "ch_s2p_pre"
-        except Exception:  # pylint: disable=broad-exception-caught
-            logger.info(f"ch_s2p_pre: {ch_s2p_pre}")
-            raise
+        H, ch_s2p_pre = self.channel.form_channel_response(ts, f, w, len_f, self.tx.impedance)
+
         self.ch_s2p_pre = ch_s2p_pre
         ch_s2p = ch_s2p_pre  # In case neither set of on-die S-parameters is being invoked, below.
 
@@ -628,7 +588,7 @@ class PyBERT:  # pylint: disable=too-many-instance-attributes
         # We take the transfer function, H, to be a ratio of voltages.
         # So, we must normalize our (now generalized) S-parameters.
         chnl_H = ch_s2p_term.s21.s.flatten() * np.sqrt(ch_s2p_term.z0[:, 1] / ch_s2p_term.z0[:, 0])
-        if self.use_window:
+        if self.channel.use_window:
             chnl_h = irfft(raised_cosine(chnl_H))
         else:
             chnl_h = irfft(chnl_H)
@@ -806,7 +766,7 @@ class PyBERT:  # pylint: disable=too-many-instance-attributes
 
     def is_valid_configuration(self):
         """Validate that the user has selected a valid configuration for simulation or optimization."""
-        if not self.channel_elements and self.use_ch_file:
+        if not self.channel.elements and self.channel.use_ch_file:
             logger.error("No channel file selected. Please select a channel file.")
             return False
         if not self.tx.ibis and self.tx.use_ibis:
