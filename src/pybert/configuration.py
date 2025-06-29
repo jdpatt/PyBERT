@@ -114,6 +114,8 @@ class Configuration:  # pylint: disable=too-many-instance-attributes
         self.transmitter = the_PyBERT.tx.to_dict()
         self.channel = the_PyBERT.channel.to_dict()
         self.receiver = the_PyBERT.rx.to_dict()
+        self.rx_use_viterbi = the_PyBERT.rx_use_viterbi
+        self.rx_viterbi_symbols = the_PyBERT.rx_viterbi_symbols
 
         # DFE
         self.sum_ideal = the_PyBERT.sum_ideal
@@ -121,6 +123,7 @@ class Configuration:  # pylint: disable=too-many-instance-attributes
         self.gain = the_PyBERT.gain
         self.n_ave = the_PyBERT.n_ave
         self.sum_bw = the_PyBERT.sum_bw
+        self.use_agc = the_PyBERT.use_agc
 
         # CDR
         self.delta_t = the_PyBERT.delta_t

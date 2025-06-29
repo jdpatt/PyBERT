@@ -43,6 +43,7 @@ from scipy.signal import iirfilter, lfilter
 
 from pybert.models.dfe import DFE
 from pybert.models.stimulus import ModulationType
+from pybert.models.viterbi import ViterbiDecoder_ISI
 from pybert.results import Results, SimulationPerfResults
 from pybert.stoppable_thread import StoppableThread
 from pybert.utility import (
@@ -579,13 +580,14 @@ def run_simulation(self, aborted_sim: Optional[Callable[[], bool]] = None) -> Re
                 dfe_tap_keys.sort()
                 for dfe_tap_key in dfe_tap_keys:
                     _tap_weights.append(param_vals[dfe_tap_key])
-                tap_weights = array(_tap_weights).transpose()
+                tap_weights: list[list[float]] = list(array(_tap_weights).transpose())
                 if "cdr_locked" in param_vals:
-                    lockeds: npt.NDArray[np.float64] = array(param_vals[AmiName("cdr_locked")])
-                    lockeds = lockeds.repeat(len(t) // len(lockeds))
-                    lockeds.resize(len(t))
+                    _lockeds: npt.NDArray[np.float64] = array(param_vals[AmiName("cdr_locked")])
+                    _lockeds = _lockeds.repeat(len(t) // len(_lockeds))
+                    _lockeds.resize(len(t))
                 else:
-                    lockeds = zeros(len(t))
+                    _lockeds = zeros(len(t))
+                lockeds: list[bool] = list(map(bool, _lockeds))
                 if "cdr_ui" in param_vals:
                     ui_ests: npt.NDArray[np.float64] = array(param_vals[AmiName("cdr_ui")])
                     ui_ests = ui_ests.repeat(len(t) // len(ui_ests))
@@ -696,7 +698,7 @@ def run_simulation(self, aborted_sim: Optional[Callable[[], bool]] = None) -> Re
         dfe_out = array(ctle_out)  # In this case, `ctle_out` includes the effects of IBIS-AMI DFE.
         dfe_out.resize(len(t))
         t_ix = 0
-        bits_out = []
+        _bits_out = []
         clocks = zeros(len(t))
         sample_times = []
         if self.rx.use_clocks and clock_times is not None:
@@ -710,7 +712,7 @@ def run_simulation(self, aborted_sim: Optional[Callable[[], bool]] = None) -> Re
                     logger.warning("Went beyond system time vector end searching for next clock time!")
                     break
                 _, _bits = dfe.decide(ctle_out[t_ix])
-                bits_out.extend(_bits)
+                _bits_out.extend(_bits)
                 clocks[t_ix] = 1
                 sample_times.append(sample_time)
         # Process any remaining output, using inferred sampling instants.
@@ -723,10 +725,10 @@ def run_simulation(self, aborted_sim: Optional[Callable[[], bool]] = None) -> Re
             )
             for t_ix in range(next_sample_ix, len(t), nspui):
                 _, _bits = dfe.decide(ctle_out[t_ix])
-                bits_out.extend(_bits)
+                _bits_out.extend(_bits)
                 clocks[t_ix] = 1
                 sample_times.append(t[t_ix])
-    bits_out = array(bits_out)
+        bits_out = array(_bits_out)
     start_ix = max(0, len(bits_out) - eye_bits)
     end_ix = len(bits_out)
     auto_corr = (
@@ -737,8 +739,10 @@ def run_simulation(self, aborted_sim: Optional[Callable[[], bool]] = None) -> Re
     auto_corr = auto_corr[len(auto_corr) // 2 :]
     self.auto_corr = auto_corr
     bit_dly = where(auto_corr == max(auto_corr))[0][0]
-    bits_ref = bits[(nbits - eye_bits) :]
-    bits_tst = bits_out[(nbits + bit_dly - eye_bits) :]
+    first_ref_bit = nbits - eye_bits
+    bits_ref = bits[first_ref_bit:]
+    first_tst_bit = first_ref_bit + bit_dly
+    bits_tst = bits_out[first_tst_bit:]
     if len(bits_ref) > len(bits_tst):
         bits_ref = bits_ref[: len(bits_tst)]
     elif len(bits_tst) > len(bits_ref):
@@ -763,6 +767,64 @@ def run_simulation(self, aborted_sim: Optional[Callable[[], bool]] = None) -> Re
     # Calculate the remaining responses from the impulse responses.
     dfe_s, dfe_p, dfe_H = calc_resps(t, dfe_h, ui, f)
     dfe_out_s, dfe_out_p, dfe_out_H = calc_resps(t, dfe_out_h, ui, f)
+
+    self.dfe_perf = nbits * nspb / (clock() - split_time)
+    split_time = clock()
+
+    _check_sim_status()
+
+    # Apply Viterbi decoder if apropos.
+    self.bit_errs_viterbi = -1
+    self.viterbi_perf = 0
+    if self.rx_use_viterbi:
+        logger.info("Running Viterbi...")
+        match mod_type:
+            case ModulationType.NRZ:
+                L = 2
+            case ModulationType.DUO:
+                L = 3
+            case ModulationType.PAM4:
+                L = 4
+            case _:
+                raise ValueError(f"Unrecognized modulation type: {mod_type}!")
+        N = self.rx_viterbi_symbols
+        sigma = 10e-3  # ToDo: Make this an accurate assessment of the random vertical noise.
+        pulse_resp_curs_ix = np.argmax(ctle_out_p)
+        pulse_resp_samps = np.array([ctle_out_p[pulse_resp_curs_ix + n * nspui] for n in range(N)])
+        decoder = ViterbiDecoder_ISI(L, N, sigma, pulse_resp_samps)
+        ctle_out_samps = []
+        for sample_time in filter(lambda x: x <= t[-1], sample_times[first_tst_bit:]):
+            ix = np.where(t >= sample_time)[0][0]
+            ctle_out_samps.append(ctle_out[ix])
+        # if self.debug:
+        #     self.dbg_dict_viterbi = {}
+        #     path = decoder.decode(ctle_out_samps, dbg_dict=self.dbg_dict_viterbi)
+        # else:
+        path = decoder.decode(ctle_out_samps)
+        symbols_viterbi = list(map(lambda ix: decoder.states[ix][0][-1], path))
+        # if self.debug:
+        #     self.pulse_resp_samps = pulse_resp_samps
+        #     self.ctle_out_samps   = ctle_out_samps
+        #     self.symbols_viterbi  = symbols_viterbi
+        #     self.dbg_dict_viterbi["decoder"] = decoder
+        #     self.dbg_dict_viterbi["path"] = path
+        # bits_out_viterbi = concatenate(list(map(lambda ss: dfe.decide(ss)[1], symbols_viterbi)))
+        bits_tst_viterbi = np.concatenate(list(map(lambda ss: dfe.decide(ss)[1], symbols_viterbi)))
+        # bits_tst_viterbi = bits_out_viterbi[first_tst_bit:]
+        if len(bits_ref) > len(bits_tst_viterbi):
+            bits_ref = bits_ref[: len(bits_tst_viterbi)]
+        elif len(bits_tst_viterbi) > len(bits_ref):
+            bits_tst_viterbi = bits_tst_viterbi[: len(bits_ref)]
+        num_viterbi_bits = len(bits_tst_viterbi)
+        bit_errs_viterbi = where(bits_tst_viterbi ^ bits_ref)[0]
+        # n_errs_viterbi = len(bit_errs_viterbi)
+        # if n_errs_viterbi:
+        #     print(f"Bits sent:        {bits_ref[first_tst_bit: first_tst_bit + 20]}")
+        #     print(f"Viterbi detected: {bits_tst_viterbi[first_tst_bit + 1: first_tst_bit + 21]}")
+        self.bit_errs_viterbi = len(bit_errs_viterbi)
+        self.viterbi_errs_ixs = bit_errs_viterbi
+        self.viterbi_perf = num_viterbi_bits * nspb / (clock() - split_time)
+        split_time = clock()
 
     self.dfe_h = dfe_h
     self.dfe_s = dfe_s

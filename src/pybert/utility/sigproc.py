@@ -53,7 +53,7 @@ def moving_average(a: Rvec, n: int = 3) -> Rvec:
             Default: 3
 
     Returns:
-        rslt: the moving average of the input vector, leaving the input vector unchanged.
+        The moving average of the input vector, leaving the input vector unchanged.
 
     Notes:
         1. The odd code is intended to "protect" the first/last elements
@@ -80,7 +80,7 @@ def interp_time(ts: Rvec, xs: Rvec, sample_per: float) -> Rvec:
         sample_per: System sample period (ts).
 
     Returns:
-        rslt: Resampled waveform.
+        Resampled waveform.
     """
     krnl = interp1d(ts, xs, kind="cubic", bounds_error=False, fill_value=0, assume_sorted=True)
     return krnl(arange(0, ts[-1], sample_per))
@@ -96,7 +96,7 @@ def import_time(filename: str, sample_per: float) -> Rvec:
         sample_per: New sample interval
 
     Returns:
-        rslt: Resampled waveform.
+        Resampled waveform.
     """
     ts = []
     xs = []
@@ -124,9 +124,10 @@ def pulse_center(p: Rvec, nspui: int) -> tuple[int, float]:
         nspui: The number of vector elements per unit interval.
 
     Returns:
-        (clock_pos, thresh): The estimated index at which the clock will
-            sample the main lobe, and
-            the vertical threshold at which the main lobe is one UI wide.
+        A pair containing
+
+            - the estimated index at which the clock will sample the main lobe, and
+            - the vertical threshold at which the main lobe is one UI wide.
     """
     div = 2.0
     p_max = p.max()
@@ -175,17 +176,21 @@ def calc_resps(
             Default: 1e-18
 
     Returns:
-        s, p, H: tuple consisting of: step, pulse, and frequency responses.
+        Tuple containing
+
+            - step,
+            - pulse, and
+            - frequency responses.
 
     Raises:
-        ValueError: If any of the following are true:
-            - `t` is not uniformly spaced.
-            - length of `t` is not at least length of `h`.
-            - `f` is not uniformly spaced.
-            - `f` does not begin with zero.
+        ValueError: If ``t`` is not uniformly spaced.
+        ValueError: If length of ``t`` is not at least length of ``h``.
+        ValueError: If ``f`` is not uniformly spaced.
+        ValueError: If ``f`` does not begin with zero.
+
     Notes:
         1. ``t`` is assumed to be uniformly spaced and monotonic.
-            (It is *not* assumed to begin at zero.)
+        (It is *not* assumed to begin at zero.)
     """
     ddt = diff(diff(t))
     if any(ddt > eps):
@@ -223,8 +228,7 @@ def trim_impulse(
     """
     Trim impulse response, for more useful display, by:
 
-        - clipping off the tail, after given portion of the total
-            first derivative power has been captured, and
+        - clipping off the tail, after given portion of the total first derivative power has been captured, and
         - enforcing a minimum "front porch" length if requested.
 
     Args:
@@ -241,7 +245,8 @@ def trim_impulse(
             Default: 99.9%
 
     Returns:
-        (trimmed_resp, start_ix): A pair consisting of:
+        A pair consisting of
+
             - the trimmed response, and
             - the index of the chosen starting position.
     """
@@ -291,9 +296,9 @@ def make_ctle(
     """
     Generate the frequency response of a continuous time linear equalizer (CTLE), given the:
 
-    - signal path bandwidth,
-    - peaking specification, and
-    - list of frequencies of interest.
+        - signal path bandwidth,
+        - peaking specification, and
+        - list of frequencies of interest.
 
     Args:
         rx_bw: The natural (or, unequalized) signal path bandwidth (Hz).
@@ -302,22 +307,23 @@ def make_ctle(
         w: The list of frequencies of interest (rads./s).
 
     Returns:
-        w, H: The resultant complex frequency response, at the given frequencies.
+        Tupple containing
+
+            - w, the frequencies at which ``H`` has been sampled (rad./s), and
+            - H, the resultant complex frequency response, at the given frequencies.
 
     Notes:
         1. We use the 'invres()' function from scipy.signal, as it suggests
-            itself as a natural approach, given our chosen use model of having
-            the user provide the peaking frequency and degree of peaking.
+        itself as a natural approach, given our chosen use model of having
+        the user provide the peaking frequency and degree of peaking.
+        That is, we define our desired frequency response using one zero and two poles, where
 
-            That is, we define our desired frequency response using one zero
-            and two poles, where:
+            - The pole locations are equal to
 
-            - The pole locations are equal to:
                 - the signal path natural bandwidth, and
                 - the user specified peaking frequency.
 
-            - The zero location is chosen, so as to provide the desired degree
-                of peaking.
+            - The zero location is chosen, so as to provide the desired degree of peaking.
     """
 
     p2 = -2.0 * pi * rx_bw
@@ -358,9 +364,8 @@ def calc_eye(
             Default: None
 
     Returns:
-        eye: The "heat map" representing the eye diagram.
-            Each grid location contains a value indicating the number
-            of times the signal passed through that location.
+        The "heat map" representing the eye diagram.
+        Each grid location contains a value indicating the number of times the signal passed through that location.
     """
 
     # List/array necessities.
@@ -419,7 +424,8 @@ def make_uniform(t: Rvec, jitter: Rvec, ui: float, nbits: int) -> tuple[Rvec, li
         nbits: The desired number of unit intervals, in the time domain.
 
     Returns:
-        (y, y_vld): A pair consisting of:
+        A pair consisting of
+
             - The uniformly sampled, zero padded jitter vector.
             - The indices where y is valid (i.e. - not zero padded).
     """

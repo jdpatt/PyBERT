@@ -41,9 +41,9 @@ from pyibisami import __version__ as PyAMI_VERSION  # type: ignore
 from scipy.interpolate import interp1d
 
 from pybert import __version__ as VERSION
-from pybert.bert import SimulationThread
 from pybert.configuration import Configuration, InvalidConfigFileType
 from pybert.constants import gPeakFreq, gPeakMag
+from pybert.models.bert import SimulationThread
 from pybert.models.buffer import Receiver, Transmitter
 from pybert.models.channel import Channel
 from pybert.models.stimulus import BitPattern, ModulationType
@@ -164,6 +164,8 @@ class PyBERT:  # pylint: disable=too-many-instance-attributes
         self.peak_freq: float = gPeakFreq  #: CTLE peaking frequency (GHz)
         self.peak_mag: float = gPeakMag  #: CTLE peaking magnitude (dB)
         self.ctle_enable: bool = True  #: CTLE enable.
+        self.rx_use_viterbi: bool = False  #: Use Viterbi algorithm for MLSD.
+        self.rx_viterbi_symbols: int = 4  #: Number of symbols to track in Viterbi decoder.
 
         # - DFE
         self.sum_ideal: bool = True  #: True = use an ideal (i.e. - infinite bandwidth) summing node (Bool).

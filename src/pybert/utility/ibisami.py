@@ -46,13 +46,14 @@ def run_ami_model(
             Default: 0 (Means "Use existing value.")
 
     Returns:
-        y, clks, h, out_h, msg, params_out: A tuple consisting of:
-            - the model output convolved w/ any channel impulse response given in `chnl_h`,
+        A tuple consisting of
+
+            - the model output convolved w/ any channel impulse response given in ``chnl_h``,
             - the model determined sampling instants (a.k.a. - "clock times"), if appropriate,
             - the model's impulse response (V/sample),
             - the impulse response of the model concatenated w/ the given channel (V/sample),
-            - input parameters, and any message returned by the model's AMI_Init() function, and
-            - any output parameters from GetWave() if apropos.
+            - input parameters, and any message returned by the model's ``AMI_Init()`` function, and
+            - any output parameters from ``GetWave()`` if apropos.
 
     Raises:
         IOError: if the given file name cannot be found/opened.
@@ -103,6 +104,7 @@ def run_ami_model(
     if use_getwave:
         y, clks, params_out = model.getWave(x, bits_per_call=bits_per_call)
         return (y, clks, h, out_h, msg, list(map(lambda p: p.decode("utf-8"), params_out)))
+        # return (y, clks, h, out_h, msg, params_out)
     try:
         y = convolve(x, out_h)[: len(x)]
     except Exception:

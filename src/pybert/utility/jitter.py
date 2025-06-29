@@ -125,7 +125,7 @@ def find_crossing_times(  # pylint: disable=too-many-arguments,too-many-position
         thresh: Vertical crossing threshold.
 
     Returns:
-        xing_times: Array of signal threshold crossing times.
+        Array of signal threshold crossing times.
     """
 
     if len(t) != len(x):
@@ -222,7 +222,7 @@ def find_crossings(  # pylint: disable=too-many-arguments,too-many-positional-ar
             Default: 0
 
     Returns:
-        xing_times: The signal threshold crossing times.
+        The signal threshold crossing times.
     """
 
     if mod_type not in ModulationType:

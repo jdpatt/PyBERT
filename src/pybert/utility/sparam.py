@@ -11,15 +11,14 @@ A partial extraction of the old `pybert/utility.py`, as part of a refactoring.
 
 import os.path
 import re
-
 from cmath import phase, rect
+
 from numpy import array, diff, ones, pi, where, zeros  # type: ignore
 from numpy.fft import fft  # type: ignore
 from skrf import Network
 from skrf.network import one_port_2_two_port
 
-from ..constants import Rvec, Cvec
-
+from ..constants import Cvec, Rvec
 from .channel import calc_G
 from .sigproc import import_time
 
@@ -72,14 +71,14 @@ def sdd_21(ntwk: Network, renumber: bool = False) -> Network:
             Default: False
 
     Returns:
-        Sdd: 2-port differential network.
+        2-port differential network.
     """
     mm = se2mm(ntwk, renumber=renumber)
     return Network(frequency=ntwk.f, s=mm.s[:, 0:2, 0:2], z0=mm.z0[:, 0:2])
 
 
 def se2mm(ntwk: Network, scale: float = 0.5, renumber: bool = False) -> Network:
-    """
+    r"""
     Given a 4-port single-ended network, return its mixed mode equivalent.
 
     Args:
@@ -92,12 +91,18 @@ def se2mm(ntwk: Network, scale: float = 0.5, renumber: bool = False) -> Network:
             Default: False
 
     Returns:
-        Smm: Mixed mode equivalent network, in the following format:
-            Sdd11  Sdd12  Sdc11  Sdc12
-            Sdd21  Sdd22  Sdc21  Sdc22
-            Scd11  Scd12  Scc11  Scc12
-            Scd21  Scd22  Scc21  Scc22
+        Mixed mode equivalent network, in the following format
+
+            .. math::
+
+                \begin{matrix}
+                Sdd11 & Sdd12 & Sdc11 & Sdc12\\
+                Sdd21 & Sdd22 & Sdc21 & Sdc22\\
+                Scd11 & Scd12 & Scc11 & Scc12\\
+                Scd21 & Scd22 & Scc21 & Scc22
+                \end{matrix}
     """
+
     # Confirm correct network dimmensions.
     (_, rs, cs) = ntwk.s.shape
     if rs != cs:
@@ -151,10 +156,10 @@ def interp_s2p(ntwk: Network, f: Rvec) -> Network:
         f: The list of new frequency sampling points (Hz).
 
     Returns:
-        Sint: The interpolated/extrapolated 2-port network.
+        The interpolated/extrapolated 2-port network.
 
     Raises:
-        ValueError: If `ntwk` is _not_ a 2-port network.
+        ValueError: If ``ntwk`` is _not_ a 2-port network.
     """
     (_, rs, cs) = ntwk.s.shape
     if rs != cs:
@@ -182,29 +187,30 @@ def H_2_s2p(H: Cvec, Zc: Cvec, fs: Rvec, Zref: float = 50) -> Network:
     Args:
         H: Transfer function of medium alone.
         Zc: Complex impedance of medium.
-        fs: Frequencies at which `H` and `Zc` were sampled (Hz).
+        fs: Frequencies at which ``H`` and ``Zc`` were sampled (Hz).
 
     Keyword Args:
         Zref: Reference (i.e. - port) impedance to be used in constructing the network (Ohms).
             Default: 50
 
     Returns:
-        s2p: 2-port network representing the channel to which `H` and `Zc` pertain.
+        2-port network representing the channel to which ``H`` and ``Zc`` pertain.
     """
+
     # ToDo: Fix this code.  # pylint: disable=fixme
     ws = 2 * pi * fs
     G = calc_G(H, Zref, 0, Zc, Zref, 0, ws)  # See `calc_G()` docstring.
     R1 = (Zc - Zref) / (Zc + Zref)  # reflection coefficient looking into medium from port
     # T1 = 1 + R1  # transmission coefficient looking into medium from port
-    Z2   = Zc * (1 - R1 * H**2)         # impedance looking into port 2, with port 1 terminated into Zref
-    R2   = (Z2 - Zc) / (Z2 + Zc)      # reflection coefficient looking out of port 2
+    Z2 = Zc * (1 - R1 * H**2)  # impedance looking into port 2, with port 1 terminated into Zref
+    R2 = (Z2 - Zc) / (Z2 + Zc)  # reflection coefficient looking out of port 2
     # R2   = 0
     # Z1   = Zc * (1 + R2*H**2)         # impedance looking into port 1, with port 2 terminated into Z2
     # Calculate the one-way transfer function of medium capped w/ ports of the chosen impedance.
     # G    = calc_G(H, Zref, 0, Zc, Zc, 0, 2*pi*fs)  # See `calc_G()` docstring.
     # R2   = -R1                        # reflection coefficient looking into ref. impedance
     S21 = G
-    S11  = 2 * (R1 + H * R2 * G)
+    S11 = 2 * (R1 + H * R2 * G)
     tmp = array(list(zip(zip(S11, S21), zip(S21, S11))))
     return Network(s=tmp, f=fs / 1e9, z0=[Zref, Zref])  # `f` is presumed to have units: GHz.
 
@@ -221,7 +227,7 @@ def import_freq(filename: str, renumber: bool = False) -> Network:
             Default = False
 
     Returns:
-        s2p_DD: 2-port network.
+        2-port differential network.
 
     Raises:
         ValueError: If Touchstone file is not 1, 2, or 4-port.
@@ -246,8 +252,7 @@ def import_freq(filename: str, renumber: bool = False) -> Network:
     return one_port_2_two_port(ntwk)
 
 
-def import_channel(filename: str, sample_per: float, fs: Rvec,
-                   zref: float = 100, renumber: bool = False) -> Network:
+def import_channel(filename: str, sample_per: float, fs: Rvec, zref: float = 100, renumber: bool = False) -> Network:
     """
     Read in a channel description file.
 
@@ -263,7 +268,7 @@ def import_channel(filename: str, sample_per: float, fs: Rvec,
             Default: False
 
     Returns:
-        s2p: 2-port network description of channel.
+        2-port network description of channel.
 
     Notes:
         1. When a time domain (i.e. - impulse or step response) file is being imported,

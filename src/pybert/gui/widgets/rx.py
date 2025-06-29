@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QPushButton,
     QRadioButton,
+    QSpinBox,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
@@ -96,6 +97,18 @@ class RxConfigWidget(QWidget):
         self.cac.setSuffix(" uF")
         native_form.addRow(QLabel("AC Coupling"), self.cac)
 
+        # Viterbi parameters
+        self.rx_use_viterbi = QCheckBox("Use Viterbi")
+        self.rx_use_viterbi.setChecked(False)
+        self.rx_use_viterbi.setToolTip("Apply MLSD to recovered symbols, using Viterbi algorithm.")
+        self.rx_viterbi_symbols = QSpinBox()
+        self.rx_viterbi_symbols.setRange(1, 10000)
+        self.rx_viterbi_symbols.setValue(4)
+        self.rx_viterbi_symbols.setSuffix(" Symbols")
+        self.rx_viterbi_symbols.setToolTip("Number of symbols to include in MLSD trellis.")
+        native_form.addRow(QLabel("Use Viterbi"), self.rx_use_viterbi)
+        native_form.addRow(QLabel("# Symbols"), self.rx_viterbi_symbols)
+
         # --- Stacked layout for receiver config groups ---
         self.stacked_widget = QStackedWidget(self)
         self.stacked_widget.addWidget(self.native_group)
@@ -129,6 +142,8 @@ class RxConfigWidget(QWidget):
         self.rin.valueChanged.connect(lambda val: setattr(self.pybert.rx, "impedance", val))
         self.cin.valueChanged.connect(lambda val: setattr(self.pybert.rx, "capacitance", val))
         self.cac.valueChanged.connect(lambda val: setattr(self.pybert.rx, "ac_coupling", val))
+        self.rx_use_viterbi.toggled.connect(lambda val: setattr(self.pybert, "rx_use_viterbi", val))
+        self.rx_viterbi_symbols.valueChanged.connect(lambda val: setattr(self.pybert, "rx_viterbi_symbols", val))
 
     def update_widget_from_model(self, propagate: bool = True) -> None:
         """Update all widget values from the PyBERT model."""
@@ -142,6 +157,8 @@ class RxConfigWidget(QWidget):
                 self.rin.setValue(self.pybert.rx.impedance)
                 self.cin.setValue(self.pybert.rx.capacitance)
                 self.cac.setValue(self.pybert.rx.ac_coupling)
+                self.rx_use_viterbi.setChecked(self.pybert.rx_use_viterbi)
+                self.rx_viterbi_symbols.setValue(self.pybert.rx_viterbi_symbols)
 
                 # Update stacked widget
                 self.stacked_widget.setCurrentIndex(1 if self.pybert.rx.use_ibis else 0)
