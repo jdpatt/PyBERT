@@ -22,7 +22,6 @@ class Channel:
         self,
         elements: list[ChannelElement] = [],
         use_ch_file: bool = False,
-        renumber: bool = False,
         f_step: float = 10,
         f_max: float = 40,
         impulse_length: float = 0.0,
@@ -55,7 +54,6 @@ class Channel:
         return {
             "elements": self.elements,
             "use_ch_file": self.use_ch_file,
-            "renumber": self.renumber,
             "f_step": self.f_step,
             "f_max": self.f_max,
             "impulse_length": self.impulse_length,
@@ -74,7 +72,6 @@ class Channel:
         return cls(
             elements=data.get("elements", []),
             use_ch_file=data.get("use_ch_file", False),
-            renumber=data.get("renumber", False),
             f_step=data.get("f_step", 10),
             f_max=data.get("f_max", 40),
             impulse_length=data.get("impulse_length", 0.0),

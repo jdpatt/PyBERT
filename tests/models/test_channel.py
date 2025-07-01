@@ -18,14 +18,13 @@ class TestChannelSerialization:
     def test_to_dict_from_dict(self):
         """Test Channel to_dict and from_dict methods."""
         # Create a channel with custom values
-        channel = Channel(elements=[{"file": "test.s2p", "order": "odd"}])
+        channel = Channel(elements=[{"file": "test.s2p", "renumber": True}])
 
         # Test to_dict
         channel_dict = channel.to_dict()
         expected = {
-            "elements": [{"file": "test.s2p", "order": "odd"}],
+            "elements": [{"file": "test.s2p", "renumber": True}],
             "use_ch_file": False,
-            "renumber": False,
             "f_step": 10,
             "f_max": 40,
             "impulse_length": 0.0,
@@ -42,9 +41,8 @@ class TestChannelSerialization:
 
         # Test from_dict
         new_channel = Channel.from_dict(channel_dict)
-        assert new_channel.elements == [{"file": "test.s2p", "order": "odd"}]
+        assert new_channel.elements == [{"file": "test.s2p", "renumber": True}]
         assert new_channel.use_ch_file is False
-        assert new_channel.renumber is False
         assert new_channel.f_step == 10
         assert new_channel.f_max == 40
         assert new_channel.impulse_length == 0.0

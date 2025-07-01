@@ -213,7 +213,6 @@ class Configuration:  # pylint: disable=too-many-instance-attributes
             "Z0": 100.0,  # Ohms
             "v0": 0.67,  # c
             "l_ch": 0.5,  # m
-            "renumber": False,
             "use_window": False,
         }
         # Rx
