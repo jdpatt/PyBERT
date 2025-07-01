@@ -692,7 +692,10 @@ def run_simulation(self, aborted_sim: Optional[Callable[[], bool]] = None) -> Re
         limits=limits,
     )
     if not (self.rx.use_ami and self.rx.use_getwave):  # Use PyBERT native DFE/CDR.
-        (dfe_out, tap_weights, ui_ests, clocks, lockeds, sample_times, bits_out) = dfe.run(t, ctle_out)
+        (dfe_out, tap_weights, ui_ests, clocks, lockeds, sample_times, bits_out) = dfe.run(
+            t, ctle_out, use_agc=self.use_agc
+        )
+        self.decision_scaler = dfe.decision_scaler
     else:  # Process Rx IBIS-AMI GetWave() output.
         # Process any valid clock times returned by Rx IBIS-AMI model's GetWave() function if apropos.
         dfe_out = array(ctle_out)  # In this case, `ctle_out` includes the effects of IBIS-AMI DFE.
