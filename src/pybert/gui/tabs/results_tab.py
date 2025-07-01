@@ -678,153 +678,154 @@ class ResultsTab(QWidget):
         """
         # Clear existing reference plots first
         self.clear_reference_plots()
+        data = results.data
 
         # Add reference plots to impulse response plots
-        if "chnl_h" in results["impulse_plots"]:
+        if "chnl_h" in data["impulse_plots"]:
             ref = self.impulse_plots[0].plot(
-                results["t_ns_chnl"], results["impulse_plots"]["chnl_h"], pen=pg.mkPen("darkcyan"), name="I Reference"
+                data["t_ns_chnl"], data["impulse_plots"]["chnl_h"], pen=pg.mkPen("darkcyan"), name="I Reference"
             )
             self.reference_plots.append(ref)
-        if "tx_out_h" in results["impulse_plots"]:
+        if "tx_out_h" in data["impulse_plots"]:
             ref = self.impulse_plots[1].plot(
-                results["t_ns_chnl"],
-                results["impulse_plots"]["tx_out_h"],
+                data["t_ns_chnl"],
+                data["impulse_plots"]["tx_out_h"],
                 pen=pg.mkPen("darkmagenta"),
                 name="C Reference",
             )
             self.reference_plots.append(ref)
-        if "ctle_out_h" in results["impulse_plots"]:
+        if "ctle_out_h" in data["impulse_plots"]:
             ref = self.impulse_plots[2].plot(
-                results["t_ns_chnl"],
-                results["impulse_plots"]["ctle_out_h"],
+                data["t_ns_chnl"],
+                data["impulse_plots"]["ctle_out_h"],
                 pen=pg.mkPen("darkmagenta"),
                 name="C Reference",
             )
             self.reference_plots.append(ref)
-        if "dfe_out_h" in results["impulse_plots"]:
+        if "dfe_out_h" in data["impulse_plots"]:
             ref = self.impulse_plots[3].plot(
-                results["t_ns_chnl"],
-                results["impulse_plots"]["dfe_out_h"],
+                data["t_ns_chnl"],
+                data["impulse_plots"]["dfe_out_h"],
                 pen=pg.mkPen("darkmagenta"),
                 name="C Reference",
             )
             self.reference_plots.append(ref)
 
         # Add reference plots to step response plots
-        if "chnl_s" in results["step_plots"]:
+        if "chnl_s" in data["step_plots"]:
             ref = self.step_plots[0].plot(
-                results["t_ns_chnl"], results["step_plots"]["chnl_s"], pen=pg.mkPen("darkcyan"), name="I Reference"
+                data["t_ns_chnl"], data["step_plots"]["chnl_s"], pen=pg.mkPen("darkcyan"), name="I Reference"
             )
             self.reference_plots.append(ref)
-        if "tx_s" in results["step_plots"]:
+        if "tx_s" in data["step_plots"]:
             ref = self.step_plots[1].plot(
-                results["t_ns_chnl"], results["step_plots"]["tx_s"], pen=pg.mkPen("darkcyan"), name="I Reference"
+                data["t_ns_chnl"], data["step_plots"]["tx_s"], pen=pg.mkPen("darkcyan"), name="I Reference"
             )
             self.reference_plots.append(ref)
-        if "tx_out_s" in results["step_plots"]:
+        if "tx_out_s" in data["step_plots"]:
             ref = self.step_plots[1].plot(
-                results["t_ns_chnl"],
-                results["step_plots"]["tx_out_s"],
+                data["t_ns_chnl"],
+                data["step_plots"]["tx_out_s"],
                 pen=pg.mkPen("darkmagenta"),
                 name="C Reference",
             )
             self.reference_plots.append(ref)
-        if "ctle_s" in results["step_plots"]:
+        if "ctle_s" in data["step_plots"]:
             ref = self.step_plots[2].plot(
-                results["t_ns_chnl"],
-                results["step_plots"]["ctle_s"][: len(results["t_ns_chnl"])],
+                data["t_ns_chnl"],
+                data["step_plots"]["ctle_s"][: len(data["t_ns_chnl"])],
                 pen=pg.mkPen("darkcyan"),
                 name="I Reference",
             )
             self.reference_plots.append(ref)
-        if "ctle_out_s" in results["step_plots"]:
+        if "ctle_out_s" in data["step_plots"]:
             ref = self.step_plots[2].plot(
-                results["t_ns_chnl"],
-                results["step_plots"]["ctle_out_s"],
+                data["t_ns_chnl"],
+                data["step_plots"]["ctle_out_s"],
                 pen=pg.mkPen("darkmagenta"),
                 name="C Reference",
             )
             self.reference_plots.append(ref)
-        if "dfe_s" in results["step_plots"]:
+        if "dfe_s" in data["step_plots"]:
             ref = self.step_plots[3].plot(
-                results["t_ns_chnl"], results["step_plots"]["dfe_s"], pen=pg.mkPen("darkcyan"), name="I Reference"
+                data["t_ns_chnl"], data["step_plots"]["dfe_s"], pen=pg.mkPen("darkcyan"), name="I Reference"
             )
             self.reference_plots.append(ref)
-        if "dfe_out_s" in results["step_plots"]:
+        if "dfe_out_s" in data["step_plots"]:
             ref = self.step_plots[3].plot(
-                results["t_ns_chnl"],
-                results["step_plots"]["dfe_out_s"],
+                data["t_ns_chnl"],
+                data["step_plots"]["dfe_out_s"],
                 pen=pg.mkPen("darkmagenta"),
                 name="C Reference",
             )
             self.reference_plots.append(ref)
 
         # Add reference plots to pulse response plots
-        if "chnl_p" in results["pulse_plots"]:
+        if "chnl_p" in data["pulse_plots"]:
             ref = self.pulse_plots[0].plot(
-                results["t_ns_chnl"], results["pulse_plots"]["chnl_p"], pen=pg.mkPen("darkcyan"), name="I Reference"
+                data["t_ns_chnl"], data["pulse_plots"]["chnl_p"], pen=pg.mkPen("darkcyan"), name="I Reference"
             )
             self.reference_plots.append(ref)
-        if "tx_out_p" in results["pulse_plots"]:
+        if "tx_out_p" in data["pulse_plots"]:
             ref = self.pulse_plots[1].plot(
-                results["t_ns_chnl"],
-                results["pulse_plots"]["tx_out_p"],
+                data["t_ns_chnl"],
+                data["pulse_plots"]["tx_out_p"],
                 pen=pg.mkPen("darkmagenta"),
                 name="C Reference",
             )
             self.reference_plots.append(ref)
-        if "ctle_out_p" in results["pulse_plots"]:
+        if "ctle_out_p" in data["pulse_plots"]:
             ref = self.pulse_plots[2].plot(
-                results["t_ns_chnl"],
-                results["pulse_plots"]["ctle_out_p"],
+                data["t_ns_chnl"],
+                data["pulse_plots"]["ctle_out_p"],
                 pen=pg.mkPen("darkmagenta"),
                 name="C Reference",
             )
             self.reference_plots.append(ref)
-        if "dfe_out_p" in results["pulse_plots"]:
+        if "dfe_out_p" in data["pulse_plots"]:
             ref = self.pulse_plots[3].plot(
-                results["t_ns_chnl"],
-                results["pulse_plots"]["dfe_out_p"],
+                data["t_ns_chnl"],
+                data["pulse_plots"]["dfe_out_p"],
                 pen=pg.mkPen("darkmagenta"),
                 name="C Reference",
             )
             self.reference_plots.append(ref)
 
         # Add reference plots to frequency response plots
-        f_Ghz = results["f_GHz"][1:]
-        if "chnl_H" in results["freq_responses"]:
+        f_Ghz = data["f_GHz"][1:]
+        if "chnl_H" in data["freq_responses"]:
             ref = self.freq_plots[0].plot(
-                f_Ghz, results["freq_responses"]["chnl_H"], pen=pg.mkPen("darkcyan"), name="I Reference"
+                f_Ghz, data["freq_responses"]["chnl_H"], pen=pg.mkPen("darkcyan"), name="I Reference"
             )
             self.reference_plots.append(ref)
-        if "tx_H" in results["freq_responses"]:
+        if "tx_H" in data["freq_responses"]:
             ref = self.freq_plots[1].plot(
-                f_Ghz, results["freq_responses"]["tx_H"], pen=pg.mkPen("darkcyan"), name="I Reference"
+                f_Ghz, data["freq_responses"]["tx_H"], pen=pg.mkPen("darkcyan"), name="I Reference"
             )
             self.reference_plots.append(ref)
-        if "tx_out_H" in results["freq_responses"]:
+        if "tx_out_H" in data["freq_responses"]:
             ref = self.freq_plots[1].plot(
-                f_Ghz, results["freq_responses"]["tx_out_H"], pen=pg.mkPen("darkmagenta"), name="C Reference"
+                f_Ghz, data["freq_responses"]["tx_out_H"], pen=pg.mkPen("darkmagenta"), name="C Reference"
             )
             self.reference_plots.append(ref)
-        if "ctle_H" in results["freq_responses"]:
+        if "ctle_H" in data["freq_responses"]:
             ref = self.freq_plots[2].plot(
-                f_Ghz, results["freq_responses"]["ctle_H"], pen=pg.mkPen("darkcyan"), name="I Reference"
+                f_Ghz, data["freq_responses"]["ctle_H"], pen=pg.mkPen("darkcyan"), name="I Reference"
             )
             self.reference_plots.append(ref)
-        if "ctle_out_H" in results["freq_responses"]:
+        if "ctle_out_H" in data["freq_responses"]:
             ref = self.freq_plots[2].plot(
-                f_Ghz, results["freq_responses"]["ctle_out_H"], pen=pg.mkPen("darkmagenta"), name="C Reference"
+                f_Ghz, data["freq_responses"]["ctle_out_H"], pen=pg.mkPen("darkmagenta"), name="C Reference"
             )
             self.reference_plots.append(ref)
-        if "dfe_H" in results["freq_responses"]:
+        if "dfe_H" in data["freq_responses"]:
             ref = self.freq_plots[3].plot(
-                f_Ghz, results["freq_responses"]["dfe_H"], pen=pg.mkPen("darkcyan"), name="I Reference"
+                f_Ghz, data["freq_responses"]["dfe_H"], pen=pg.mkPen("darkcyan"), name="I Reference"
             )
             self.reference_plots.append(ref)
-        if "dfe_out_H" in results["freq_responses"]:
+        if "dfe_out_H" in data["freq_responses"]:
             ref = self.freq_plots[3].plot(
-                f_Ghz, results["freq_responses"]["dfe_out_H"], pen=pg.mkPen("darkmagenta"), name="C Reference"
+                f_Ghz, data["freq_responses"]["dfe_out_H"], pen=pg.mkPen("darkmagenta"), name="C Reference"
             )
             self.reference_plots.append(ref)
 

@@ -35,9 +35,6 @@ class TestAcrossAllSimulationWorkflows:
     def _setup(self, request, dut_fixture):
         """Setup fixture to get the correct DUT based on the parametrized fixture name."""
         self.dut = request.getfixturevalue(dut_fixture)
-        self.dut.bit_errs = (
-            1234  # Set detected errors to a number so `test_ber` won't pass unless none are actually detected.
-        )
         self.dut.simulate(block=True)
         assert self.dut.last_results is not None
 
@@ -48,7 +45,7 @@ class TestAcrossAllSimulationWorkflows:
 
     def test_ber(self):
         """Test simulation bit errors are not detected."""
-        assert not self.dut.bit_errs, "Bit errors detected!"
+        assert not self.dut.last_results.bit_errs, "Bit errors detected!"
 
     def test_channel_delay(self):
         """Test channel delay is calculated correctly and within expected range."""

@@ -69,7 +69,7 @@ class StatusBar(QStatusBar):
 
         self.perf_label.setText(f"Perf: {results.performance.total * 6e-05:6.3f} Msmpls/min")
         self.delay_label.setText(f"Channel Delay: {self.pybert.chnl_dly * 1e9:5.3f} ns")
-        self.errors_label.setText(f"Bit Errors: {int(self.pybert.bit_errs)}")
+        self.errors_label.setText(f"Bit Errors: {int(results.bit_errs)}")
         self.power_label.setText(f"Tx Power: {self.pybert.rel_power * 1e3:3.0f} mW")
         self.isi_label.setText(f"ISI: {self.pybert.dfe_jitter.isi * 1.0e12:6.1f} ps")
         self.dcd_label.setText(f"DCD: {self.pybert.dfe_jitter.dcd * 1.0e12:6.1f} ps")

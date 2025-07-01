@@ -145,7 +145,7 @@ class PyBERTGUI(QMainWindow):
         self._signals.configuration_loaded.connect(self.config_tab.rx_config.update_widget_from_model)
 
         # Connect to all results widgets
-        self._signals.results_loaded.connect(self.results_tab.update_results)
+        self._signals.results_loaded.connect(self._handle_simulation_results)
         self._signals.reference_results_loaded.connect(self.results_tab.add_reference_plots)
 
         # Connect all simulation and optimization signals

@@ -338,10 +338,6 @@ def run_simulation(self, aborted_sim: Optional[Callable[[], bool]] = None) -> Re
     perf.start_time = clock()
     logger.info("Running channel...")
 
-    # The user sets `seed` to zero to indicate that she wants new bits generated for each run.
-    if not self.seed:
-        self.run_count += 1  # Force regeneration of bit stream.
-
     # Pull class variables into local storage, performing unit conversion where necessary.
     t = self.t
     t_irfft = self.t_irfft
@@ -754,7 +750,7 @@ def run_simulation(self, aborted_sim: Optional[Callable[[], bool]] = None) -> Re
     n_errs = len(bit_errs)
     # if n_errs and False:  # pylint: disable=condition-evals-to-constant
     #     logger.error(f"pybert.models.bert.my_run_simulation(): Bit errors detected at indices: {bit_errs}.")
-    self.bit_errs = n_errs
+    # self.bit_errs = n_errs
 
     if len(tap_weights) > 0:
         dfe_h = array(
@@ -932,4 +928,4 @@ def run_simulation(self, aborted_sim: Optional[Callable[[], bool]] = None) -> Re
     logger.info(f"Simulation complete. Duration: {round(perf.end_time - perf.start_time, 3)} s")
     logger.info(str(perf))
 
-    return Results(data=plotting_data, performance=perf)
+    return Results(data=plotting_data, performance=perf, bit_errs=n_errs)

@@ -67,6 +67,7 @@ class Results:
     version: str = __version__
     performance: SimulationPerfResults = field(default_factory=SimulationPerfResults)
     data: dict = field(default_factory=dict)
+    bit_errs: int = 0
 
     def save(self, filepath: Path | str):
         """Save all of the plot data out to a file.
@@ -80,8 +81,6 @@ class Results:
         except Exception as err:  # pylint: disable=broad-exception-caught
             logger.error("Failed to save results to file.")
             logger.exception(str(err))
-        else:
-            logger.error("No results to save. Please run a simulation first.")
 
     @classmethod
     def load_from_file(cls, filepath: Union[str, Path]) -> "Results | None":

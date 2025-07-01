@@ -100,7 +100,6 @@ class PyBERT:  # pylint: disable=too-many-instance-attributes
         self.seed: int = 1  # LFSR seed. 0 means regenerate bits, using a new random seed, each run.
         self.nspui: int = 32  #: Signal vector samples per unit interval.
         self.mod_type: ModulationType = ModulationType.NRZ  #: 0 = NRZ; 1 = Duo-binary; 2 = PAM-4
-        self.do_sweep: bool = False  #: Run sweeps? (Default = False)
         self.thresh: float = 3.0  #: Spectral threshold for identifying periodic components (sigma). (Default = 3.0)
 
         # - EQ Tune
@@ -187,9 +186,6 @@ class PyBERT:  # pylint: disable=too-many-instance-attributes
         # Status
         self.len_h: float = 0
         self.chnl_dly: float = 0.0  #: Estimated channel delay (s).
-        self.bit_errs: int = 0  #: # of bit errors observed in last run.
-        self.run_count: int = 0  # Used as a mechanism to force bit stream regeneration.
-        self.dfe_out_p: list = []
 
         # Initialize jitter analysis objects
         self.chnl_jitter: JitterAnalysis | None = None
