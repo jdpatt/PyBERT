@@ -9,9 +9,11 @@ Copyright (c) 2024 David Banas; all rights reserved World wide.
 A partial extraction of the old `pybert/utility.py`, as part of a refactoring.
 """
 
+import logging
 import os.path
 import re
 from cmath import phase, rect
+from typing import TYPE_CHECKING
 
 from numpy import array, diff, ones, pi, where, zeros  # type: ignore
 from numpy.fft import fft  # type: ignore
@@ -21,6 +23,12 @@ from skrf.network import one_port_2_two_port
 from ..constants import Cvec, Rvec
 from .channel import calc_G
 from .sigproc import import_time
+
+if TYPE_CHECKING:
+    from pybert.models.channel import ChannelElement
+
+
+logger = logging.getLogger(__name__)
 
 
 def cap_mag(zs: Cvec, maxMag: float = 1.0) -> Cvec:
@@ -296,3 +304,84 @@ def import_channel(filename: str, sample_per: float, fs: Rvec, zref: float = 100
         H = fft(h * sample_per)[:Nf]  # Keep the positive frequencies only.
         ts2N = H_2_s2p(H, zref * ones(len(H)), fs, Zref=zref)
     return ts2N
+
+
+def cascade_networks(networks: list[Network], f: Rvec) -> Network:
+    """
+    Cascade multiple 2-port networks into a single equivalent network.
+
+    Args:
+        networks: List of 2-port networks to cascade.
+        f: Frequency vector to interpolate all networks to (Hz).
+
+    Returns:
+        Single 2-port network representing the cascaded elements.
+
+    Raises:
+        ValueError: If any network is not a 2-port network.
+        ValueError: If networks list is empty.
+    """
+    if not networks:
+        raise ValueError("Cannot cascade empty list of networks")
+
+    if len(networks) == 1:
+        # Single network, just interpolate to target frequency
+        return interp_s2p(networks[0], f)
+
+    # Start with the first network
+    result = interp_s2p(networks[0], f)
+
+    # Cascade each subsequent network
+    for i, network in enumerate(networks[1:], 1):
+        # Interpolate current network to target frequency
+        current_network = interp_s2p(network, f)
+
+        # Cascade using SciKit-RF's cascade operator (**)
+        # This automatically handles impedance renormalization
+        result = result**current_network
+
+        # Update the name to reflect cascading
+        if result.name is None:
+            result.name = f"cascaded_{i+1}"
+        else:
+            result.name = f"{result.name}_cascaded_{i+1}"
+
+    return result
+
+
+def import_channel_cascade(
+    elements: list["ChannelElement"], sample_per: float, fs: Rvec, zref: float = 100
+) -> Network:
+    """
+    Import and cascade multiple channel elements.
+
+    Args:
+        elements: List of channel element dictionaries, each containing a 'file' key.
+        sample_per: Sample period of system signal vector (s).
+        fs: (Positive only) frequency values being used by caller (Hz).
+        zref: Reference impedance for time domain files (Ohms).
+
+    Returns:
+        2-port network description of cascaded channel.
+
+    Raises:
+        ValueError: If elements list is empty.
+        KeyError: If any element is missing the 'file' key.
+    """
+    if not elements:
+        raise ValueError("Cannot import channel cascade: no elements provided")
+
+    networks = []
+    for i, element in enumerate(elements):
+        filename = element["file"]
+        logger.debug(f"Importing channel element {i+1}: {filename}")
+
+        # Import the individual network
+        network = import_channel(filename, sample_per, fs, zref, element["renumber"])
+        networks.append(network)
+
+    # Cascade all networks
+    logger.info(f"Cascading {len(networks)} channel elements")
+    cascaded_network = cascade_networks(networks, fs)
+
+    return cascaded_network

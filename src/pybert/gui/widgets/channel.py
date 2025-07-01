@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
 
 from pybert.gui.widgets.file_picker import FilePickerWidget
 from pybert.gui.widgets.utils import block_signals
+from pybert.models.channel import ChannelElement
 
 if TYPE_CHECKING:
     from pybert.pybert import PyBERT
@@ -71,13 +72,11 @@ class ChannelItemWidget(QWidget):
         layout.addWidget(self.channel_file, stretch=1)  # Allow file path to expand
 
         # Port order
-        layout.addWidget(QLabel("Port:"))
-        self.port_combo = QComboBox()
-        self.port_combo.addItems(["Even", "Odd"])
-        self.port_combo.setCurrentText("Odd")
-        self.port_combo.currentIndexChanged.connect(lambda _: self.text_changed.emit())
-        self.port_combo.setFixedWidth(80)  # Fixed width for port combo
-        layout.addWidget(self.port_combo)
+        layout.addWidget(QLabel("Renumber:"))
+        self.renumber = QCheckBox()
+        self.renumber.setChecked(False)
+        self.renumber.stateChanged.connect(lambda _: self.text_changed.emit())
+        layout.addWidget(self.renumber)
 
         # Remove button
         self.remove_btn = QPushButton("✕")
@@ -97,9 +96,9 @@ class ChannelItemWidget(QWidget):
         """Get the filename from the channel file line edit."""
         return self.channel_file.text()
 
-    def get_port_order(self):
-        """Get the port order from the port combo box."""
-        return self.port_combo.currentText()
+    def get_renumber(self):
+        """Get the renumber from the renumber check box."""
+        return self.renumber.isChecked()
 
     def is_empty(self):
         """Check if the file group has no file selected."""
@@ -140,7 +139,7 @@ class ChannelFileListWidget(QListWidget):
                 file_changed_callback=lambda: self._update_file_groups_state(),
             )
             group.channel_file.set_filepath(file_info["file"])
-            group.port_combo.setCurrentText(file_info["port"])
+            group.renumber.setChecked(file_info["renumber"])
             item = QListWidgetItem()
             self.addItem(item)
             self.setItemWidget(item, group)
@@ -167,7 +166,7 @@ class ChannelFileListWidget(QListWidget):
             item = self.item(i)
             widget = cast(ChannelItemWidget, self.itemWidget(item))
             if widget and widget.get_filename():
-                files.append({"file": widget.get_filename(), "port": widget.get_port_order()})
+                files.append(ChannelElement(file=widget.get_filename(), renumber=widget.get_renumber()))
         return files
 
     def _update_file_groups_state(self):
@@ -406,7 +405,7 @@ class ChannelConfigWidget(QGroupBox):
         # Update stacked layout
         self.stacked_layout.setCurrentIndex(1 if self.file_radio.isChecked() else 0)
         # Update PyBERT model
-        setattr(self.pybert, "use_ch_file", self.file_radio.isChecked())
+        setattr(self.pybert.channel, "use_ch_file", self.file_radio.isChecked())
 
     def _on_file_list_changed(self) -> None:
         """Callback when file list items change."""

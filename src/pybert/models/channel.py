@@ -1,12 +1,18 @@
 import logging
+from typing import TypedDict
 
 import numpy as np
 import skrf as rf
 
 from pybert.utility.channel import calc_gamma
-from pybert.utility.sparam import import_channel
+from pybert.utility.sparam import import_channel, import_channel_cascade
 
 logger = logging.getLogger(__name__)
+
+
+class ChannelElement(TypedDict):
+    file: str
+    renumber: bool  #: Automatically fix "1=>3/2=>4" port numbering? (Default = False)
 
 
 class Channel:
@@ -14,7 +20,7 @@ class Channel:
 
     def __init__(
         self,
-        elements: list[dict[str, str]] = [],
+        elements: list[ChannelElement] = [],
         use_ch_file: bool = False,
         renumber: bool = False,
         f_step: float = 10,
@@ -29,9 +35,8 @@ class Channel:
         l_ch: float = 0.5,
         use_window: bool = False,
     ):
-        self.elements: list[dict[str, str]] = elements  #: Channel elements.
+        self.elements: list[ChannelElement] = elements  #: Channel elements.
         self.use_ch_file: bool = use_ch_file  #: Import channel description from file? (Default = False)
-        self.renumber: bool = renumber  #: Automatically fix "1=>3/2=>4" port numbering? (Default = False)
         self.f_step: float = f_step  #: Frequency step to use when constructing H(f) (MHz). (Default = 10 MHz)
         self.f_max: float = f_max  #: Frequency maximum to use when constructing H(f) (GHz). (Default = 40 GHz)
         self.impulse_length: float = impulse_length  #: Impulse response length. (Determined automatically, when 0.)
@@ -84,10 +89,19 @@ class Channel:
         )
 
     def form_file_based_channel_response(self, ts: float, f: np.ndarray) -> tuple[np.ndarray, rf.Network]:
-        """Import channel response from file."""
-        # TODO: This is temporary until we support multiple channel files.
-        ch_s2p_pre = import_channel(self.elements[0]["file"], ts, f, renumber=self.renumber)
-        logger.info(str(ch_s2p_pre))
+        """Import channel response from file(s)."""
+        if not self.elements:
+            raise ValueError("No channel elements defined")
+
+        if len(self.elements) == 1:
+            # Single element - use existing logic for backward compatibility
+            ch_s2p_pre = import_channel(self.elements[0]["file"], ts, f, renumber=self.elements[0]["renumber"])
+            logger.debug(str(ch_s2p_pre))
+        else:
+            # Multiple elements - cascade them
+            ch_s2p_pre = import_channel_cascade(self.elements, ts, f)
+            logger.debug(f"Cascaded channel network: {ch_s2p_pre}")
+
         H = ch_s2p_pre.s21.s.flatten()
         return H, ch_s2p_pre
 
