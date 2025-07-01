@@ -348,12 +348,10 @@ class PyBERT:  # pylint: disable=too-many-instance-attributes
         nbits = self.nbits
 
         if not seed:  # The user sets `seed` to zero when she wants a new random seed generated for each run.
-            seed = randint(128)
-            while not seed:  # We don't want to seed our LFSR with zero.
-                seed = randint(128)
+            seed = randint(1, 128)  # Use range to avoid zero directly
         bit_gen = lfsr_bits(pattern, seed)
-        bits = [next(bit_gen) for _ in range(nbits)]
-        return array(bits)
+        bits = np.fromiter((next(bit_gen) for _ in range(nbits)), dtype=int)
+        return bits
 
     @property
     def ui(self):
