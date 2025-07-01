@@ -13,10 +13,8 @@ from PySide6.QtCore import QObject, Qt, Signal
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import (
     QFileDialog,
-    QLabel,
     QMainWindow,
     QMessageBox,
-    QStatusBar,
     QTabWidget,
     QVBoxLayout,
     QWidget,
@@ -32,7 +30,6 @@ from pybert.gui.widgets import DebugConsoleWidget
 from pybert.gui.widgets.status_bar import StatusBar
 from pybert.pybert import PyBERT
 from pybert.results import Results
-from pybert.utility.logger import QStatusBarHandler
 
 logger = logging.getLogger("pybert")
 
@@ -40,9 +37,11 @@ logger = logging.getLogger("pybert")
 class PyBERTSignals(QObject):
     """Signals for PyBERT model changes.
 
-    To keep the GUI responsive and thread safe, we emit signals instead of calling methods directly.
-    This allows the GUI to update in the main thread without blocking the worker thread. Basically, the callback
-    will call a method to emit the signal which will get scheduled to run in the main thread.
+    To keep the GUI responsive and thread safe, we emit signals instead
+    of calling methods directly. This allows the GUI to update in the
+    main thread without blocking the worker thread. Basically, the
+    callback will call a method to emit the signal which will get
+    scheduled to run in the main thread.
     """
 
     configuration_loaded = Signal()  # Emitted when new configuration is loaded
@@ -59,11 +58,12 @@ class PyBERTSignals(QObject):
 class PyBERTGUI(QMainWindow):
     """Main window for the PyBERT application.
 
-    This class is responsible for creating the main window and managing the tabs. It also manages the status bar and
-    the debug console.
+    This class is responsible for creating the main window and managing
+    the tabs. It also manages the status bar and the debug console.
 
-    The main window is a QMainWindow that contains a QTabWidget, a QStatusBar, and a QDockWidget for the debug console.
-    This requires that a QApplication is created before this class is instantiated.
+    The main window is a QMainWindow that contains a QTabWidget, a
+    QStatusBar, and a QDockWidget for the debug console. This requires
+    that a QApplication is created before this class is instantiated.
     """
 
     def __init__(self, pybert: PyBERT, show_debug: bool = False, parent: Optional[QWidget] = None):
@@ -127,7 +127,8 @@ class PyBERTGUI(QMainWindow):
     def connect_callbacks(self):
         """Connect PyBERT callbacks to GUI update methods.
 
-        These callbacks are called by the PyBERT model to maintain thread safety.
+        These callbacks are called by the PyBERT model to maintain
+        thread safety.
         """
         self.pybert.add_simulation_callback(self._handle_simulation_complete)
         self.pybert.add_optimization_callback(self._handle_optimization_complete)
@@ -390,7 +391,8 @@ class PyBERTGUI(QMainWindow):
     def load_results_as_reference(self):
         """Load results from a file as reference.
 
-        Only impulse, step, pulse, and frequency plots are loaded as reference plots.
+        Only impulse, step, pulse, and frequency plots are loaded as
+        reference plots.
         """
         file_path, _ = QFileDialog.getOpenFileName(
             self, "Load Results as Reference", "", "PyBERT Results (*.pybert_data);;All Files (*.*)"

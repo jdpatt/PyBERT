@@ -16,7 +16,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from pybert.constants import gMaxCTLEPeak
 from pybert.pybert import PyBERT
 
 

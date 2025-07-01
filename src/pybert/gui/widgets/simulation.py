@@ -7,16 +7,13 @@ samples per unit interval, modulation type, etc.
 import logging
 from typing import Optional
 
-from PySide6.QtCore import QObject, Signal
 from PySide6.QtWidgets import (
     QComboBox,
     QDoubleSpinBox,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
-    QLabel,
     QSpinBox,
-    QVBoxLayout,
     QWidget,
 )
 

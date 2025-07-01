@@ -1,7 +1,7 @@
 """Shared IBIS-AMI configuration widget for PyBERT GUI.
 
-This widget provides common IBIS-AMI configuration UI elements used by both
-transmitter and receiver equalization widgets.
+This widget provides common IBIS-AMI configuration UI elements used by
+both transmitter and receiver equalization widgets.
 """
 
 import logging
@@ -104,8 +104,9 @@ class IbisAmiConfigWidget(QWidget):
     def update_widget_from_model(self) -> None:
         """Update the widget from the PyBERT model.
 
-        This method ensures the widget is fully synchronized with the PyBERT model,
-        including resetting its state when no model is loaded.
+        This method ensures the widget is fully synchronized with the
+        PyBERT model, including resetting its state when no model is
+        loaded.
         """
         try:
             with block_signals(self):

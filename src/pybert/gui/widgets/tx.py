@@ -7,27 +7,21 @@ model selection and native parameters.
 import logging
 from typing import Optional
 
-from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QButtonGroup,
-    QCheckBox,
     QDoubleSpinBox,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
-    QLineEdit,
-    QPushButton,
     QRadioButton,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
 
-from pybert.gui.widgets.file_picker import FilePickerWidget
 from pybert.gui.widgets.ibis_config import IbisConfigWidget
 from pybert.gui.widgets.ibis_manager import IbisAmiWidgetsManager
-from pybert.gui.widgets.status_indicator import StatusIndicator
 from pybert.gui.widgets.tx_equalization import TxEqualizationWidget
 from pybert.gui.widgets.utils import block_signals
 from pybert.pybert import PyBERT

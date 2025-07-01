@@ -1,13 +1,6 @@
 from contextlib import contextmanager
-from typing import List, Literal, Optional
 
-from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
-    QHBoxLayout,
-    QLabel,
-    QLineEdit,
-    QPushButton,
-    QTableWidget,
     QWidget,
 )
 

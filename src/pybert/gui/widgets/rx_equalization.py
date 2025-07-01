@@ -14,8 +14,6 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
     QLabel,
-    QLineEdit,
-    QPushButton,
     QRadioButton,
     QSpinBox,
     QStackedWidget,
@@ -25,7 +23,6 @@ from PySide6.QtWidgets import (
 
 from pybert.gui.widgets.file_picker import FilePickerWidget
 from pybert.gui.widgets.ibis_ami_config import IbisAmiConfigWidget
-from pybert.gui.widgets.status_indicator import StatusIndicator
 from pybert.gui.widgets.utils import block_signals
 from pybert.pybert import PyBERT
 

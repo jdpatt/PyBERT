@@ -1,11 +1,9 @@
 """Shared fixtures across the pybert testing infrastructure."""
 
 import logging
-import time
 from pathlib import Path
 
 import pytest
-from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
 from pybert.pybert import PyBERT
@@ -30,7 +28,8 @@ def configure_logging():
 def dut_for_gui_tests():
     """Return an initialized pybert object without running a simulation.
 
-    This gets reset for every function test so we can test individual gui elements without affecting the other tests.
+    This gets reset for every function test so we can test individual
+    gui elements without affecting the other tests.
     """
     dut = PyBERT(run_simulation=False)
     yield dut
@@ -54,10 +53,8 @@ def dut_imp_len():
 
 @pytest.fixture(scope="module")
 def ibisami_rx_init():
-    """
-    Return an initialized pybert object configured to use
-    an Rx IBIS-AMI model in statistical mode.
-    """
+    """Return an initialized pybert object configured to use
+    an Rx IBIS-AMI model in statistical mode."""
     dut = PyBERT(run_simulation=False)
 
     dut.rx.load_ibis_file(RX_IBIS_EXAMPLE)
@@ -70,10 +67,8 @@ def ibisami_rx_init():
 
 @pytest.fixture(scope="module")
 def ibisami_rx_getwave():
-    """
-    Return an initialized pybert object configured to use
-    an Rx IBIS-AMI model in bit-by-bit mode.
-    """
+    """Return an initialized pybert object configured to use
+    an Rx IBIS-AMI model in bit-by-bit mode."""
     dut = PyBERT(run_simulation=False)
     dut.rx.load_ibis_file(RX_IBIS_EXAMPLE)
 
@@ -86,10 +81,8 @@ def ibisami_rx_getwave():
 
 @pytest.fixture(scope="module")
 def ibisami_rx_getwave_clocked():
-    """
-    Return an initialized pybert object configured to use
-    an Rx IBIS-AMI model in bit-by-bit mode and making use of clock times.
-    """
+    """Return an initialized pybert object configured to use
+    an Rx IBIS-AMI model in bit-by-bit mode and making use of clock times."""
     dut = PyBERT(run_simulation=False)
     dut.rx.load_ibis_file(RX_IBIS_EXAMPLE)
 

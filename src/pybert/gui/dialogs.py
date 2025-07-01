@@ -1,6 +1,4 @@
-from typing import Optional
-
-from PySide6.QtWidgets import QFileDialog, QMessageBox, QWidget
+from PySide6.QtWidgets import QMessageBox, QWidget
 
 # Global flag to disable dialogs during testing
 _DISABLE_DIALOGS = False

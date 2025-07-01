@@ -1,17 +1,14 @@
 from dataclasses import dataclass
 from itertools import product
-from typing import Optional, Tuple
+from typing import Optional
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QGuiApplication, QKeySequence
 from PySide6.QtWidgets import (
-    QHBoxLayout,
     QHeaderView,
     QStyledItemDelegate,
     QTableWidget,
     QTableWidgetItem,
-    QVBoxLayout,
-    QWidget,
 )
 
 from pybert.pybert import PyBERT

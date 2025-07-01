@@ -1,5 +1,4 @@
 import os
-import sys
 from pathlib import Path
 
 import pytest
@@ -10,8 +9,9 @@ from pybert.pybert import PyBERT
 def get_ibis_files():
     """Get list of IBIS files from environment variable if it exists.
 
-    If the environment variable PYIBISAMI_TEST_DIR is not set, the test will be skipped. We do not want to check in
-    IBIS files to the repository, as they are large and may be under license restrictions.
+    If the environment variable PYIBISAMI_TEST_DIR is not set, the test
+    will be skipped. We do not want to check in IBIS files to the
+    repository, as they are large and may be under license restrictions.
     """
     ibis_dir = os.environ.get("PYIBISAMI_TEST_DIR")
     print(f"IBIS directory: {ibis_dir}")

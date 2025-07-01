@@ -14,8 +14,9 @@ from PySide6.QtWidgets import (
 class FilePickerWidget(QWidget):
     """A reusable widget that combines a label, readonly line edit, and browse button for file selection.
 
-    This widget encapsulates the common pattern of having a label, readonly line edit for displaying
-    a file path, and a browse button to open a file dialog.
+    This widget encapsulates the common pattern of having a label,
+    readonly line edit for displaying a file path, and a browse button
+    to open a file dialog.
     """
 
     file_selected = Signal(str)  # Signal emitted when a file is selected

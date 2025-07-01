@@ -1,21 +1,21 @@
 """Manager class for IBIS and AMI configuration widgets.
 
-This class manages the IBIS and AMI configuration widgets, handling their state
-and interactions with the PyBERT model. It provides a clean interface for both
-transmitter and receiver widgets to manage their IBIS and AMI configurations.
+This class manages the IBIS and AMI configuration widgets, handling
+their state and interactions with the PyBERT model. It provides a clean
+interface for both transmitter and receiver widgets to manage their IBIS
+and AMI configurations.
 """
 
 import logging
 from enum import IntEnum
-from typing import Callable, Optional, Tuple
+from typing import Callable, Optional
 
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject
 from PySide6.QtWidgets import QStackedWidget, QWidget
 
 from pybert.gui.widgets.ibis_ami_config import IbisAmiConfigWidget
 from pybert.gui.widgets.ibis_config import IbisConfigWidget
 from pybert.models.buffer import Receiver, Transmitter
-from pybert.pybert import PyBERT
 
 logger = logging.getLogger("pybert.ibis_ami_manager")
 
@@ -105,8 +105,8 @@ class IbisAmiWidgetsManager(QObject):
     def _handle_ibis_view_btn_clicked(self) -> None:
         """The user has clicked the view button, show the IBIS model.
 
-        Grab the current model so we can track if it changes. The IBIS gui will make direct
-        changes to the IbisModel class.
+        Grab the current model so we can track if it changes. The IBIS
+        gui will make direct changes to the IbisModel class.
         """
         current_obj = self.obj  # Get current object
         if not current_obj.is_ibis_loaded() or current_obj.ibis is None:
@@ -127,7 +127,8 @@ class IbisAmiWidgetsManager(QObject):
     def _handle_ami_configure_btn_clicked(self) -> None:
         """The user has clicked the configure button, show the AMI configurator.
 
-        The AMI gui will make direct changes to the AmiConfigurator class.
+        The AMI gui will make direct changes to the AmiConfigurator
+        class.
         """
         current_obj = self.obj  # Get current object
         if not current_obj.is_ami_loaded() or current_obj.ami is None:
@@ -180,8 +181,8 @@ class IbisAmiWidgetsManager(QObject):
     def update_widget_from_model(self) -> None:
         """Update the widgets from the model.
 
-        We assume all of the loading and parsing was already done in the configuration loading, so we need to just
-        update the view.
+        We assume all of the loading and parsing was already done in the
+        configuration loading, so we need to just update the view.
         """
         self.ibis_widget.update_widget_from_model()
         self.ami_widget.update_widget_from_model()

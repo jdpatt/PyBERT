@@ -5,21 +5,17 @@ waveforms, eye diagrams and bathtub curves.
 """
 
 from functools import lru_cache
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 import pyqtgraph as pg
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPen
 from PySide6.QtWidgets import QTabWidget, QVBoxLayout, QWidget
-from scipy.interpolate import interp1d
 
 from pybert.gui.widgets.jitter_info import JitterInfoTable
-from pybert.models.bert import MIN_BATHTUB_VAL
 from pybert.pybert import PyBERT
 from pybert.results import Results
-from pybert.utility.math import make_bathtub, safe_log10
-from pybert.utility.sigproc import calc_eye
 
 # Global plot configuration
 pg.setConfigOption("background", "w")
@@ -246,7 +242,7 @@ class ResultsTab(QWidget):
 
         for i in range(num_taps):  # Support up to 10 taps
             pen = pg.mkPen(color=colors[i % len(colors)], style=styles[i // len(colors)])
-            curve = dfe_plot.plot(pen=pen, name=f"Tap {i+1}")
+            curve = dfe_plot.plot(pen=pen, name=f"Tap {i + 1}")
             self.dfe_curves.append(curve)
 
         # Clock period histogram
@@ -660,6 +656,7 @@ class ResultsTab(QWidget):
 
     def update_jitter_spec_plots(self, f_MHz, jitter_spectrum, jitter_ind_spectrum, thresh):
         """Update jitter spectrum plots.
+
         Args:
             f_MHz: Frequency points
             jitter_spectrum: Jitter spectrum

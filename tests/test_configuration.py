@@ -1,18 +1,13 @@
 """Unit test coverage to make sure that the pybert can correctly save and load files."""
 
-import logging
-import pickle
 from pathlib import Path
 
-import numpy as np
 import pytest
 import yaml
 
 from pybert import __version__
-from pybert.configuration import Configuration
 from pybert.models.stimulus import BitPattern, ModulationType
 from pybert.pybert import PyBERT
-from pybert.results import Results
 
 
 @pytest.mark.parametrize("filepath_converter", [str, Path])

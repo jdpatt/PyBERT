@@ -1,8 +1,7 @@
 import numpy as np
 import pytest
 
-from pybert.bert import SimulationPerfResults
-from pybert.pybert import PyBERT
+from pybert.models.bert import SimulationPerfResults
 
 
 @pytest.mark.parametrize(

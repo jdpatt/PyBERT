@@ -6,7 +6,7 @@ Normally, the results is just another tab in the main window.
 from pathlib import Path
 from typing import Optional
 
-from PySide6.QtCore import QObject, QSize, Qt, Signal
+from PySide6.QtCore import Signal
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import QMainWindow, QVBoxLayout, QWidget
 
@@ -71,7 +71,6 @@ class ResultsWindow(QMainWindow):
             return
 
         # These signals will be connected from the main window
-        pass
 
     def update_results(self, results: Results):
         """Update results in the window."""
