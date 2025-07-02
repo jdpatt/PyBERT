@@ -87,3 +87,7 @@ class ResultsWindow(QMainWindow):
     def clear_reference_plots(self):
         """Clear reference plots from the window."""
         self.results_tab.clear_reference_plots()
+
+    def clear_results(self):
+        """Clear the results."""
+        self.results_tab.clear_results()

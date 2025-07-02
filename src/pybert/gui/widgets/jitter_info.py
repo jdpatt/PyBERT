@@ -157,3 +157,17 @@ class JitterInfoTable(QTableWidget):
                 rejection = component.rejection_ratio
                 self.item(row, 4).setText(f"{rejection:4.1f}" if rejection is not None else "n/a")
                 row += 1
+
+    def clear(self):
+        """Clear the table."""
+        # Update table with values
+        row = 0
+        for _ in range(4):
+            for _ in range(4):
+                # Input value
+                self.item(row, 2).setText("0")
+                # Output value
+                self.item(row, 3).setText("0")
+                # Rejection ratio
+                self.item(row, 4).setText("n/a")
+                row += 1

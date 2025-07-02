@@ -249,6 +249,10 @@ class PyBERTGUI(QMainWindow):
         clear_reference_action.triggered.connect(self.clear_reference_plots)
         view_menu.addAction(clear_reference_action)
 
+        clear_all_action = QAction("Clear All", self)
+        clear_all_action.triggered.connect(self.clear_results)
+        view_menu.addAction(clear_all_action)
+
     def create_menus(self, show_debug: bool = False):
         """Create the application menus."""
         self.create_file_menu()
@@ -408,6 +412,14 @@ class PyBERTGUI(QMainWindow):
         else:
             self.results_tab.clear_reference_plots()
 
+    def clear_results(self):
+        """Clear the results."""
+        if self.results_split and self.results_window:
+            self.results_window.clear_results()
+        else:
+            self.results_tab.clear_results()
+        self.optimizer_tab.clear_results()
+
     def save_results(self):
         """Save results to a file."""
         file_path, _ = QFileDialog.getSaveFileName(
@@ -448,6 +460,7 @@ class PyBERTGUI(QMainWindow):
         """Create a new configuration."""
         self._update_window_title("Untitled")
         self.last_config_filepath = None
+        self.clear_results()
         self.pybert.reset_configuration()
         self._signals.configuration_loaded.emit()
 

@@ -829,6 +829,52 @@ class ResultsTab(QWidget):
             )
             self.reference_plots.append(ref)
 
+    def clear_results(self):
+        """Clear all plot widgets."""
+        self.clear_reference_plots()
+        self.jitter_info_table.clear()
+
+        # Clear individual plot widgets
+        for plot in self.impulse_plots + self.output_plots + self.step_plots + self.pulse_plots + self.freq_plots:
+            plot.clear()
+
+        # Clear jitter distribution plots (tuples of plot data items)
+        for total_curve, di_curve in self.jitter_dist_plots:
+            if total_curve is not None:
+                total_curve.clear()
+            if di_curve is not None:
+                di_curve.clear()
+
+        # Clear jitter spectrum plots (tuples of plot data items)
+        for total_curve, di_curve, thresh_curve in self.jitter_spec_plots:
+            if total_curve is not None:
+                total_curve.clear()
+            if di_curve is not None:
+                di_curve.clear()
+            if thresh_curve is not None:
+                thresh_curve.clear()
+
+        # Clear DFE-specific plots
+        if self.cdr_curve is not None:
+            self.cdr_curve.clear()
+        for curve in self.dfe_curves:
+            if curve is not None:
+                curve.clear()
+        if self.hist_curve is not None:
+            self.hist_curve.clear()
+        if self.spec_curve is not None:
+            self.spec_curve.clear()
+
+        # Clear eye plots
+        for img in self.eye_plots:
+            if img is not None:
+                img.clear()
+
+        # Clear bathtub plots
+        for curve in self.bathtub_plots:
+            if curve is not None:
+                curve.clear()
+
     def clear_reference_plots(self):
         """Clear only the reference plots while keeping the main plots."""
         # Remove all reference plot items from their respective plots

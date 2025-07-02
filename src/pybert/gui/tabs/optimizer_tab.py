@@ -105,3 +105,10 @@ class OptimizerTab(QWidget):
         self.tx_optimization.set_tap_values(opt_result["tx_weights"])
         self.rx_ctle.set_ctle_boost(opt_result["rx_peaking"])
         self.rx_dfe.set_tap_values(opt_result["dfe_weights"])
+
+    def clear_results(self):
+        """Clear the results."""
+        self.clocks_curve.clear()
+        self.eq_curve.clear()
+        self.pulse_curve.clear()
+        self.cursor_curve.clear()
