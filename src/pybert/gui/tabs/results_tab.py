@@ -37,7 +37,7 @@ class PlotConfig:
 
     # Plot colors
     COLORS = {
-        "ideal": "lightgray",
+        "ideal": "darkgray",
         "output": "b",
         "incremental": "b",
         "cumulative": "r",

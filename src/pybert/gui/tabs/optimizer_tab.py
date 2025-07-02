@@ -99,3 +99,9 @@ class OptimizerTab(QWidget):
         self.tx_optimization.connect_signals(self.pybert)
         self.rx_ctle.connect_signals(self.pybert)
         self.rx_dfe.connect_signals(self.pybert)
+
+    def update_results(self, opt_result: dict):
+        """Update the tap values and CTLE boost with the new optimization result."""
+        self.tx_optimization.set_tap_values(opt_result["tx_weights"])
+        self.rx_ctle.set_ctle_boost(opt_result["rx_peaking"])
+        self.rx_dfe.set_tap_values(opt_result["dfe_weights"])

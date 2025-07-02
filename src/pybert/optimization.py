@@ -46,7 +46,7 @@ class OptThread(StoppableThread):
         start_time = time.time()
 
         try:
-            tx_weights, rx_peaking, fom, success = coopt(pybert)
+            tx_weights, dfe_weights, rx_peaking, fom, success = coopt(pybert)
         except OptimizationAborted:
             return
 
@@ -57,9 +57,9 @@ class OptThread(StoppableThread):
             pybert._notify_optimization_complete(
                 {
                     "tx_weights": tx_weights,
+                    "dfe_weights": dfe_weights,
                     "rx_peaking": rx_peaking,
                     "fom": fom,
-                    "success": success,
                 }
             )
         else:
@@ -97,7 +97,9 @@ def mk_tx_weights(weightss: list[list[float]], enumerated_tuners: list[tuple[int
 
 def coopt(
     pybert,
-) -> tuple[list[float], float, float, bool]:  # pylint: disable=too-many-locals,too-many-statements,too-many-branches
+) -> tuple[
+    list[float], list[float], float, float, bool
+]:  # pylint: disable=too-many-locals,too-many-statements,too-many-branches
     """
     Co-optimize the Tx/Rx linear equalization, assuming ideal bounded DFE.
 
@@ -236,7 +238,4 @@ def coopt(
                     logger.warning("Optimization aborted by user.")
                     raise OptimizationAborted("Optimization aborted by user.")
 
-    for k, dfe_weight in enumerate(dfe_weights_best):  # pylint: disable=possibly-used-before-assignment
-        dfe_taps[k].value = dfe_weight
-
-    return (tx_weights_best, peak_mag_best, fom_max, True)  # pylint: disable=possibly-used-before-assignment
+    return (tx_weights_best, dfe_weights_best, peak_mag_best, fom_max, True)

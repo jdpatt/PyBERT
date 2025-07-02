@@ -43,7 +43,7 @@ class TxOptimizationWidget(QGroupBox):
         self.ffe_table.setHorizontalHeaderLabels(headers)
 
         # Set default number of taps (can be changed later)
-        self.set_taps(self.pybert.tx_tap_tuners)
+        self.create_table(self.pybert.tx_tap_tuners)
 
         # Configure table appearance
         header = self.ffe_table.horizontalHeader()
@@ -63,7 +63,7 @@ class TxOptimizationWidget(QGroupBox):
         """Connect signals to PyBERT instance."""
         self.ffe_table.itemChanged.connect(lambda item: setattr(pybert, "tx_tap_tuners", self.get_tap_values()))
 
-    def set_taps(self, tuners: list[TxTapTuner]) -> None:
+    def create_table(self, tuners: list[TxTapTuner]) -> None:
         """Set the number of FFE taps.
 
         Args:
@@ -133,3 +133,19 @@ class TxOptimizationWidget(QGroupBox):
         """
         if 0 <= tap_index < self.ffe_table.rowCount():
             self.ffe_table.item(tap_index, 5).setText(f"{value:+.3f}")
+
+    def set_tap_values(self, values: list[float]) -> None:
+        """Set the values for enabled taps only.
+
+        Args:
+            values: List of float values to set for enabled taps
+        """
+        value_index = 0
+        self.ffe_table.blockSignals(True)
+        for i in range(self.ffe_table.rowCount()):
+            enabled_item = self.ffe_table.item(i, 1)
+            if enabled_item is not None and enabled_item.checkState() == Qt.CheckState.Checked:
+                if value_index < len(values):
+                    self.set_tap_value(i, values[value_index])
+                    value_index += 1
+        self.ffe_table.blockSignals(False)

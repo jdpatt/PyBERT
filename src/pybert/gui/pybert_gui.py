@@ -542,15 +542,15 @@ class PyBERTGUI(QMainWindow):
         else:
             self.results_tab.update_results(results)
 
-    def _handle_optimization_results(self, peak_mag: float):
+    def _handle_optimization_results(self, opt_result: dict):
         """Slot to update optimization result widgets. Runs on the main GUI thread.
 
         When optimization is complete, we need to update the RX CTLE boost to the final peak magnitude.
 
         Args:
-            peak_mag: The peak magnitude of the optimization result
+            opt_result: The optimization result
         """
-        self.optimizer_tab.rx_ctle.set_ctle_boost(peak_mag)
+        self.optimizer_tab.update_results(opt_result)
 
     def _update_window_title(self, title: str):
         """Update the window title with the given title.
@@ -580,12 +580,7 @@ class PyBERTGUI(QMainWindow):
         Args:
             opt_result: The optimization result
         """
-        tx_weights = opt_result.get("tx_weights", [])
-        rx_peaking = opt_result.get("rx_peaking", 0)
-        for k, tx_weight in enumerate(tx_weights):
-            self.pybert.tx_tap_tuners[k].value = tx_weight
-        self.pybert.peak_mag_tune = rx_peaking
-        self._signals.opt_complete.emit(self.pybert.peak_mag_tune)
+        self._signals.opt_complete.emit(opt_result)
 
     def _handle_optimization_loop(self, opt_loop_result: dict):
         """Handle optimization loop update from the worker thread.
