@@ -20,21 +20,21 @@ from PySide6.QtWidgets import (
 
 from pybert.gui.widgets.utils import block_signals
 from pybert.models.tx_tap import TxTapTuner
-from pybert.pybert import PyBERT
+from pybert.optimizer.optimizer import Optimizer
 
 
 class RxOptimizationDFEWidget(QGroupBox):
     """Widget for configuring receiver equalization."""
 
-    def __init__(self, pybert: PyBERT, parent: Optional[QWidget] = None) -> None:
+    def __init__(self, optimizer: Optimizer, parent: Optional[QWidget] = None) -> None:
         """Initialize the receiver equalization widget.
 
         Args:
-            pybert: PyBERT model instance
+            optimizer: Optimizer instance
             parent: Parent widget
         """
         super().__init__("Rx DFE", parent)
-        self.pybert = pybert
+        self.optimizer = optimizer
 
         dfe_layout = QVBoxLayout()
 
@@ -52,7 +52,7 @@ class RxOptimizationDFEWidget(QGroupBox):
         self.dfe_table.setHorizontalHeaderLabels(["Name", "Enabled", "Min", "Max", "Value"])
 
         # Set default number of taps (can be changed later)
-        self.create_table(self.pybert.dfe_tap_tuners)
+        self.create_table(self.optimizer.dfe_tap_tuners)
 
         # Configure table appearance
         header = self.dfe_table.horizontalHeader()
@@ -71,7 +71,9 @@ class RxOptimizationDFEWidget(QGroupBox):
         # Connect signals
         self.disable_btn.clicked.connect(self._disable_all_taps)
         self.enable_btn.clicked.connect(self._enable_all_taps)
-        self.dfe_table.itemChanged.connect(lambda item: setattr(pybert, "dfe_tap_tuners", self.get_tap_values()))
+        self.dfe_table.itemChanged.connect(
+            lambda item: setattr(self.optimizer, "dfe_tap_tuners", self.get_tap_values())
+        )
 
     def create_table(self, tuners: list[TxTapTuner]) -> None:
         """Set the number of DFE taps.
@@ -114,7 +116,7 @@ class RxOptimizationDFEWidget(QGroupBox):
             for i in range(self.dfe_table.rowCount()):
                 self.dfe_table.item(i, 1).setCheckState(Qt.CheckState.Unchecked)
         # Manually trigger the update once
-        setattr(self.pybert, "dfe_tap_tuners", self.get_tap_values())
+        setattr(self.optimizer, "dfe_tap_tuners", self.get_tap_values())
 
     def _enable_all_taps(self) -> None:
         """Enable all DFE taps."""
@@ -122,7 +124,7 @@ class RxOptimizationDFEWidget(QGroupBox):
             for i in range(self.dfe_table.rowCount()):
                 self.dfe_table.item(i, 1).setCheckState(Qt.CheckState.Checked)
         # Manually trigger the update once
-        setattr(self.pybert, "dfe_tap_tuners", self.get_tap_values())
+        setattr(self.optimizer, "dfe_tap_tuners", self.get_tap_values())
 
     def get_tap_values(self) -> list[TxTapTuner]:
         """Get the current DFE tap values.
@@ -141,7 +143,7 @@ class RxOptimizationDFEWidget(QGroupBox):
             values.append(TxTapTuner(name=name, enabled=enabled, min_val=min_val, max_val=max_val, value=value))
             limits.append((min_val, max_val))
 
-        setattr(self.pybert, "dfe.limits", limits)
+        setattr(self.optimizer, "dfe.limits", limits)
         return values
 
     def set_tap_value(self, tap_index: int, value: float) -> None:
@@ -170,6 +172,6 @@ class RxOptimizationDFEWidget(QGroupBox):
                     value_index += 1
         self.dfe_table.blockSignals(False)
 
-    def connect_signals(self, pybert) -> None:
-        self.disable_btn.clicked.connect(lambda: setattr(pybert, "dfe_enable_tune", False))
-        self.enable_btn.clicked.connect(lambda: setattr(pybert, "dfe_enable_tune", True))
+    def connect_signals(self) -> None:
+        self.disable_btn.clicked.connect(lambda: setattr(self.optimizer, "dfe_enable_tune", False))
+        self.enable_btn.clicked.connect(lambda: setattr(self.optimizer, "dfe_enable_tune", True))

@@ -27,6 +27,7 @@ class OptimizerTab(QWidget):
         """
         super().__init__(parent)
         self.pybert = pybert
+        self.optimizer = pybert.eq_optimizer
 
         # Create main layout
         layout = QVBoxLayout()
@@ -42,9 +43,9 @@ class OptimizerTab(QWidget):
         controls.setLayout(controls_layout)
 
         # Add Tx and Rx equalization widgets
-        self.tx_optimization = TxOptimizationWidget(pybert=self.pybert, parent=self)
-        self.rx_ctle = RxOptimizationCTLEWidget(pybert=self.pybert, parent=self)
-        self.rx_dfe = RxOptimizationDFEWidget(pybert=self.pybert, parent=self)
+        self.tx_optimization = TxOptimizationWidget(optimizer=self.optimizer, parent=self)
+        self.rx_ctle = RxOptimizationCTLEWidget(optimizer=self.optimizer, parent=self)
+        self.rx_dfe = RxOptimizationDFEWidget(optimizer=self.optimizer, parent=self)
 
         controls_layout.addWidget(self.tx_optimization, stretch=1)
         controls_layout.addWidget(self.rx_ctle, stretch=1)
@@ -96,9 +97,9 @@ class OptimizerTab(QWidget):
 
     def connect_signals(self):
         """Connect signals to PyBERT instance."""
-        self.tx_optimization.connect_signals(self.pybert)
-        self.rx_ctle.connect_signals(self.pybert)
-        self.rx_dfe.connect_signals(self.pybert)
+        self.tx_optimization.connect_signals()
+        self.rx_ctle.connect_signals()
+        self.rx_dfe.connect_signals()
 
     def update_results(self, opt_result: dict):
         """Update the tap values and CTLE boost with the new optimization result."""

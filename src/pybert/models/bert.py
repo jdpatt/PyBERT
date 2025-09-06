@@ -366,7 +366,7 @@ def run_simulation(self, aborted_sim: Optional[Callable[[], bool]] = None) -> Re
     n_ave = self.n_ave
     decision_scaler = self.decision_scaler
     n_lock_ave = self.n_lock_ave
-    dfe_tap_tuners = self.dfe_tap_tuners
+    dfe_tap_tuners = self.eq_optimizer.dfe_tap_tuners
     rel_lock_tol = self.rel_lock_tol
     lock_sustain = self.lock_sustain
     bandwidth = self.sum_bw * 1.0e9
@@ -665,7 +665,7 @@ def run_simulation(self, aborted_sim: Optional[Callable[[], bool]] = None) -> Re
         _ideal = True
         _n_taps = 0
     limits = []
-    for tuner in self.dfe_tap_tuners:
+    for tuner in self.eq_optimizer.dfe_tap_tuners:
         if tuner.enabled:
             limits.append((tuner.min_val, tuner.max_val))
         else:

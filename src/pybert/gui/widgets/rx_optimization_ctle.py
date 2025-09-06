@@ -16,20 +16,20 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from pybert.pybert import PyBERT
+from pybert.optimizer.optimizer import Optimizer
 
 
 class RxOptimizationCTLEWidget(QGroupBox):
     """Widget for configuring receiver equalization."""
 
-    def __init__(self, pybert: PyBERT, parent: Optional[QWidget] = None) -> None:
+    def __init__(self, optimizer: Optimizer, parent: Optional[QWidget] = None) -> None:
         """Initialize the receiver equalization widget.
 
         Args:
             parent: Parent widget
         """
         super().__init__("Rx CTLE", parent)
-        self.pybert = pybert
+        self.optimizer = optimizer
 
         # Create main layout
         layout = QVBoxLayout()
@@ -116,14 +116,14 @@ class RxOptimizationCTLEWidget(QGroupBox):
         # Connect signals
         self.ctle_enable.toggled.connect(self._toggle_ctle)
 
-    def connect_signals(self, pybert) -> None:
+    def connect_signals(self) -> None:
         """Connect signals to PyBERT instance."""
-        self.ctle_enable.toggled.connect(lambda val: setattr(pybert, "ctle_enable_tune", val))
-        self.peak_freq.valueChanged.connect(lambda val: setattr(pybert, "peak_freq_tune", val))
-        self.rx_bw.valueChanged.connect(lambda val: setattr(pybert, "rx_bw_tune", val))
-        self.min_boost.valueChanged.connect(lambda val: setattr(pybert, "min_mag_tune", val))
-        self.max_boost.valueChanged.connect(lambda val: setattr(pybert, "max_mag_tune", val))
-        self.step_boost.valueChanged.connect(lambda val: setattr(pybert, "step_boost", val))
+        self.ctle_enable.toggled.connect(lambda val: setattr(self.optimizer, "ctle_enable_tune", val))
+        self.peak_freq.valueChanged.connect(lambda val: setattr(self.optimizer, "peak_freq_tune", val))
+        self.rx_bw.valueChanged.connect(lambda val: setattr(self.optimizer, "rx_bw_tune", val))
+        self.min_boost.valueChanged.connect(lambda val: setattr(self.optimizer, "min_mag_tune", val))
+        self.max_boost.valueChanged.connect(lambda val: setattr(self.optimizer, "max_mag_tune", val))
+        self.step_boost.valueChanged.connect(lambda val: setattr(self.optimizer, "step_boost", val))
 
     def _toggle_ctle(self, enabled: bool) -> None:
         """Enable/disable CTLE controls based on checkbox state."""

@@ -48,7 +48,7 @@ from pybert.models.buffer import Receiver, Transmitter
 from pybert.models.channel import Channel
 from pybert.models.stimulus import BitPattern, ModulationType
 from pybert.models.tx_tap import TxTapTuner
-from pybert.optimization import OptThread
+from pybert.optimizer.optimizer import Optimizer
 from pybert.results import Results
 from pybert.utility import (
     calc_gamma,
@@ -91,6 +91,7 @@ class PyBERT:  # pylint: disable=too-many-instance-attributes
         self.tx = tx
         self.channel = channel
         self.rx = rx
+        self.eq_optimizer = Optimizer()
 
         # - Simulation Control
         self.bit_rate: float = 10.0  #: (Gbps)
@@ -101,45 +102,6 @@ class PyBERT:  # pylint: disable=too-many-instance-attributes
         self.nspui: int = 32  #: Signal vector samples per unit interval.
         self.mod_type: ModulationType = ModulationType.NRZ  #: 0 = NRZ; 1 = Duo-binary; 2 = PAM-4
         self.thresh: float = 3.0  #: Spectral threshold for identifying periodic components (sigma). (Default = 3.0)
-
-        # - EQ Tune
-        self.tx_tap_tuners: list[TxTapTuner] = [
-            TxTapTuner(name="Pre-tap3", pos=-3, enabled=True, min_val=-0.05, max_val=0.05, step=0.025),
-            TxTapTuner(name="Pre-tap2", pos=-2, enabled=True, min_val=-0.1, max_val=0.1, step=0.05),
-            TxTapTuner(name="Pre-tap1", pos=-1, enabled=True, min_val=-0.2, max_val=0.2, step=0.1),
-            TxTapTuner(name="Post-tap1", pos=1, enabled=True, min_val=-0.2, max_val=0.2, step=0.1),
-            TxTapTuner(name="Post-tap2", pos=2, enabled=True, min_val=-0.1, max_val=0.1, step=0.05),
-            TxTapTuner(name="Post-tap3", pos=3, enabled=True, min_val=-0.05, max_val=0.05, step=0.025),
-        ]  #: EQ optimizer list of TxTapTuner objects.
-        self.rx_bw_tune: float = 12.0  #: EQ optimizer CTLE bandwidth (GHz).
-        self.peak_freq_tune: float = gPeakFreq  #: EQ optimizer CTLE peaking freq. (GHz).
-        self.peak_mag_tune: float = gPeakMag  #: EQ optimizer CTLE peaking mag. (dB).
-        self.min_mag_tune: float = 2  #: EQ optimizer CTLE peaking mag. min. (dB).
-        self.max_mag_tune: float = 12  #: EQ optimizer CTLE peaking mag. max. (dB).
-        self.step_mag_tune: float = 1  #: EQ optimizer CTLE peaking mag. step (dB).
-        self.ctle_enable_tune: bool = True  #: EQ optimizer CTLE enable
-        self.dfe_tap_tuners: list[TxTapTuner] = [
-            TxTapTuner(name="Tap1", enabled=True, min_val=0.1, max_val=0.4, value=0.1),
-            TxTapTuner(name="Tap2", enabled=True, min_val=-0.15, max_val=0.15, value=0.0),
-            TxTapTuner(name="Tap3", enabled=True, min_val=-0.05, max_val=0.1, value=0.0),
-            TxTapTuner(name="Tap4", enabled=True, min_val=-0.05, max_val=0.1, value=0.0),
-            TxTapTuner(name="Tap5", enabled=True, min_val=-0.05, max_val=0.1, value=0.0),
-            TxTapTuner(name="Tap6", enabled=False, min_val=-0.05, max_val=0.1, value=0.0),
-            TxTapTuner(name="Tap7", enabled=False, min_val=-0.05, max_val=0.1, value=0.0),
-            TxTapTuner(name="Tap8", enabled=False, min_val=-0.05, max_val=0.1, value=0.0),
-            TxTapTuner(name="Tap9", enabled=False, min_val=-0.05, max_val=0.1, value=0.0),
-            TxTapTuner(name="Tap10", enabled=False, min_val=-0.05, max_val=0.1, value=0.0),
-            TxTapTuner(name="Tap11", enabled=False, min_val=-0.05, max_val=0.1, value=0.0),
-            TxTapTuner(name="Tap12", enabled=False, min_val=-0.05, max_val=0.1, value=0.0),
-            TxTapTuner(name="Tap13", enabled=False, min_val=-0.05, max_val=0.1, value=0.0),
-            TxTapTuner(name="Tap14", enabled=False, min_val=-0.05, max_val=0.1, value=0.0),
-            TxTapTuner(name="Tap15", enabled=False, min_val=-0.05, max_val=0.1, value=0.0),
-            TxTapTuner(name="Tap16", enabled=False, min_val=-0.05, max_val=0.1, value=0.0),
-            TxTapTuner(name="Tap17", enabled=False, min_val=-0.05, max_val=0.1, value=0.0),
-            TxTapTuner(name="Tap18", enabled=False, min_val=-0.05, max_val=0.1, value=0.0),
-            TxTapTuner(name="Tap19", enabled=False, min_val=-0.05, max_val=0.1, value=0.0),
-            TxTapTuner(name="Tap20", enabled=False, min_val=-0.05, max_val=0.1, value=0.0),
-        ]  #: EQ optimizer list of DFE tap tuner objects.
 
         # - Tx
         self.vod: float = 1.0  #: Tx differential output voltage (V)
@@ -195,17 +157,13 @@ class PyBERT:  # pylint: disable=too-many-instance-attributes
 
         # Threading and Processing
         self.simulation_thread: Optional[SimulationThread] = None  # Simulation Thread
-        self.opt_thread: Optional[OptThread] = None  #: EQ optimization thread.
 
         # Add callback-based result handling
         self._simulation_callbacks: list[Callable[[Results], None]] = []
-        self._optimization_callbacks: list[Callable[[dict], None]] = []
-        self._optimization_loop_callbacks: list[Callable[[dict], None]] = []
         self._status_callbacks: list[Callable[[str], None]] = []
 
         # Add futures for blocking operations
         self._simulation_future: Optional[Future] = None
-        self._optimization_future: Optional[Future] = None
 
         self.last_results: Results | None = None
 
@@ -219,22 +177,6 @@ class PyBERT:  # pylint: disable=too-many-instance-attributes
             callback: Function that takes Results as arguments
         """
         self._simulation_callbacks.append(callback)
-
-    def add_optimization_callback(self, callback: Callable[[dict], None]) -> None:
-        """Add a callback to be called when optimization completes.
-
-        Args:
-            callback: Function that takes optimization result dict as argument
-        """
-        self._optimization_callbacks.append(callback)
-
-    def add_optimization_loop_callback(self, callback: Callable[[dict], None]) -> None:
-        """Add a callback to be called during optimization loop.
-
-        Args:
-            callback: Function that takes optimization loop result dict as argument
-        """
-        self._optimization_loop_callbacks.append(callback)
 
     def add_status_callback(self, callback: Callable[[str], None]) -> None:
         """Add a callback to be called for status updates.
@@ -260,28 +202,6 @@ class PyBERT:  # pylint: disable=too-many-instance-attributes
                 callback(results)
             except Exception as e:
                 logger.error(f"Error in simulation callback: {e}")
-
-    def _notify_optimization_complete(self, result: dict) -> None:
-        """Notify all optimization callbacks with result."""
-        # Resolve the future if it exists (for blocking operations)
-        if self._optimization_future and not self._optimization_future.done():
-            self._optimization_future.set_result(result)
-            self._optimization_future = None
-
-        # Call all callbacks
-        for callback in self._optimization_callbacks:
-            try:
-                callback(result)
-            except Exception as e:
-                logger.error(f"Error in optimization callback: {e}")
-
-    def _notify_optimization_loop_complete(self, result: dict) -> None:
-        """Notify all optimization loop callbacks with result."""
-        for callback in self._optimization_loop_callbacks:
-            try:
-                callback(result)
-            except Exception as e:
-                logger.error(f"Error in optimization loop callback: {e}")
 
     def _notify_status_update(self, message: str) -> None:
         """Notify all status callbacks with message."""
@@ -696,13 +616,6 @@ class PyBERT:  # pylint: disable=too-many-instance-attributes
             self.simulation_thread.stop()
             self.simulation_thread.join(10)
 
-    def calculate_optimization_trials(self):
-        """Calculate the number of trials for the optimization."""
-        n_trials = int((self.max_mag_tune - self.min_mag_tune) / self.step_mag_tune)
-        for tuner in self.tx_tap_tuners:
-            n_trials *= int((tuner.max_val - tuner.min_val) / tuner.step)
-        return n_trials
-
     def optimize(self, block: bool = False, timeout: int = 180):
         """Start the optimization process using the tuner values.
 
@@ -713,53 +626,24 @@ class PyBERT:  # pylint: disable=too-many-instance-attributes
         Returns:
             If block is True, returns the optimization results. Otherwise returns None.
         """
-        if self.opt_thread and self.opt_thread.is_alive():
-            if block and self._optimization_future:
-                return self._optimization_future.result(timeout=timeout)
-            return None
+        if self.eq_optimizer.is_running():
+            pass
         elif self.is_valid_configuration():
-            logger.info("Starting optimization.")
-
-            # Create a future for blocking operations
-            if block:
-                self._optimization_future = Future()
-
-            self.opt_thread = OptThread()
-            self.opt_thread.pybert = self
-            self.opt_thread.start()
-
-            if block:
-                return self._optimization_future.result(timeout=timeout)
+            return self.eq_optimizer.optimize(self, block, timeout)
         return None
 
     def stop_optimization(self):
         """Stop the running optimization."""
-        logger.info("Stopping optimization.")
-        if self.opt_thread and self.opt_thread.is_alive():
-            self.opt_thread.stop()
-            self.opt_thread.join(10)
+        if self.eq_optimizer.is_running():
+            self.eq_optimizer.stop_optimization()
 
     def reset_optimization(self):
         """Reset the optimization back to what the current configuration is."""
-        logger.info("Resetting optimization.")
-        for i, tap in enumerate(self.tx_taps):
-            self.tx_tap_tuners[i].value = tap.value
-            self.tx_tap_tuners[i].enabled = tap.enabled
-        self.peak_freq_tune = self.peak_freq
-        self.peak_mag_tune = self.peak_mag
-        self.rx_bw_tune = self.rx_bw
-        self.ctle_enable_tune = self.ctle_enable
+        self.eq_optimizer.reset()
 
     def apply_optimization(self):
         """Apply the optimization to the current configuration."""
-        logger.info("Applying optimization.")
-        for i, tap in enumerate(self.tx_tap_tuners):
-            self.tx_taps[i].value = tap.value
-            self.tx_taps[i].enabled = tap.enabled
-        self.peak_freq = self.peak_freq_tune
-        self.peak_mag = self.peak_mag_tune
-        self.rx_bw = self.rx_bw_tune
-        self.ctle_enable = self.ctle_enable_tune
+        self.eq_optimizer.apply(self)
 
     def is_valid_configuration(self):
         """Validate that the user has selected a valid configuration for simulation or optimization."""

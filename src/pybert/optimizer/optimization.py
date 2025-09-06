@@ -54,7 +54,7 @@ class OptThread(StoppableThread):
             logger.info(
                 "Optimization complete. (SNR: %5.1f dB, Time: %5.1f s)", 20 * np.log10(fom), time.time() - start_time
             )
-            pybert._notify_optimization_complete(
+            pybert.eq_optimizer._notify_optimization_complete(
                 {
                     "tx_weights": tx_weights,
                     "dfe_weights": dfe_weights,
@@ -119,13 +119,13 @@ def coopt(
     """
 
     # Grab needed quantities from PyBERT instance.
-    min_mag = pybert.min_mag_tune
-    max_mag = pybert.max_mag_tune
-    step_mag = pybert.step_mag_tune
-    rx_bw = pybert.rx_bw_tune * 1e9
-    peak_freq = pybert.peak_freq_tune * 1e9
-    dfe_taps = pybert.dfe_tap_tuners
-    tx_taps = pybert.tx_tap_tuners
+    min_mag = pybert.eq_optimizer.min_mag_tune
+    max_mag = pybert.eq_optimizer.max_mag_tune
+    step_mag = pybert.eq_optimizer.step_mag_tune
+    rx_bw = pybert.eq_optimizer.rx_bw_tune * 1e9
+    peak_freq = pybert.eq_optimizer.peak_freq_tune * 1e9
+    dfe_taps = pybert.eq_optimizer.dfe_tap_tuners
+    tx_taps = pybert.eq_optimizer.tx_tap_tuners
     max_len = 100 * pybert.nspui
 
     # Calculate time/frequency vectors for CTLE.
@@ -149,13 +149,13 @@ def coopt(
         [
             [0 for _ in range(n_weights)],
         ],
-        list(enumerate(pybert.tx_tap_tuners)),
+        list(enumerate(pybert.eq_optimizer.tx_tap_tuners)),
     )
     for tx_weights in tx_weightss:
         tx_weights.insert(tx_curs_pos, 1 - sum(abs(np.array(tx_weights))))
 
     # Calculate CTLE gain candidates.
-    if pybert.ctle_enable_tune:
+    if pybert.eq_optimizer.ctle_enable_tune:
         peak_mags = np.arange(min_mag, max_mag + step_mag, step_mag)
     else:
         peak_mags = np.array([0])
@@ -218,7 +218,7 @@ def coopt(
                     clocks[ix] = 0
                 curs_time = pybert.t_ns[curs_ix]
                 t_ns_opt = pybert.t_ns[: len(p_tot)]
-                pybert._notify_optimization_loop_complete(
+                pybert.eq_optimizer._notify_optimization_loop_complete(
                     {
                         "clocks_tune": clocks,
                         "ctle_out_h_tune": p_tot,
@@ -234,7 +234,7 @@ def coopt(
             if not trials_run % 100:
                 pybert._notify_status_update(f"Optimizing EQ...({100 * trials_run // n_trials}%)")
                 time.sleep(0.001)
-                if pybert.opt_thread.stopped():
+                if pybert.eq_optimizer.opt_thread.stopped():
                     logger.warning("Optimization aborted by user.")
                     raise OptimizationAborted("Optimization aborted by user.")
 

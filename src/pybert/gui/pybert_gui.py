@@ -131,8 +131,8 @@ class PyBERTGUI(QMainWindow):
         thread safety.
         """
         self.pybert.add_simulation_callback(self._handle_simulation_complete)
-        self.pybert.add_optimization_callback(self._handle_optimization_complete)
-        self.pybert.add_optimization_loop_callback(self._handle_optimization_loop)
+        self.pybert.eq_optimizer.add_optimization_callback(self._handle_optimization_complete)
+        self.pybert.eq_optimizer.add_optimization_loop_callback(self._handle_optimization_loop)
         self.pybert.add_status_callback(self._handle_status_update)
 
     def connect_signals(self) -> None:
@@ -481,7 +481,7 @@ class PyBERTGUI(QMainWindow):
 
     def start_optimization(self):
         """Start the optimization."""
-        trials = self.pybert.calculate_optimization_trials()
+        trials = self.pybert.eq_optimizer.calculate_optimization_trials()
         if trials > 1_000_000:
             usr_resp = warning_dialog(
                 self,

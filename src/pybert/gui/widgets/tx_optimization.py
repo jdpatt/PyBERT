@@ -17,20 +17,20 @@ from PySide6.QtWidgets import (
 )
 
 from pybert.models.tx_tap import TxTapTuner
-from pybert.pybert import PyBERT
+from pybert.optimizer.optimizer import Optimizer
 
 
 class TxOptimizationWidget(QGroupBox):
     """Widget for configuring transmitter equalization."""
 
-    def __init__(self, pybert: PyBERT, parent: Optional[QWidget] = None) -> None:
+    def __init__(self, optimizer: Optimizer, parent: Optional[QWidget] = None) -> None:
         """Initialize the transmitter equalization widget.
 
         Args:
             parent: Parent widget
         """
         super().__init__("Tx Equalization", parent)
-        self.pybert = pybert
+        self.optimizer = optimizer
 
         # Create main layout
         layout = QVBoxLayout()
@@ -43,7 +43,7 @@ class TxOptimizationWidget(QGroupBox):
         self.ffe_table.setHorizontalHeaderLabels(headers)
 
         # Set default number of taps (can be changed later)
-        self.create_table(self.pybert.tx_tap_tuners)
+        self.create_table(self.optimizer.tx_tap_tuners)
 
         # Configure table appearance
         header = self.ffe_table.horizontalHeader()
@@ -59,9 +59,11 @@ class TxOptimizationWidget(QGroupBox):
 
         layout.addWidget(self.ffe_table)
 
-    def connect_signals(self, pybert) -> None:
+    def connect_signals(self) -> None:
         """Connect signals to PyBERT instance."""
-        self.ffe_table.itemChanged.connect(lambda item: setattr(pybert, "tx_tap_tuners", self.get_tap_values()))
+        self.ffe_table.itemChanged.connect(
+            lambda item: setattr(self.optimizer, "tx_tap_tuners", self.get_tap_values())
+        )
 
     def create_table(self, tuners: list[TxTapTuner]) -> None:
         """Set the number of FFE taps.
